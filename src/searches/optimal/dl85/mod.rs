@@ -95,7 +95,6 @@ where
     pub fn fit<S: Structure>(&mut self, structure: &mut S) {
         self.statistics.num_attributes = structure.num_attributes();
         let distribution = structure.labels_support();
-        println!("Distribution: {distribution:?}");
         self.statistics.num_samples = structure.support();
 
         // Init cache
@@ -235,8 +234,8 @@ where
             // TODO : Move this in a function
             if is_new {
                 structure.push(it);
+                let error = self.error_as_leaf(structure);
                 if let Some(node) = self.cache.get(itemset, child_index) {
-                    let error = self.error_function.compute(structure.labels_support());
                     node.leaf_error = error.0;
                     node.target = error.1;
                 }
@@ -297,8 +296,8 @@ where
 
             if is_new {
                 structure.push(it);
+                let error = self.error_as_leaf(structure);
                 if let Some(node) = self.cache.get(itemset, child_index) {
-                    let error = self.error_function.compute(structure.labels_support());
                     node.leaf_error = error.0;
                     node.target = error.1;
                 }
@@ -410,6 +409,16 @@ where
             itemset.remove(&item(attribute, i));
         }
         lower_bounds
+    }
+
+    fn error_as_leaf<S: Structure>(&self, structure: &mut S) -> (f64, f64) {
+        let error = match self.constraints.node_exposed_data {
+            NodeExposedData::ClassesSupport => {
+                self.error_function.compute(&structure.labels_support())
+            }
+            NodeExposedData::Tids => self.error_function.compute(&structure.get_tids()),
+        };
+        error
     }
 
     fn comput_similarity_lower_bounds<S: Structure>(

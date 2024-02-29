@@ -1,0 +1,13 @@
+[project]
+name = "pytrees-rs"
+version = "0.0.1"
+dependencies = [
+"scikit-learn",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/haroldks/pytrees-rs"
+
+
+[build-system]
+requires = ["setuptools", "wheel", "setuptools-rust"]

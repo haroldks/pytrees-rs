@@ -2,12 +2,14 @@ use crate::globals::{float_is_null, get_tree_root_error, item};
 use crate::searches::errors::{ErrorWrapper, NativeError};
 use crate::searches::optimal::d2::GenericDepth2;
 use crate::searches::utils::{Constraints, SearchStrategy};
+use crate::searches::Statistics;
 use crate::structures::Structure;
 use crate::tree::{NodeInfos, Tree, TreeNode};
 
 pub struct LGDT {
     pub error: f64,
     pub constraints: Constraints,
+    pub statistics: Statistics,
     search_method: GenericDepth2,
     error_function: NativeError,
     pub tree: Tree,
@@ -15,6 +17,13 @@ pub struct LGDT {
 
 impl LGDT {
     pub fn new(min_sup: usize, max_depth: usize, strategy: SearchStrategy) -> Self {
+        let constraints = Constraints {
+            max_depth,
+            min_sup,
+            search_strategy: strategy,
+            ..Default::default()
+        };
+
         Self {
             error: <f64>::INFINITY,
             constraints: Constraints {
@@ -22,6 +31,10 @@ impl LGDT {
                 min_sup,
                 search_strategy: strategy,
                 ..Default::default()
+            },
+            statistics: Statistics {
+                constraints,
+                ..Statistics::default()
             },
             search_method: GenericDepth2::new(strategy),
             error_function: NativeError::default(),
@@ -70,7 +83,9 @@ impl LGDT {
 
             self.tree = solution_tree;
         }
+
         self.error = get_tree_root_error(&self.tree);
+        self.update_statistics(structure)
     }
 
     fn recursion<S>(
@@ -206,6 +221,12 @@ impl LGDT {
                 self.move_tree(dest_tree, right_index, source_tree, source_right_index)
             }
         }
+    }
+
+    fn update_statistics<S: Structure>(&mut self, structure: &mut S) {
+        self.statistics.tree_error = self.error;
+        self.statistics.num_samples = structure.support();
+        self.statistics.num_attributes = structure.num_attributes();
     }
 }
 
