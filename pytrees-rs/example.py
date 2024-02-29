@@ -1,18 +1,20 @@
+import graphviz
 import numpy as np
-from pytrees import DL85Cluster, ExposedDataFormat
+from pytrees import DL85Classifier, ExposedDataFormat
 
-dataset = np.genfromtxt("../test_data/anneal.txt", delimiter=" ")
+dataset = np.genfromtxt("../test_data/vote.txt", delimiter=" ")
 X, y = dataset[:, 1:], dataset[:, 0]
 
 
-def error(tids, y):
-    classes, supports = np.unique(y.take(list(tids)), return_counts=True)
-    maxindex = np.argmax(supports)
-    return sum(supports) - supports[maxindex], classes[maxindex]
+clf = DL85Classifier(1, 2)
 
 
-clf = DL85Cluster(1, 2)
+clf.fit(X, y)
+print(clf.accuracy_)
+print(clf.tree_error_)
+print(clf.statistics)
 
-clf.fit(X)
+print(clf.score(X, y))
 
-print(clf.results.statistics)
+
+graphviz.Source(clf.export_to_graphviz_dot()).view()

@@ -1,7 +1,7 @@
 mod conditions;
 mod similarity;
 
-use crate::cache::Caching;
+use crate::cache::{CacheEntry, Caching};
 use crate::globals::{attribute, float_is_null, get_tree_root_error, item};
 use crate::heuristics::Heuristic;
 use crate::searches::errors::ErrorWrapper;
@@ -14,7 +14,8 @@ use crate::searches::utils::{
     SearchStrategy, Specialization, Statistics, StopReason,
 };
 use crate::structures::Structure;
-use crate::tree::Tree;
+use crate::tree::NodeInfos;
+use crate::tree::{Tree, TreeNode};
 use std::collections::BTreeSet;
 use std::time::Instant;
 
@@ -136,7 +137,7 @@ where
         );
 
         self.update_statistics();
-        //   self.generate_tree();
+        self.get_solution_tree();
     }
 
     fn recursion<S: Structure>(
@@ -543,6 +544,52 @@ where
                     itemset.remove(&it);
                 }
             }
+        }
+    }
+
+    fn create_solution_tree_entry(&self, cache_entry: &CacheEntry) -> NodeInfos {
+        let mut infos = NodeInfos::default();
+        infos.error = cache_entry.error;
+        match cache_entry.is_leaf {
+            true => {
+                infos.out = Some(cache_entry.target);
+            }
+            false => infos.test = Some(cache_entry.test),
+        };
+        infos
+    }
+
+    fn get_solution_tree(&mut self) {
+        let mut tree = Tree::new();
+        let mut path = BTreeSet::new();
+        if let Some(cache_root) = self.cache.get_root_infos() {
+            let infos = self.create_solution_tree_entry(cache_root);
+            let root = tree.add_root(TreeNode::new(infos));
+            self.get_solution_tree_recursion(cache_root.test, &mut path, &mut tree, root);
+        }
+        self.tree = tree;
+    }
+    fn get_solution_tree_recursion(
+        &self,
+        attribute: usize,
+        path: &mut BTreeSet<usize>,
+        tree: &mut Tree,
+        index: usize,
+    ) {
+        if attribute == <usize>::MAX {
+            return;
+        }
+
+        for branch in 0..2 {
+            path.insert(item(attribute, branch));
+            if let Some(cache_node) = self.cache.find(&path) {
+                let node_infos = self.create_solution_tree_entry(cache_node);
+                let child_index = tree.add_node(index, branch == 0, TreeNode::new(node_infos));
+                if !cache_node.is_leaf {
+                    self.get_solution_tree_recursion(cache_node.test, path, tree, child_index)
+                }
+            }
+            path.remove(&item(attribute, branch));
         }
     }
 }

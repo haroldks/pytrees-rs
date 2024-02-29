@@ -85,6 +85,14 @@ struct Args {
     /// Max error
     #[arg(long, default_value_t = <f64>::INFINITY)]
     max_error: f64,
+
+    /// Printing Statistics and Constraints
+    #[arg(long, default_value_t = false)]
+    print_stats: bool,
+
+    /// Printing Tree
+    #[arg(long, default_value_t = false)]
+    print_tree: bool,
 }
 
 fn main() {
@@ -178,5 +186,12 @@ fn main() {
         heuristic,
     );
     learner.fit(&mut structure);
-    println!("{:#?}", learner.statistics)
+
+    if args.print_stats {
+        println!("{:#?}", learner.statistics);
+    }
+
+    if args.print_tree {
+        learner.tree.print();
+    }
 }
