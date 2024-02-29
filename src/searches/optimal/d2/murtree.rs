@@ -90,16 +90,12 @@ impl Murtree {
 
         for (i, first) in candidates.iter().enumerate() {
             // LEFT PART
-            // println!("First : {}", first);
-            // tree.print();
-
             let i_right_classes_support = &matrix[i][i];
             let i_left_classes_support =
                 deduce_sibling_error(&classes_support, i_right_classes_support);
 
             let root_right_support = matrix[i][i].iter().sum::<usize>();
             let root_left_support = support - root_right_support;
-            // println!("Left sup : {}, right_sup {}", root_right_support, root_left_support);
             if root_left_support < min_sup || root_right_support < min_sup {
                 continue;
             }
@@ -182,12 +178,6 @@ impl Murtree {
                         self.error_function.compute(&i_left_j_left_classes_support);
 
                     // TODO Upper bound control here
-                    // println!("Feature error : {:?}", feat_error);
-                    // println!("First : {}", first);
-                    // if *first == 5 {
-                    //     println!("First attribute : {:?} Second attribute : {:?} Left error : {:?} Right error : {:?}\n", first, second, left_leaf_error.0, right_leaf_error.0);
-                    // }
-
                     if (left_leaf_error.0 + right_leaf_error.0) >= feat_error {
                         continue;
                     }
@@ -220,9 +210,6 @@ impl Murtree {
                 }
             }
 
-            // println!("Root tree Before going to the right");
-            // root_tree.print();
-
             if root_right_support < 2 * min_sup {
                 let error = self.error_function.compute(i_right_classes_support);
                 if let Some(right_node) = root_tree.get_node_mut(right_index) {
@@ -247,12 +234,9 @@ impl Murtree {
                 if let Some(root) = tree.get_node(tree.get_root_index()) {
                     feat_error = root.value.error;
                 }
-                // println!("Before feat_error: {}", feat_error);
                 let mut current_left_error = MAX_ERROR;
-                //root_tree.print();
                 if let Some(left_node) = root_tree.get_node(left_index) {
                     current_left_error = left_node.value.error;
-                    // feat_error = feat_error.saturating_sub(left_node.value.error);
                 }
 
                 let error = self.error_function.compute(i_right_classes_support);

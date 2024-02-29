@@ -112,8 +112,7 @@ fn main() {
         0 => LowerBoundStrategy::None_,
         1 => LowerBoundStrategy::Similarity,
         _ => {
-            println!("Invalid lower bound heuristic");
-            process::exit(1);
+            panic!("Invalid lower bound heuristic");
         }
     };
 
@@ -127,8 +126,7 @@ fn main() {
         0 => BranchingStrategy::None_,
         1 => BranchingStrategy::Dynamic,
         _ => {
-            println!("Invalid branching type");
-            process::exit(1);
+            panic!("Invalid branching type");
         }
     };
 
@@ -138,8 +136,7 @@ fn main() {
         2 => Box::<InformationGain>::default(),
         3 => Box::<InformationGainRatio>::default(),
         _ => {
-            println!("Invalid heuristic type");
-            process::exit(1);
+            panic!("Invalid heuristic type");
         }
     };
 

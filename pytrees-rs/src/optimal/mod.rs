@@ -10,13 +10,10 @@ use dtrees_rs::heuristics::{
 };
 use dtrees_rs::searches::errors::{ErrorWrapper, NativeError};
 use dtrees_rs::searches::optimal::DL85;
-use dtrees_rs::searches::SearchStrategy::None_;
 use dtrees_rs::searches::{
-    BranchingStrategy, CacheInitStrategy, LowerBoundStrategy, NodeExposedData, SearchStrategy,
-    Specialization,
+    BranchingStrategy, CacheInitStrategy, LowerBoundStrategy, NodeExposedData, Specialization,
 };
 use dtrees_rs::structures::RevBitset;
-use dtrees_rs::tree::Tree;
 use numpy::PyReadonlyArrayDyn;
 use pyo3::prelude::*;
 

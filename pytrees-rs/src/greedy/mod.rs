@@ -1,8 +1,7 @@
 use crate::utils::{ExposedSearchStrategy, LearningResult};
 use dtrees_rs::data::{BinaryData, FileReader};
-use dtrees_rs::searches::errors::NativeError;
 use dtrees_rs::searches::greedy::LGDT;
-use dtrees_rs::searches::{SearchStrategy, Statistics};
+use dtrees_rs::searches::SearchStrategy;
 use dtrees_rs::structures::RevBitset;
 use numpy::PyReadonlyArrayDyn;
 use pyo3::prelude::*;

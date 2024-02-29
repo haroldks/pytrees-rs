@@ -95,7 +95,6 @@ where
 
     pub fn fit<S: Structure>(&mut self, structure: &mut S) {
         self.statistics.num_attributes = structure.num_attributes();
-        let distribution = structure.labels_support();
         self.statistics.num_samples = structure.support();
 
         // Init cache
@@ -415,7 +414,7 @@ where
     fn error_as_leaf<S: Structure>(&self, structure: &mut S) -> (f64, f64) {
         let error = match self.constraints.node_exposed_data {
             NodeExposedData::ClassesSupport => {
-                self.error_function.compute(&structure.labels_support())
+                self.error_function.compute(structure.labels_support())
             }
             NodeExposedData::Tids => self.error_function.compute(&structure.get_tids()),
         };
@@ -548,8 +547,10 @@ where
     }
 
     fn create_solution_tree_entry(&self, cache_entry: &CacheEntry) -> NodeInfos {
-        let mut infos = NodeInfos::default();
-        infos.error = cache_entry.error;
+        let mut infos = NodeInfos {
+            error: cache_entry.error,
+            ..Default::default()
+        };
         match cache_entry.is_leaf {
             true => {
                 infos.out = Some(cache_entry.target);
@@ -582,7 +583,7 @@ where
 
         for branch in 0..2 {
             path.insert(item(attribute, branch));
-            if let Some(cache_node) = self.cache.find(&path) {
+            if let Some(cache_node) = self.cache.find(path) {
                 let node_infos = self.create_solution_tree_entry(cache_node);
                 let child_index = tree.add_node(index, branch == 0, TreeNode::new(node_infos));
                 if !cache_node.is_leaf {
