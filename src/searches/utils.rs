@@ -1,3 +1,4 @@
+use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -71,25 +72,31 @@ pub enum NodeExposedData {
     Tids,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum)]
 pub enum Specialization {
     Murtree,
     None_,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum)]
 pub enum LowerBoundStrategy {
     Similarity,
     None_,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum)]
 pub enum BranchingStrategy {
     Dynamic,
     None_,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum)]
+pub enum CacheType {
+    Trie,
+    Hashmap,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum)]
 pub enum CacheInitStrategy {
     DynamicAllocation,
     UserAllocation,
@@ -114,4 +121,18 @@ pub enum StopReason {
     PureNode,
     FromSpecializedAlgorithm,
     None,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum)]
+pub enum SearchHeuristic {
+    InformationGain,
+    InformationGainRatio,
+    GiniIndex,
+    None_,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum)]
+pub enum D2Objective {
+    Error,
+    InformationGain,
 }
