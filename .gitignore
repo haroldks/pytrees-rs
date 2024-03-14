@@ -208,5 +208,6 @@ data/*
 !test_data/letter.txt
 !test_data/mushroom.txt
 
+experiments/*
 TODO.md
 *.csv

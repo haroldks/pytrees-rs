@@ -14,3 +14,14 @@ pip install pytrees-rs
 ```
 
 ## Installing from source
+
+After cloning the project as mentioned [here](../installation.md)  you'll find a subdirectory named **pytrees-rs**
+containing the source code for the interface.
+
+To install the interface in your Python environment, follow these instructions:
+
+```bash
+pip install --upgrade pip
+cd pytrees-rs
+pip install .
+```

@@ -30,4 +30,4 @@ LGDT assesses error or information gain over two levels to determine the local b
 For a more in-depth understanding, refer to the details provided in the accompanying [paper](https://www.info.ucl.ac.be/~pschaus/assets/publi/ida2024_efficient_lookehead_decision_trees.pdf).
 
 
-For more information on how to use Pytrees-rs, check the [documentation]().
+For more information on how to use Pytrees-rs, check the [documentation](https://haroldks.github.io/pytrees-rs/installation.html).
