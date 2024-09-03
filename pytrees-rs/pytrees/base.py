@@ -1,5 +1,7 @@
 import uuid
-from sklearn.utils import check_array, check_X_y, assert_all_finite
+from sklearn.utils import check_array
+from sklearn.exceptions import NotFittedError
+from .exceptions import TreeNotFoundError, SearchFailedError
 
 
 class DecisionTree:

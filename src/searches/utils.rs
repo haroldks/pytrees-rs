@@ -120,6 +120,7 @@ pub enum StopReason {
     NotEnoughSupport,
     PureNode,
     FromSpecializedAlgorithm,
+    BranchBudgetExhausted,
     None,
 }
 

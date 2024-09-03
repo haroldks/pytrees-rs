@@ -1,5 +1,7 @@
 pub mod trie;
 
+pub use trie::Trie;
+
 use std::collections::BTreeSet;
 
 pub const MAX_ERROR: f64 = <f64>::INFINITY;
@@ -9,6 +11,8 @@ pub trait Caching {
     fn init(&mut self) -> Option<usize>;
 
     fn get_root_infos(&self) -> Option<&CacheEntry>;
+
+    fn set_root_infos(&mut self) -> Option<&mut CacheEntry>;
 
     // Check if there is a node inside the cache for the current itemset
     fn get(&mut self, itemset: &BTreeSet<usize>, index: Option<usize>) -> Option<&mut CacheEntry>;
@@ -31,6 +35,7 @@ pub trait Caching {
 pub struct CacheEntry {
     pub item: usize,
     pub test: usize,
+    pub discrepancy: usize,
     pub error: f64,
     pub upper_bound: f64,
     pub lower_bound: f64,
@@ -45,6 +50,7 @@ impl CacheEntry {
         Self {
             item,
             test: <usize>::MAX,
+            discrepancy: 0,
             error: MAX_ERROR,
             upper_bound: MAX_ERROR,
             lower_bound: 0.0,
@@ -66,6 +72,7 @@ impl Default for CacheEntry {
         Self {
             item: <usize>::MAX,
             test: <usize>::MAX,
+            discrepancy: 0,
             error: MAX_ERROR,
             upper_bound: MAX_ERROR,
             lower_bound: 0.0,

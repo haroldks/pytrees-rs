@@ -57,7 +57,7 @@ pub trait Depth2Algorithm {
     fn build_depth_two_matrix<S: Structure>(
         &self,
         structure: &mut S,
-        candidates: &Vec<usize>,
+        candidates: &[usize],
     ) -> Vec<Vec<Vec<usize>>> {
         let size = candidates.len();
         let mut matrix = vec![vec![vec![]; size]; size];

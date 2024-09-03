@@ -98,6 +98,7 @@ pub struct LearningResult {
     pub(crate) tree: Tree,
     pub(crate) constraints: Constraints,
     pub(crate) statistics: Statistics,
+    pub(crate) duration: f64,
 }
 
 #[pymethods]
@@ -120,5 +121,10 @@ impl LearningResult {
     pub fn tree(&self) -> PyResult<String> {
         let json = serde_json::to_string_pretty(&self.tree).unwrap();
         Ok(json)
+    }
+
+    #[getter]
+    pub fn duration(&self) -> f64 {
+        self.duration
     }
 }
