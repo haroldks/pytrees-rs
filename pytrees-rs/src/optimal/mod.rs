@@ -1,3 +1,5 @@
+pub mod partial;
+
 use crate::utils::{
     ExposedBranchingStrategy, ExposedCacheInitStrategy, ExposedDataFormat,
     ExposedLowerBoundStrategy, ExposedSearchHeuristic, ExposedSpecialization, LearningResult,
@@ -17,6 +19,7 @@ use dtrees_rs::structures::RevBitset;
 use numpy::PyReadonlyArrayDyn;
 use pyo3::prelude::*;
 
+pub use partial::PyGenericDl85;
 #[pyfunction]
 #[pyo3(name = "dl85")]
 #[pyo3(signature = (input, target=None, min_sup=1, max_depth=2, time=600, cache_init_size=0, error=<f64>::INFINITY, one_time_sort=true, exposed_data_format=ExposedDataFormat::ClassSupports, specialization=ExposedSpecialization::Murtree, lower_bound=ExposedLowerBoundStrategy::Similarity, branching_type=ExposedBranchingStrategy::Dynamic, heuristic=ExposedSearchHeuristic::None_, cache_init_strategy=ExposedCacheInitStrategy::None_, error_function=None,))]

@@ -1,4 +1,7 @@
+mod rules;
+
 use crate::globals::{compute_entropy, item};
+use crate::searches::errors::classification_error;
 use crate::structures::Structure;
 use float_cmp::{ApproxEq, F64Margin};
 
@@ -186,5 +189,51 @@ trait Handler {
             return info_gain / split_info;
         }
         info_gain
+    }
+}
+
+#[derive(Default)]
+pub struct Purity;
+
+impl Heuristic for Purity {
+    fn compute(&self, structure: &mut dyn Structure, candidates: &mut Vec<usize>) {
+        let root_classes_support = structure.labels_support().to_vec();
+        let mut candidates_sorted = vec![];
+        for attribute in candidates.iter() {
+            let purity = Self::purity_by_attribute(*attribute, structure, &root_classes_support);
+            candidates_sorted.push((*attribute, purity));
+        }
+        candidates_sorted.sort_by(|a, b| 0.1.partial_cmp(&a.1).unwrap());
+        *candidates = candidates_sorted
+            .iter()
+            .map(|(a, _)| *a)
+            .collect::<Vec<usize>>();
+    }
+}
+
+impl Purity {
+    fn purity_by_attribute(
+        attribute: usize,
+        structure: &mut dyn Structure,
+        root_classes_support: &[usize],
+    ) -> f64 {
+        let _ = structure.push(item(attribute, 0));
+        let left_classes_supports = structure.labels_support().to_vec();
+
+        let left_error = classification_error(&left_classes_supports);
+
+        structure.backtrack();
+
+        let total = root_classes_support.iter().sum::<usize>() as f64;
+
+        let right_classes_support = root_classes_support
+            .iter()
+            .enumerate()
+            .map(|(idx, val)| *val - left_classes_supports[idx])
+            .collect::<Vec<usize>>();
+
+        let right_error = classification_error(&right_classes_support);
+
+        (left_error.0 + right_error.0) / total
     }
 }

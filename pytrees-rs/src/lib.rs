@@ -1,5 +1,5 @@
 use crate::greedy::search_lgdt;
-use crate::optimal::optimal_search_dl85;
+use crate::optimal::{optimal_search_dl85, PyGenericDl85};
 use crate::utils::{
     ExposedBranchingStrategy, ExposedCacheInitStrategy, ExposedCacheType, ExposedDataFormat,
     ExposedLowerBoundStrategy, ExposedSearchHeuristic, ExposedSearchStrategy,
@@ -45,6 +45,7 @@ fn enums(py: Python<'_>, parent_module: &PyModule) -> PyResult<()> {
 fn odt(py: Python<'_>, parent_module: &PyModule) -> PyResult<()> {
     let module = PyModule::new(py, "odt")?;
     module.add_function(wrap_pyfunction!(optimal_search_dl85, module)?)?;
+    module.add_class::<PyGenericDl85>()?;
 
     parent_module.add_submodule(module)?;
     py.import("sys")?

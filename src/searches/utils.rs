@@ -119,6 +119,7 @@ pub enum StopReason {
     MaxDepthReached,
     NotEnoughSupport,
     PureNode,
+    PureEnough,
     FromSpecializedAlgorithm,
     BranchBudgetExhausted,
     None,
