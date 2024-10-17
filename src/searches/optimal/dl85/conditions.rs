@@ -20,9 +20,9 @@ impl StopConditions {
         discrepancy: Option<usize>,
         discrepancy_budget: Option<usize>,
     ) -> (bool, StopReason) {
-        if self.node_is_optimal(node) {
-            return (true, StopReason::Done);
-        }
+        // if self.node_is_optimal(node) {
+        //     return (true, StopReason::Done);
+        // }
 
         if self.time_limit_reached(current_time, max_time, node) {
             if let Some(dis) = discrepancy {
@@ -75,9 +75,12 @@ impl StopConditions {
         discrepancy_budget: Option<usize>,
         purity: f64,
     ) -> (bool, StopReason) {
-        // FIXME : Bug !!!!
-        if self.node_is_optimal(node) {
-            return (true, StopReason::Done);
+        if self.node_is_optimal(node) && node.upper_bound >= upper_bound {
+            if node.upper_bound < upper_bound {
+                node.is_optimal = false;
+            } else {
+                return (true, StopReason::Done);
+            }
         }
 
         if self.time_limit_reached(current_time, max_time, node) {

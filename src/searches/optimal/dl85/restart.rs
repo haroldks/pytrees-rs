@@ -4,7 +4,6 @@ use crate::heuristics::Heuristic;
 use crate::searches::errors::ErrorWrapper;
 use crate::searches::optimal::d2::Murtree;
 use crate::searches::optimal::dl85::conditions::StopConditions;
-use crate::searches::optimal::dl85::discrepancies::Discrepancy;
 use crate::searches::optimal::dl85::similarity::SimilarityCover;
 use crate::searches::optimal::dl85::{BranchChoice, SearchReturn};
 use crate::searches::optimal::Depth2Algorithm;
@@ -110,20 +109,13 @@ where
         }
 
         self.runtime = Instant::now();
-        let mut n = 1;
         let time_limit = self
             .restart_time
             .map_or(self.constraints.max_time, |time| time);
         while !self.time_is_up() {
-            println!("Time limit = {:?}", time_limit);
             let return_infos = self.partial_fit(structure, Some(time_limit));
-            n += 1;
 
-            println!("{:?}", return_infos);
-            if n == 3 {
-                break;
-            }
-            if float_is_null(return_infos.0) {
+            if float_is_null(return_infos.0) || self.is_optimal() {
                 break;
             }
         }
@@ -135,14 +127,6 @@ where
         max_time: Option<usize>,
     ) -> SearchReturn {
         self.nb_runs += 1;
-        // println!("nb_run : {}", self.nb_runs);
-        // if self.purity_threshold < 1.0 {
-        //     self.purity_threshold += 0.1;
-        // }
-        // else {
-        //     self.purity_threshold = 1.0;
-        // }
-
         let mut root_index = Some(0);
         let mut error = <f64>::INFINITY;
         self.restart_time = max_time;
@@ -178,10 +162,8 @@ where
             self.heuristic.compute(structure, &mut candidates);
             self.root_candidates = candidates;
             self.runtime = Instant::now();
-        } else {
-            if let Some(root) = self.cache.get_root_infos() {
-                error = root.error;
-            }
+        } else if let Some(root) = self.cache.get_root_infos() {
+            error = root.error;
         }
 
         let mut itemset = BTreeSet::new();
@@ -194,7 +176,7 @@ where
             error,
             <usize>::MAX,
             &mut itemset,
-            &vec![],
+            &[],
             root_index,
             true,
             &mut similarity,
@@ -220,7 +202,7 @@ where
         similarity: &mut SimilarityCover,
     ) -> SearchReturn {
         let mut child_upper_bound = upper_bound;
-        let mut current_support = structure.support();
+        let current_support = structure.support();
         self.statistics.search_space_size += 1;
         // BEGIN STEP: Check if we should stop
         let time_limit = self
@@ -246,24 +228,14 @@ where
                 self.purity_threshold,
             );
 
-            if itemset.iter().eq([7, 104, 135].iter()) {
-                println!("peculiar data;");
-                println!(
-                    "Itemset : {:?} condition {:?}, new  : {}",
-                    itemset, return_condition, parent_is_new
-                );
-                println!("Node : {:?}", node);
-            }
-
-            // println!("Itemset : {:?} condition {:?}", itemset, return_condition);
-
             if return_condition.0 {
+                node.upper_bound = upper_bound;
                 return (node.error, return_condition.1, false);
             }
         }
 
         if !parent_is_new {
-            current_support = structure.push(parent_item);
+            let _ = structure.push(parent_item);
         }
 
         // TODO: Implement the similarity
@@ -317,16 +289,14 @@ where
             .map_or(<f64>::INFINITY, |infos| infos.error);
 
         for &child in node_candidates.iter() {
-            // TODO for the last node or the node to be fully explored is to be checked.
             let branching_choice =
                 self.branching_strategy(child, itemset, structure, &mut child_similarity_data);
 
             let it = item(child, branching_choice.0);
+
             itemset.insert(it);
 
             let (is_new, child_index) = self.cache.insert(itemset);
-
-            // let leaf_error = self.cache.get(itemset, child_index).map_or(<f64>::INFINITY, |node| node.leaf_error);
 
             // TODO : Move this in a function
             if is_new {
@@ -337,13 +307,13 @@ where
                     node.target = error.1;
                     node.size = size;
                 }
+            } else {
+                self.statistics.cache_callbacks += 1;
             }
 
             if let Some(node) = self.cache.get(itemset, child_index) {
                 node.lower_bound = branching_choice.1;
             }
-
-            // TODO : Add here a flag to check if the part is fully explored so that if it is not the case We can say it to the cache
 
             let first_child_return = self.recursion(
                 structure,
@@ -359,7 +329,7 @@ where
 
             let left_error = first_child_return.0;
 
-            // Now that the search is done. We have to see if the we new to go back to previous
+            // Now that the search is done. We have to see if that we need to go back to previous
             self.backtrack(
                 structure,
                 itemset,
@@ -381,6 +351,11 @@ where
                     );
                 }
                 itemset.remove(&it);
+
+                if self.restart_timer.elapsed().as_secs() as usize >= time_limit {
+                    return (parent_error, StopReason::TimeLimitReached, true);
+                }
+
                 continue;
             }
 
@@ -393,7 +368,6 @@ where
             itemset.insert(it);
 
             let (is_new, child_index) = self.cache.insert(itemset);
-            // let leaf_error = self.cache.get(itemset, child_index).map_or(<f64>::INFINITY, |node| node.leaf_error);
 
             if is_new {
                 let size = structure.push(it);
@@ -403,7 +377,10 @@ where
                     node.target = error.1;
                     node.size = size;
                 }
+            } else {
+                self.statistics.cache_callbacks += 1;
             }
+
             if let Some(node) = self.cache.get(itemset, child_index) {
                 node.lower_bound = branching_choice.2;
             }
@@ -421,7 +398,8 @@ where
             );
 
             let right_error = second_child_return.0;
-            // Now that the search is done. We have to see if the we new to go back to previous
+
+            // Now that the search is done. We have to see if that we need to go back to previous
             self.backtrack(
                 structure,
                 itemset,
@@ -433,54 +411,37 @@ where
             );
             itemset.remove(&it);
 
-            if left_error.is_infinite() || right_error.is_infinite() {
-                if itemset.iter().eq([104, 135].iter()) {
-                    println!("left : {}, right {}", left_error, right_error);
-                    itemset.insert(it);
-                    println!("Itemset : {:?}", itemset);
-                    if let Some(node) = self.cache.get(itemset, child_index) {
-                        println!("Right node value : {:?}", node)
-                    }
-                    itemset.remove(&it);
-                }
-
-                continue;
-            }
-
             let feature_error = left_error + right_error;
             if feature_error < child_upper_bound {
                 child_upper_bound = feature_error;
-
                 if let Some(parent_node) = self.cache.get(itemset, parent_index) {
                     parent_node.error = child_upper_bound;
                     parent_error = child_upper_bound;
                     parent_node.test = child;
 
                     if float_is_null(parent_node.lower_bound - child_upper_bound) {
-                        break;
+                        parent_node.is_optimal = true;
+                        parent_node.upper_bound = upper_bound;
+                        return (parent_error, StopReason::Done, true);
                     }
                 }
             } else {
                 min_lower_bound = <f64>::min(feature_error, min_lower_bound);
             }
 
-            // if self.purity_threshold < 1.0 {
-            //    let purity = 1.0 -  parent_error / current_support as f64;
-            //     if purity >= self.purity_threshold {
-            //         // println!("Itemset {:?}, purity :{:?}, error : {}, support: {}", itemset, purity, feature_error, current_support);
-            //         return (parent_error, StopReason::PureEnough, true);
-            //     }
-            // }
-
             if self.restart_timer.elapsed().as_secs() as usize >= time_limit {
                 return (parent_error, StopReason::TimeLimitReached, true);
             }
         }
 
+        // TODO : useless Parent error should be directly used
         let mut node_error = 0.0;
+
         if let Some(node) = self.cache.get(itemset, parent_index) {
             node_error = node.error;
             node.is_optimal = true;
+            node.upper_bound = upper_bound;
+
             if node.error.is_infinite() {
                 node.lower_bound =
                     <f64>::max(node.lower_bound, <f64>::max(min_lower_bound, upper_bound));

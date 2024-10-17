@@ -104,7 +104,11 @@ impl Caching for Trie {
                 index = self.create_cache_entry(index, *item);
             }
         }
-        (is_new, Some(index))
+
+        let leaf_is_infinite = self
+            .get_node(index)
+            .map_or(false, |node| node.infos.leaf_error.is_infinite());
+        (leaf_is_infinite || is_new, Some(index))
     }
 
     fn size(&self) -> usize {
