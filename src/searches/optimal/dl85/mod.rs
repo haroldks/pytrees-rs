@@ -182,6 +182,7 @@ where
             );
 
             if return_condition.0 {
+                node.upper_bound = upper_bound;
                 return (node.error, return_condition.1, false);
             }
         }
@@ -235,23 +236,31 @@ where
         let mut child_similarity_data = SimilarityCover::default();
         let mut min_lower_bound = <f64>::INFINITY;
 
-        for child in node_candidates.iter() {
-            let branching_choice =
-                self.branching_strategy(*child, itemset, structure, &mut child_similarity_data);
+        let mut parent_error = self
+            .cache
+            .get(itemset, parent_index)
+            .map_or(<f64>::INFINITY, |infos| infos.error);
 
-            let it = item(*child, branching_choice.0);
+        for &child in node_candidates.iter() {
+            let branching_choice =
+                self.branching_strategy(child, itemset, structure, &mut child_similarity_data);
+
+            let it = item(child, branching_choice.0);
             itemset.insert(it);
 
             let (is_new, child_index) = self.cache.insert(itemset);
 
             // TODO : Move this in a function
             if is_new {
-                structure.push(it);
+                let size = structure.push(it);
                 let error = self.error_as_leaf(structure);
                 if let Some(node) = self.cache.get(itemset, child_index) {
                     node.leaf_error = error.0;
                     node.target = error.1;
+                    node.size = size;
                 }
+            } else {
+                self.statistics.cache_callbacks += 1;
             }
 
             if let Some(node) = self.cache.get(itemset, child_index) {
@@ -272,7 +281,7 @@ where
 
             let left_error = first_child_return.0;
 
-            // Now that the search is done. We have to see if the we new to go back to previous
+            // Now that the search is done. We have to see if that we need to go back to previous
             self.backtrack(
                 structure,
                 itemset,
@@ -302,18 +311,21 @@ where
 
             // Going to the left
             let right_upper_bound = child_upper_bound - left_error;
-            let it = item(*child, (branching_choice.0 + 1) % 2);
+            let it = item(child, (branching_choice.0 + 1) % 2);
             itemset.insert(it);
 
             let (is_new, child_index) = self.cache.insert(itemset);
 
             if is_new {
-                structure.push(it);
+                let size = structure.push(it);
                 let error = self.error_as_leaf(structure);
                 if let Some(node) = self.cache.get(itemset, child_index) {
                     node.leaf_error = error.0;
                     node.target = error.1;
+                    node.size = size;
                 }
+            } else {
+                self.statistics.cache_callbacks += 1;
             }
             if let Some(node) = self.cache.get(itemset, child_index) {
                 node.lower_bound = branching_choice.2;
@@ -333,7 +345,7 @@ where
 
             let right_error = second_child_return.0;
 
-            // Now that the search is done. We have to see if the we new to go back to previous
+            // Now that the search is done. We have to see if that we need to go back to previous
             self.backtrack(
                 structure,
                 itemset,
@@ -345,22 +357,19 @@ where
             );
             itemset.remove(&it);
 
-            if left_error.is_infinite() || right_error.is_infinite() {
-                continue;
-            }
-
             let feature_error = left_error + right_error;
 
             if feature_error < child_upper_bound {
                 child_upper_bound = feature_error;
-
                 if let Some(parent_node) = self.cache.get(itemset, parent_index) {
                     parent_node.error = child_upper_bound;
-
-                    parent_node.test = *child;
+                    parent_error = child_upper_bound;
+                    parent_node.test = child;
 
                     if float_is_null(parent_node.lower_bound - child_upper_bound) {
-                        break;
+                        parent_node.is_optimal = true;
+                        parent_node.upper_bound = upper_bound;
+                        return (parent_error, StopReason::Done, true);
                     }
                 }
             } else {
@@ -368,14 +377,18 @@ where
             }
         }
 
+        // TODO : useless Parent error should be directly used
         let mut node_error = 0.0;
         if let Some(node) = self.cache.get(itemset, parent_index) {
             node_error = node.error;
+            node.is_optimal = true;
+            node.upper_bound = upper_bound;
+
             if node.error.is_infinite() {
                 node.lower_bound =
                     <f64>::max(node.lower_bound, <f64>::max(min_lower_bound, upper_bound));
+                return (node.error, StopReason::LowerBoundConstrained, true);
             }
-            return (node.error, StopReason::LowerBoundConstrained, true);
         }
 
         (node_error, StopReason::Done, true)
@@ -546,6 +559,7 @@ where
             if let Some(cache_node) = self.cache.get(itemset, index) {
                 cache_node.error = tree_node.value.error;
                 cache_node.leaf_error = tree_node.value.error;
+                cache_node.is_optimal = true;
 
                 if tree_node.value.test.is_none() {
                     cache_node.is_leaf = true;
