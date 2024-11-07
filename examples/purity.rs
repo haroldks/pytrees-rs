@@ -1,25 +1,27 @@
 use dtrees_rs::cache::Trie;
 use dtrees_rs::data::BinaryData;
 use dtrees_rs::data::FileReader;
-use dtrees_rs::heuristics::{InformationGain, NoHeuristic};
+use dtrees_rs::heuristics::{GiniIndex, InformationGain, NoHeuristic};
 use dtrees_rs::searches::errors::NativeError;
-use dtrees_rs::searches::optimal::{RestartDL85, DL85};
+use dtrees_rs::searches::optimal::{PurityDL85, RestartDL85};
 use dtrees_rs::searches::{
     BranchingStrategy, CacheInitStrategy, LowerBoundStrategy, NodeExposedData, Specialization,
 };
 use dtrees_rs::structures::RevBitset;
 
 fn main() {
-    let data = BinaryData::read("test_data/ttt.txt", false, 0.0);
+    let data = BinaryData::read("test_data/anneal.txt", false, 0.0);
     let mut structure = RevBitset::new(&data);
     let error_function = Box::<NativeError>::default();
     let cache = Box::<Trie>::default();
     let heuristics = Box::<NoHeuristic>::default();
 
-    let mut learner = DL85::new(
+    let mut learner = PurityDL85::new(
         1,
-        4,
+        3,
         <f64>::INFINITY,
+        0.1,
+        0.05,
         600,
         true,
         0,

@@ -6,14 +6,15 @@ from sklearn.utils import check_array, check_X_y, assert_all_finite
 from pytreesrs.odt import dl85, PyGenericDl85
 
 
-class RestartDL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
+class PurityDL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
     def __init__(
         self,
         min_sup=1,
         max_depth=1,
-        restart_time=10,
-        max_time=600,
         max_error=1e10,
+        purity=0.5,
+        epsilon=0.1,
+        max_time=600,
         cache_init_size=0,
         one_time_sort=True,
         data_format=ExposedDataFormat.ClassSupports,
@@ -28,7 +29,8 @@ class RestartDL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
         self.min_sup = min_sup
         self.max_depth = max_depth
         self.max_error = max_error
-        self.restart_time = restart_time
+        self.purity = purity
+        self.epsilon = epsilon
         self.max_time = max_time
         self.cache_init_size = cache_init_size
         self.one_time_sort = one_time_sort
@@ -46,10 +48,10 @@ class RestartDL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
         self.internal = PyGenericDl85(
             self.min_sup,
             self.max_depth,
-            self.restart_time,
+            None,
             self.max_time,
-            None,
-            None,
+            self.purity,
+            self.epsilon,
             self.cache_init_size,
             self.max_error,
             self.one_time_sort,
@@ -60,7 +62,7 @@ class RestartDL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
             self.heuristic,
             self.cache_init_strategy,
             self.error_function,
-            ExposedSearchStrategy.RestartTimeout,
+            ExposedSearchStrategy.PurityLimit,
         )
 
     def fit(self, X, y=None):

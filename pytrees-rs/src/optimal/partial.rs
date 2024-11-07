@@ -1,7 +1,7 @@
 use crate::utils::{
     ExposedBranchingStrategy, ExposedCacheInitStrategy, ExposedDataFormat,
-    ExposedLowerBoundStrategy, ExposedSearchHeuristic, ExposedSpecialization, LearningResult,
-    PythonError,
+    ExposedLowerBoundStrategy, ExposedSearchHeuristic, ExposedSearchStrategy,
+    ExposedSpecialization, LearningResult, PythonError,
 };
 use dtrees_rs::cache::Trie;
 use dtrees_rs::data::{BinaryData, FileReader};
@@ -11,8 +11,8 @@ use dtrees_rs::heuristics::{
 use dtrees_rs::searches::errors::{ErrorWrapper, NativeError};
 use dtrees_rs::searches::optimal::GenericDL85;
 use dtrees_rs::searches::{
-    BranchingStrategy, CacheInitStrategy, LowerBoundStrategy, NodeExposedData, Specialization,
-    Statistics,
+    BranchingStrategy, CacheInitStrategy, LowerBoundStrategy, NodeExposedData, SearchStrategy,
+    Specialization, Statistics,
 };
 use dtrees_rs::structures::RevBitset;
 use numpy::PyReadonlyArrayDyn;
@@ -29,11 +29,14 @@ pub struct PyGenericDl85 {
 #[pymethods]
 impl PyGenericDl85 {
     #[new]
-    #[pyo3(signature = (min_sup=1, max_depth=2, time=600, cache_init_size=0, error=<f64>::INFINITY, one_time_sort=true, exposed_data_format=ExposedDataFormat::ClassSupports, specialization=ExposedSpecialization::Murtree, lower_bound=ExposedLowerBoundStrategy::Similarity, branching_type=ExposedBranchingStrategy::Dynamic, heuristic=ExposedSearchHeuristic::None_, cache_init_strategy=ExposedCacheInitStrategy::None_, error_function=None, partial_fit=false))]
+    #[pyo3(signature = (min_sup=1, max_depth=2, restart_time=None, time=600, purity=None, epsilon=None, cache_init_size=0, error=<f64>::INFINITY, one_time_sort=true, exposed_data_format=ExposedDataFormat::ClassSupports, specialization=ExposedSpecialization::Murtree, lower_bound=ExposedLowerBoundStrategy::Similarity, branching_type=ExposedBranchingStrategy::Dynamic, heuristic=ExposedSearchHeuristic::None_, cache_init_strategy=ExposedCacheInitStrategy::None_, error_function=None, search_strategy=ExposedSearchStrategy::NormalDL85))]
     pub fn new(
         min_sup: usize,
         max_depth: usize,
+        restart_time: Option<usize>,
         time: usize,
+        purity: Option<f64>,
+        epsilon: Option<f64>,
         cache_init_size: usize,
         error: f64,
         one_time_sort: bool,
@@ -44,7 +47,7 @@ impl PyGenericDl85 {
         heuristic: ExposedSearchHeuristic,
         cache_init_strategy: ExposedCacheInitStrategy,
         error_function: Option<PyObject>,
-        partial_fit: bool,
+        search_strategy: ExposedSearchStrategy,
     ) -> Self {
         let data_format = match exposed_data_format {
             ExposedDataFormat::Tids => NodeExposedData::Tids,
@@ -72,6 +75,15 @@ impl PyGenericDl85 {
             ExposedBranchingStrategy::None_ => BranchingStrategy::None_,
         };
 
+        let search_strategy = match search_strategy {
+            ExposedSearchStrategy::RestartTimeout => SearchStrategy::RestartTimeout,
+            ExposedSearchStrategy::PurityLimit => SearchStrategy::PurityLimit,
+            ExposedSearchStrategy::NormalDL85 => SearchStrategy::NormalDL85,
+            _ => {
+                panic!("Search strategy not allowed her")
+            }
+        };
+
         let heuristic: Box<dyn Heuristic + Send> = match heuristic {
             ExposedSearchHeuristic::InformationGain => Box::<InformationGain>::default(),
             ExposedSearchHeuristic::InformationGainRatio => Box::<InformationGainRatio>::default(),
@@ -90,42 +102,27 @@ impl PyGenericDl85 {
         // TODO : Allow multiple caching strategy
         let cache = Box::<Trie>::default();
 
-        let learner = match partial_fit {
-            false => GenericDL85::new(
-                min_sup,
-                max_depth,
-                error,
-                None,
-                time,
-                one_time_sort,
-                cache_init_size,
-                cache_init_strategy,
-                specialization,
-                lower_bound_strategy,
-                branching_strategy,
-                data_format,
-                cache,
-                external_error,
-                heuristic,
-            ),
-            true => GenericDL85::new(
-                min_sup,
-                max_depth,
-                error,
-                Some(time),
-                time,
-                one_time_sort,
-                cache_init_size,
-                cache_init_strategy,
-                specialization,
-                lower_bound_strategy,
-                branching_strategy,
-                data_format,
-                cache,
-                external_error,
-                heuristic,
-            ),
-        };
+        let learner = GenericDL85::new(
+            min_sup,
+            max_depth,
+            error,
+            restart_time,
+            time,
+            purity,
+            epsilon,
+            one_time_sort,
+            cache_init_size,
+            cache_init_strategy,
+            specialization,
+            lower_bound_strategy,
+            branching_strategy,
+            data_format,
+            cache,
+            external_error,
+            heuristic,
+            search_strategy,
+        );
+
         let statistics = learner.get_statistics();
         Self {
             learner,

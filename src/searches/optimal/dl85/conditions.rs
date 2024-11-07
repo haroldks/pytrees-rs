@@ -121,8 +121,67 @@ impl StopConditions {
             return (true, StopReason::LowerBoundConstrained);
         }
 
+        (false, StopReason::None)
+    }
+
+    pub(crate) fn check_purity(
+        &self,
+        node: &mut CacheEntry,
+        support: usize,
+        min_sup: usize,
+        current_depth: usize,
+        max_depth: usize,
+        current_time: Duration,
+        max_time: usize,
+        upper_bound: f64,
+        discrepancy: Option<usize>,
+        discrepancy_budget: Option<usize>,
+        purity: f64,
+    ) -> (bool, StopReason) {
         if self.is_pure_enough(node, purity) {
             return (true, StopReason::PureEnough);
+        }
+
+        if self.node_is_optimal(node) && node.upper_bound >= upper_bound && node.metric >= purity {
+            if node.upper_bound < upper_bound || node.metric < purity {
+                node.is_optimal = false;
+            } else {
+                return (true, StopReason::Done);
+            }
+        }
+
+        if self.time_limit_reached(current_time, max_time, node) {
+            if let Some(dis) = discrepancy {
+                node.discrepancy = dis
+            }
+            return (true, StopReason::TimeLimitReached);
+        }
+
+        if self.max_depth_reached(current_depth, max_depth, node) {
+            if let Some(dis) = discrepancy {
+                node.discrepancy = dis
+            }
+            return (true, StopReason::MaxDepthReached);
+        }
+
+        if self.not_enough_support(support, min_sup, node) {
+            if let Some(dis) = discrepancy {
+                node.discrepancy = dis
+            }
+            return (true, StopReason::NotEnoughSupport);
+        }
+
+        if self.pure_node(node) {
+            return (true, StopReason::PureNode);
+        }
+
+        if self.lower_bound_constrained(upper_bound, node) {
+            if let Some(dis) = discrepancy_budget {
+                if node.discrepancy >= dis {
+                    return (true, StopReason::PureNode); // TODO : Change this to another condition
+                }
+            }
+            return (true, StopReason::LowerBoundConstrained);
         }
 
         (false, StopReason::None)
@@ -189,6 +248,8 @@ impl StopConditions {
 
     fn is_pure_enough(&self, node: &mut CacheEntry, threshold: f64) -> bool {
         let purity = 1.0 - <f64>::min(node.leaf_error, node.error) / node.size as f64;
+
+        // TODO this case should be useless
         if node.error.is_infinite() || node.leaf_error <= node.error {
             node.error = node.leaf_error
         }

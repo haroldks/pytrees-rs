@@ -62,6 +62,9 @@ pub enum ExposedSearchStrategy {
     DiscrepancySearch,
     LessGreedyMurtree,
     LessGreedyInfoGain,
+    RestartTimeout,
+    PurityLimit,
+    NormalDL85,
     None_,
 }
 

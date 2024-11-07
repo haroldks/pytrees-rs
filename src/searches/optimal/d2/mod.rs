@@ -19,7 +19,7 @@ impl GenericDepth2 {
         match strategy {
             SearchStrategy::LessGreedyMurtree => GenericDepth2::Murtree(Murtree::default()),
             SearchStrategy::LessGreedyInfoGain => GenericDepth2::InfoGainOdt(InfoGainDT::default()),
-            SearchStrategy::DiscrepancySearch | SearchStrategy::None_ => {
+            _ => {
                 panic!("Strategy not available for LGDT")
             }
         }

@@ -108,6 +108,9 @@ pub enum SearchStrategy {
     DiscrepancySearch,
     LessGreedyMurtree,
     LessGreedyInfoGain,
+    RestartTimeout,
+    PurityLimit,
+    NormalDL85,
     None_,
 }
 
