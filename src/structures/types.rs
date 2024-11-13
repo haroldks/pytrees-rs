@@ -5,6 +5,17 @@ pub struct BitsetStructData {
     pub(crate) size: usize,
 }
 
+impl Default for BitsetStructData {
+    fn default() -> Self {
+        Self {
+            inputs: vec![],
+            targets: vec![],
+            chunks: 0,
+            size: 0,
+        }
+    }
+}
+
 pub struct DoublePointerData {
     pub(crate) inputs: Vec<Vec<usize>>,
     pub(crate) target: Option<Vec<usize>>,

@@ -42,6 +42,7 @@ class PurityDL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
         self.cache_init_strategy = cache_init_strategy
         self.error_function = error_function
 
+        self.first = True
         self.results = None
         self.is_optimal = False
 
@@ -106,7 +107,8 @@ class PurityDL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
             assert_all_finite(X)
             X = check_array(X, dtype="float64")
 
-        self.results = self.internal.partial_fit(X, y, runtime)
+        self.results = self.internal.partial_fit(X, y, self.first, runtime)
+        self.first = False
         self.is_optimal = self.internal.is_optimal()
 
         tree = json.loads(self.results.tree)

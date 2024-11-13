@@ -10,7 +10,7 @@ use dtrees_rs::searches::{
 use dtrees_rs::structures::RevBitset;
 
 fn main() {
-    let data = BinaryData::read("test_data/anneal.txt", false, 0.0);
+    let data = BinaryData::read("test_data/letter.txt", false, 0.0);
     let mut structure = RevBitset::new(&data);
     let error_function = Box::<NativeError>::default();
     let cache = Box::<Trie>::default();
@@ -21,7 +21,7 @@ fn main() {
         3,
         <f64>::INFINITY,
         0.1,
-        0.05,
+        0.02,
         600,
         true,
         0,

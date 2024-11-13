@@ -19,6 +19,27 @@ pub struct RevBitset {
     distance: ReversibleU64, // Steps to restore to attain the initial state
 }
 
+impl Default for RevBitset {
+    fn default() -> Self {
+        let mut fake_manager = StateManager::default();
+        let distance = fake_manager.manage_u64(0);
+
+        Self {
+            inputs: Default::default(),
+            support: 0,
+            labels_support: vec![],
+            num_labels: 0,
+            num_attributes: 0,
+            position: vec![],
+            state_manager: fake_manager,
+            state: vec![],
+            index: vec![],
+            limit: vec![],
+            distance,
+        }
+    }
+}
+
 impl Structure for RevBitset {
     fn num_attributes(&self) -> usize {
         self.num_attributes

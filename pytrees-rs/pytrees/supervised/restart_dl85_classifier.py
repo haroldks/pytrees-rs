@@ -41,6 +41,7 @@ class RestartDL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
         self.error_function = error_function
 
         self.results = None
+        self.first = True
         self.is_optimal = False
 
         self.internal = PyGenericDl85(
@@ -104,7 +105,8 @@ class RestartDL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
             assert_all_finite(X)
             X = check_array(X, dtype="float64")
 
-        self.results = self.internal.partial_fit(X, y, runtime)
+        self.results = self.internal.partial_fit(X, y, self.first, runtime)
+        self.first = False
         self.is_optimal = self.internal.is_optimal()
 
         tree = json.loads(self.results.tree)

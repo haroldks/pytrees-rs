@@ -24,6 +24,7 @@ pub struct PyGenericDl85 {
     pub(crate) error: f64,
     pub(crate) results: LearningResult,
     pub(crate) duration: f64,
+    structure: RevBitset,
 }
 
 #[pymethods]
@@ -135,6 +136,7 @@ impl PyGenericDl85 {
                 duration: 0.0,
             },
             duration: 0.0,
+            structure: Default::default(),
         }
     }
 
@@ -172,11 +174,12 @@ impl PyGenericDl85 {
     }
 
     /// FIXME : Partial fit restart and lower bound not working quite well
-    #[pyo3(signature = (input, target=None, runtime=10))]
+    #[pyo3(signature = (input, target=None, first=true, runtime=10))]
     pub fn partial_fit(
         &mut self,
         input: PyReadonlyArrayDyn<f64>,
         target: Option<PyReadonlyArrayDyn<f64>>,
+        first: bool,
         runtime: usize,
     ) -> LearningResult {
         if target.is_none() {
@@ -186,15 +189,17 @@ impl PyGenericDl85 {
         }
 
         // Objects initialization start
-        let input = input.as_array().map(|a| *a as usize);
-        let target = match target.is_some() {
-            true => Some(target.unwrap().as_array().map(|a| *a as usize)),
-            false => None,
-        };
-        let dataset = BinaryData::read_from_numpy(&input, target.as_ref());
-        let mut structure = RevBitset::new(&dataset);
+        if first {
+            let input = input.as_array().map(|a| *a as usize);
+            let target = match target.is_some() {
+                true => Some(target.unwrap().as_array().map(|a| *a as usize)),
+                false => None,
+            };
+            let dataset = BinaryData::read_from_numpy(&input, target.as_ref());
+            self.structure = RevBitset::new(&dataset);
+        }
 
-        self.learner.partial_fit(&mut structure, runtime);
+        self.learner.partial_fit(&mut self.structure, runtime);
 
         let statistics = self.learner.get_statistics();
         let results = LearningResult {
