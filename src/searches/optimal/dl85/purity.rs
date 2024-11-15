@@ -140,6 +140,7 @@ where
                 root.error = root_error.0;
                 root.leaf_error = root_error.0;
                 root.target = root_error.1;
+                root.size = self.statistics.num_samples;
             }
             error = root_error.0;
             error = <f64>::min(error, self.constraints.max_error);
@@ -423,8 +424,11 @@ where
                     parent_node.error = child_upper_bound;
                     parent_error = child_upper_bound;
                     parent_node.test = child;
+                    let purity = 1.0 - parent_error / parent_node.size as f64;
 
-                    if float_is_null(parent_node.lower_bound - child_upper_bound) {
+                    if float_is_null(parent_node.lower_bound - child_upper_bound)
+                        || purity >= self.purity
+                    {
                         parent_node.is_optimal = true;
                         parent_node.metric = self.purity;
                         parent_node.upper_bound = upper_bound;

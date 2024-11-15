@@ -138,17 +138,21 @@ impl StopConditions {
         discrepancy_budget: Option<usize>,
         purity: f64,
     ) -> (bool, StopReason) {
+        if self.pure_node(node) {
+            return (true, StopReason::PureNode);
+        }
+
         if self.is_pure_enough(node, purity) {
             return (true, StopReason::PureEnough);
         }
 
-        if self.node_is_optimal(node) && node.upper_bound >= upper_bound && node.metric >= purity {
-            if node.upper_bound < upper_bound || node.metric < purity {
-                node.is_optimal = false;
-            } else {
-                return (true, StopReason::Done);
-            }
-        }
+        // if self.node_is_optimal(node) && node.upper_bound >= upper_bound && node.metric >= purity {
+        //     if node.upper_bound < upper_bound || node.metric < purity {
+        //         node.is_optimal = false;
+        //     } else {
+        //         return (true, StopReason::Done);
+        //     }
+        // }
 
         if self.time_limit_reached(current_time, max_time, node) {
             if let Some(dis) = discrepancy {
@@ -171,8 +175,12 @@ impl StopConditions {
             return (true, StopReason::NotEnoughSupport);
         }
 
-        if self.pure_node(node) {
-            return (true, StopReason::PureNode);
+        if self.node_is_optimal(node) {
+            if node.upper_bound < upper_bound || node.metric < purity {
+                node.is_optimal = false;
+            } else {
+                return (true, StopReason::Done);
+            }
         }
 
         if self.lower_bound_constrained(upper_bound, node) {
@@ -235,7 +243,8 @@ impl StopConditions {
     }
 
     fn pure_node(&self, node: &mut CacheEntry) -> bool {
-        float_is_null(node.leaf_error - node.lower_bound) && {
+        let error = <f64>::min(node.leaf_error, node.error);
+        float_is_null(error - node.lower_bound) && {
             node.to_leaf();
             node.is_optimal = true;
             true
@@ -250,7 +259,7 @@ impl StopConditions {
         let purity = 1.0 - <f64>::min(node.leaf_error, node.error) / node.size as f64;
 
         // TODO this case should be useless
-        if node.error.is_infinite() || node.leaf_error <= node.error {
+        if node.error.is_infinite() || node.leaf_error < node.error {
             node.error = node.leaf_error
         }
 
