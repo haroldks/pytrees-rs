@@ -74,7 +74,7 @@ where
             branching_strategy: branching,
             cache_init_size,
             cache_init_strategy,
-            search_strategy: SearchStrategy::DiscrepancySearch,
+            search_strategy: SearchStrategy::RestartTimeout,
             discrepancy_budget: 0,
         };
         Self {

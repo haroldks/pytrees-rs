@@ -1,13 +1,15 @@
 use crate::greedy::search_lgdt;
+use crate::optimal::lds::PyLDSDl85;
 use crate::optimal::{optimal_search_dl85, PyGenericDl85};
 use crate::utils::{
     ExposedBranchingStrategy, ExposedCacheInitStrategy, ExposedCacheType, ExposedDataFormat,
-    ExposedLowerBoundStrategy, ExposedSearchHeuristic, ExposedSearchStrategy,
-    ExposedSpecialization,
+    ExposedDiscrepancyStrategy, ExposedLowerBoundStrategy, ExposedSearchHeuristic,
+    ExposedSearchStrategy, ExposedSpecialization,
 };
 use numpy::pyo3::{pymodule, PyResult, Python};
 use pyo3::prelude::PyModule;
 use pyo3::wrap_pyfunction;
+
 mod greedy;
 mod optimal;
 mod utils;
@@ -32,6 +34,7 @@ fn enums(py: Python<'_>, parent_module: &PyModule) -> PyResult<()> {
     module.add_class::<ExposedBranchingStrategy>()?;
     module.add_class::<ExposedCacheInitStrategy>()?;
     module.add_class::<ExposedSearchStrategy>()?;
+    module.add_class::<ExposedDiscrepancyStrategy>()?;
 
     parent_module.add_submodule(module)?;
     py.import("sys")?
@@ -46,6 +49,7 @@ fn odt(py: Python<'_>, parent_module: &PyModule) -> PyResult<()> {
     let module = PyModule::new(py, "odt")?;
     module.add_function(wrap_pyfunction!(optimal_search_dl85, module)?)?;
     module.add_class::<PyGenericDl85>()?;
+    module.add_class::<PyLDSDl85>()?;
 
     parent_module.add_submodule(module)?;
     py.import("sys")?

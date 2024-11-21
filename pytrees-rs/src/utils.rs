@@ -68,6 +68,13 @@ pub enum ExposedSearchStrategy {
     None_,
 }
 
+#[pyclass]
+#[derive(Copy, Clone)]
+pub enum ExposedDiscrepancyStrategy {
+    Monotonic,
+    Exponential,
+    Luby,
+}
 pub struct PythonError {
     function: PyObject,
 }

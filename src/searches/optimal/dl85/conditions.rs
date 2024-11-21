@@ -53,6 +53,12 @@ impl StopConditions {
             return (true, StopReason::PureNode);
         }
 
+        // FIXME : the condition is not exact
+        // if  node.is_optimal && node.lb2 >= node.upper_bound  {
+        //     //println!("node {:?} ub : {}", node, upper_bound );
+        //     return (true, StopReason::LowerBoundConstrained);
+        // }
+
         if self.lower_bound_constrained(upper_bound, node) {
             if let Some(dis) = discrepancy_budget {
                 if node.discrepancy >= dis {
@@ -120,6 +126,64 @@ impl StopConditions {
             }
             return (true, StopReason::LowerBoundConstrained);
         }
+
+        (false, StopReason::None)
+    }
+
+    pub(crate) fn check_discrepancy(
+        &self,
+        node: &mut CacheEntry,
+        support: usize,
+        min_sup: usize,
+        current_depth: usize,
+        max_depth: usize,
+        current_time: Duration,
+        max_time: usize,
+        upper_bound: f64,
+        discrepancy: Option<usize>,
+        discrepancy_budget: Option<usize>,
+    ) -> (bool, StopReason) {
+        if self.node_is_optimal(node) && node.discrepancy >= discrepancy.unwrap() {
+            if node.upper_bound >= upper_bound {
+                return (true, StopReason::Done);
+            } else {
+                node.is_optimal = false;
+            }
+        }
+
+        if self.time_limit_reached(current_time, max_time, node) {
+            if let Some(dis) = discrepancy {
+                node.discrepancy = dis
+            }
+            return (true, StopReason::TimeLimitReached);
+        }
+
+        if self.max_depth_reached(current_depth, max_depth, node) {
+            if let Some(dis) = discrepancy {
+                node.discrepancy = dis
+            }
+            return (true, StopReason::MaxDepthReached);
+        }
+
+        if self.pure_node(node) {
+            return (true, StopReason::PureNode);
+        }
+
+        if self.not_enough_support(support, min_sup, node) {
+            if let Some(dis) = discrepancy {
+                node.discrepancy = dis
+            }
+            return (true, StopReason::NotEnoughSupport);
+        }
+
+        // if self.lower_bound_constrained(upper_bound, node) {
+        //     if let Some(dis) = discrepancy_budget {
+        //         if node.discrepancy >= dis {
+        //             return (true, StopReason::PureNode); // TODO : Change this to another condition
+        //         }
+        //     }
+        //     return (true, StopReason::LowerBoundConstrained);
+        // }
 
         (false, StopReason::None)
     }

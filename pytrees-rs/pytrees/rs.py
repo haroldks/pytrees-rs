@@ -7,4 +7,5 @@ from pytreesrs.enums import (
     ExposedSearchHeuristic,
     ExposedSearchStrategy,
     ExposedSpecialization,
+    ExposedDiscrepancyStrategy,
 )

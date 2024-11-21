@@ -105,7 +105,9 @@ pub enum CacheInitStrategy {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum SearchStrategy {
-    DiscrepancySearch,
+    DiscrepancySearchMonotonic,
+    DiscrepancySearchLuby,
+    DiscrepancySearchExponential,
     LessGreedyMurtree,
     LessGreedyInfoGain,
     RestartTimeout,

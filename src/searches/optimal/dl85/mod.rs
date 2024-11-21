@@ -41,6 +41,7 @@ where
     pub tree: Tree,
     runtime: Instant,
     murtree: Murtree,
+    lb2: f64,
 }
 
 impl<C, E, H> DL85<C, E, H>
@@ -94,10 +95,12 @@ where
             tree: Tree::default(),
             runtime: Instant::now(),
             murtree: Murtree::default(),
+            lb2: 0.0,
         }
     }
 
     pub fn fit<S: Structure>(&mut self, structure: &mut S) {
+        self.lb2 = 11.0;
         self.statistics.num_attributes = structure.num_attributes();
         self.statistics.num_samples = structure.support();
 
@@ -110,6 +113,8 @@ where
             root.error = root_error.0;
             root.leaf_error = root_error.0;
             root.target = root_error.1;
+            root.size = self.statistics.num_samples;
+            // root.lb2 = self.lb2;
         }
         let bound = <f64>::min(root_error.0, self.constraints.max_error);
 
@@ -169,9 +174,6 @@ where
         // BEGIN STEP: Check if we should stop
 
         if let Some(node) = self.cache.get(itemset, parent_index) {
-            //   if node.lb2 >= upper_bound && node.upper_bound >= upper_bound{
-            //     return (node.error, StopReason::LowerBoundConstrained, false);
-            //}
             let return_condition = self.stop_conditions.check(
                 node,
                 current_support,
@@ -262,6 +264,7 @@ where
                     node.leaf_error = error.0;
                     node.target = error.1;
                     node.size = size;
+                    node.lb2 = self.lb2;
                 }
             } else {
                 self.statistics.cache_callbacks += 1;
@@ -296,6 +299,20 @@ where
                 &mut child_similarity_data,
             );
 
+            if depth == 0 && left_error > child_upper_bound - self.lb2 {
+                if let Some(node) = self.cache.get(itemset, child_index) {
+                    min_lower_bound = <f64>::min(
+                        min_lower_bound,
+                        match left_error.is_finite() {
+                            true => left_error + self.lb2,
+                            false => node.lower_bound + self.lb2,
+                        },
+                    );
+                }
+                itemset.remove(&it);
+                continue;
+            }
+
             if left_error >= child_upper_bound - branching_choice.2 {
                 if let Some(node) = self.cache.get(itemset, child_index) {
                     min_lower_bound = <f64>::min(
@@ -327,6 +344,7 @@ where
                     node.leaf_error = error.0;
                     node.target = error.1;
                     node.size = size;
+                    // node.lb2 = self.lb2;
                 }
             } else {
                 self.statistics.cache_callbacks += 1;
@@ -373,7 +391,7 @@ where
                     if float_is_null(parent_node.lower_bound - child_upper_bound) {
                         parent_node.is_optimal = true;
                         parent_node.upper_bound = upper_bound;
-                        parent_node.lb2 = parent_error;
+                        // parent_node.lb2 = parent_error;
                         return (parent_error, StopReason::Done, true);
                     }
                 }
@@ -388,7 +406,7 @@ where
             node_error = node.error;
             node.is_optimal = true;
             node.upper_bound = upper_bound;
-            node.lb2 = parent_error;
+            // node.lb2 = parent_error;
             if node.error.is_infinite() {
                 node.lower_bound =
                     <f64>::max(node.lower_bound, <f64>::max(min_lower_bound, upper_bound));
