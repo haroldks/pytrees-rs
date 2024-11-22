@@ -159,14 +159,10 @@ where
             self.heuristic.compute(structure, &mut candidates);
             self.root_candidates = candidates;
 
-            self.constraints.discrepancy_budget = match self.constraints.discrepancy_budget
-                < <usize>::MAX
-            {
-                true => self.constraints.discrepancy_budget,
-                false => {
-                    Self::discrepancy_limit(self.root_candidates.len(), self.constraints.max_depth)
-                }
-            };
+            self.constraints.discrepancy_budget = <usize>::min(
+                self.constraints.discrepancy_budget,
+                Self::discrepancy_limit(self.root_candidates.len(), self.constraints.max_depth),
+            );
             self.statistics.constraints.discrepancy_budget = self.constraints.discrepancy_budget;
             self.discrepancy = self.discrepancy_function.next();
             self.runtime = Instant::now();
@@ -194,6 +190,7 @@ where
         self.get_solution_tree();
         self.is_optimal = float_is_null(return_infos.0)
             || self.discrepancy >= self.constraints.discrepancy_budget
+            || matches!(return_infos.1, StopReason::FromSpecializedAlgorithm)
             || matches!(return_infos.1, StopReason::Done);
         self.discrepancy = self.discrepancy_function.next();
         return_infos
@@ -541,6 +538,7 @@ where
             if let Some(cache_node) = self.cache.get(itemset, index) {
                 cache_node.error = tree_node.value.error;
                 cache_node.leaf_error = tree_node.value.error;
+                cache_node.is_optimal = true;
 
                 if tree_node.value.test.is_none() {
                     cache_node.is_leaf = true;

@@ -11,23 +11,23 @@ use dtrees_rs::searches::{
 use dtrees_rs::structures::RevBitset;
 
 fn main() {
-    let data = BinaryData::read("test_data/anneal.txt", false, 0.0);
+    let data = BinaryData::read("test_data/paper.txt", false, 0.0);
     let mut structure = RevBitset::new(&data);
     let error_function = Box::<NativeError>::default();
-    let discrepancy_strat = Box::<ExponentialDiscrepancy>::default();
+    let discrepancy_strat = Box::<MonotonicDiscrepancy>::default();
     let cache = Box::<Trie>::default();
     let heuristics = Box::<NoHeuristic>::default();
 
     let mut learner = LDSDL85::new(
         1,
-        4,
+        2,
         <usize>::MAX,
         <f64>::INFINITY,
         600,
         true,
         0,
         CacheInitStrategy::None_,
-        Specialization::None_,
+        Specialization::Murtree,
         LowerBoundStrategy::None_,
         BranchingStrategy::None_,
         NodeExposedData::ClassesSupport,
