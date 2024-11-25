@@ -203,7 +203,7 @@ impl Heuristic for Purity {
             let purity = Self::purity_by_attribute(*attribute, structure, &root_classes_support);
             candidates_sorted.push((*attribute, purity));
         }
-        candidates_sorted.sort_by(|a, b| 0.1.partial_cmp(&a.1).unwrap());
+        candidates_sorted.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
         *candidates = candidates_sorted
             .iter()
             .map(|(a, _)| *a)

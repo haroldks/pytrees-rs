@@ -16,6 +16,7 @@ pub use dl85::discrepancies::*;
 pub use dl85::lds::LDSDL85;
 pub use dl85::purity::PurityDL85;
 pub use dl85::restart::RestartDL85;
+pub use dl85::topk::TopKDL85;
 pub use dl85::DL85;
 
 // TODO : Add support to discrepancy search

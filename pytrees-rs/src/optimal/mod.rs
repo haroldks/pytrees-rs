@@ -1,5 +1,6 @@
 pub mod lds;
 pub mod partial;
+pub mod topk;
 
 use crate::utils::{
     ExposedBranchingStrategy, ExposedCacheInitStrategy, ExposedDataFormat,

@@ -1,5 +1,6 @@
 use crate::greedy::search_lgdt;
 use crate::optimal::lds::PyLDSDl85;
+use crate::optimal::topk::PyTopKDl85;
 use crate::optimal::{optimal_search_dl85, PyGenericDl85};
 use crate::utils::{
     ExposedBranchingStrategy, ExposedCacheInitStrategy, ExposedCacheType, ExposedDataFormat,
@@ -50,6 +51,7 @@ fn odt(py: Python<'_>, parent_module: &PyModule) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(optimal_search_dl85, module)?)?;
     module.add_class::<PyGenericDl85>()?;
     module.add_class::<PyLDSDl85>()?;
+    module.add_class::<PyTopKDl85>()?;
 
     parent_module.add_submodule(module)?;
     py.import("sys")?

@@ -105,6 +105,9 @@ pub enum CacheInitStrategy {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum SearchStrategy {
+    TopKSearchMonotonic,
+    TopKSearchLuby,
+    TopKSearchExponential,
     DiscrepancySearchMonotonic,
     DiscrepancySearchLuby,
     DiscrepancySearchExponential,

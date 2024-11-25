@@ -6,5 +6,6 @@ from .supervised import (
     RestartDL85Classifier,
     PurityDL85Classifier,
     LDSDL85Classifier,
+    TopKDL85Classifier,
 )
 from .unsupervised import DL85Cluster
