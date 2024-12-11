@@ -35,7 +35,6 @@ where
     root_candidates: Vec<usize>,
     nb_runs: usize,
     is_optimal: bool,
-    pub purity_threshold: f64,
     murtree: Murtree,
 }
 
@@ -94,7 +93,6 @@ where
             root_candidates: vec![],
             nb_runs: 0,
             is_optimal: false,
-            purity_threshold: 2.0,
             murtree: Murtree::default(),
         }
     }
@@ -183,9 +181,9 @@ where
         );
         self.update_statistics();
         self.get_solution_tree();
-        if let Some(root) = self.cache.get_root_infos() {
-            self.is_optimal = root.is_optimal;
-        }
+        self.is_optimal = float_is_null(return_infos.0)
+            || !matches!(return_infos.1, StopReason::TimeLimitReached)
+            || self.time_is_up();
         return_infos
     }
 
@@ -213,6 +211,7 @@ where
             candidates = &self.root_candidates;
         }
 
+        let time_is_up = self.time_is_up();
         if let Some(node) = self.cache.get(itemset, parent_index) {
             let return_condition = self.stop_conditions.check_restart(
                 node,
@@ -221,11 +220,11 @@ where
                 depth,
                 self.constraints.max_depth,
                 self.restart_timer.elapsed(),
+                time_is_up,
                 time_limit,
                 child_upper_bound,
                 None,
                 None,
-                self.purity_threshold,
             );
 
             if return_condition.0 {
@@ -352,7 +351,9 @@ where
                 }
                 itemset.remove(&it);
 
-                if self.restart_timer.elapsed().as_secs() as usize >= time_limit {
+                if self.restart_timer.elapsed().as_secs() as usize >= time_limit
+                    || self.time_is_up()
+                {
                     return (parent_error, StopReason::TimeLimitReached, true);
                 }
 
@@ -429,7 +430,7 @@ where
                 min_lower_bound = <f64>::min(feature_error, min_lower_bound);
             }
 
-            if self.restart_timer.elapsed().as_secs() as usize >= time_limit {
+            if self.restart_timer.elapsed().as_secs() as usize >= time_limit || self.time_is_up() {
                 return (parent_error, StopReason::TimeLimitReached, true);
             }
         }
@@ -647,10 +648,7 @@ where
     }
 
     pub fn is_optimal(&self) -> bool {
-        if let Some(root) = self.cache.get_root_infos() {
-            return root.is_optimal;
-        }
-        false
+        self.is_optimal
     }
 
     fn create_solution_tree_entry(&self, cache_entry: &CacheEntry) -> NodeInfos {

@@ -79,11 +79,11 @@ impl StopConditions {
         current_depth: usize,
         max_depth: usize,
         current_time: Duration,
+        max_time_budget_exhausted: bool,
         max_time: usize,
         upper_bound: f64,
         discrepancy: Option<usize>,
         discrepancy_budget: Option<usize>,
-        purity: f64,
     ) -> (bool, StopReason) {
         if self.node_is_optimal(node) && node.upper_bound >= upper_bound {
             if node.upper_bound < upper_bound {
@@ -93,7 +93,7 @@ impl StopConditions {
             }
         }
 
-        if self.time_limit_reached(current_time, max_time, node) {
+        if self.time_limit_reached(current_time, max_time, node) || max_time_budget_exhausted {
             if let Some(dis) = discrepancy {
                 node.discrepancy = dis
             }
@@ -287,7 +287,9 @@ impl StopConditions {
     }
 
     fn lower_bound_constrained(&self, actual_upper_bound: f64, node: &mut CacheEntry) -> bool {
-        node.lower_bound >= actual_upper_bound || float_is_null(actual_upper_bound)
+        //println!("Node : {:?}", node);
+        //println!("Upper bound : {:?}", actual_upper_bound);
+        actual_upper_bound <= node.lower_bound || float_is_null(actual_upper_bound)
     }
 
     fn max_depth_reached(&self, depth: usize, max_depth: usize, node: &mut CacheEntry) -> bool {
