@@ -120,5 +120,6 @@ pub(crate) fn optimal_search_dl85(
         tree: learner.tree,
         constraints: learner.statistics.constraints,
         statistics: learner.statistics,
+        duration: learner.statistics.duration.as_secs_f64(),
     }
 }

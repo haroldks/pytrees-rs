@@ -98,8 +98,17 @@ where
         self.statistics.num_samples = structure.support();
 
         // Init cache
-        // TODO: This should take in strategy and init_capacity and also the structure to get the leaf error
+        // TODO: This should take in strategy and init_capacity
         let root_index = self.cache.init();
+
+        let root_error = self.error_as_leaf(structure);
+        if let Some(root) = self.cache.set_root_infos() {
+            //root.error = root_error.0;
+            root.leaf_error = root_error.0;
+            root.target = root_error.1;
+            root.size = self.statistics.num_samples;
+        }
+        let bound = <f64>::min(root_error.0, self.constraints.max_error);
 
         // Collect the potential candidates based on the support constraint and sort them based on the heuristic
         let mut candidates = Vec::new();
@@ -126,7 +135,7 @@ where
         self.recursion(
             structure,
             0,
-            self.constraints.max_error,
+            bound,
             <usize>::MAX,
             &mut itemset,
             &candidates,
@@ -153,6 +162,7 @@ where
     ) -> SearchReturn {
         let mut child_upper_bound = upper_bound;
         let current_support = structure.support();
+        self.statistics.search_space_size += 1;
 
         // BEGIN STEP: Check if we should stop
 
@@ -169,6 +179,7 @@ where
             );
 
             if return_condition.0 {
+                node.upper_bound = upper_bound;
                 return (node.error, return_condition.1, false);
             }
         }
@@ -222,6 +233,11 @@ where
         let mut child_similarity_data = SimilarityCover::default();
         let mut min_lower_bound = <f64>::INFINITY;
 
+        let mut parent_error = self
+            .cache
+            .get(itemset, parent_index)
+            .map_or(<f64>::INFINITY, |infos| infos.error);
+
         for child in node_candidates.iter() {
             let branching_choice =
                 self.branching_strategy(*child, itemset, structure, &mut child_similarity_data);
@@ -233,12 +249,16 @@ where
 
             // TODO : Move this in a function
             if is_new {
-                structure.push(it);
+                let size = structure.push(it);
                 let error = self.error_as_leaf(structure);
                 if let Some(node) = self.cache.get(itemset, child_index) {
                     node.leaf_error = error.0;
                     node.target = error.1;
+                    node.size = size;
                 }
+            }
+            else { 
+                self.statistics.cache_callbacks += 1;
             }
 
             if let Some(node) = self.cache.get(itemset, child_index) {
@@ -295,13 +315,17 @@ where
             let (is_new, child_index) = self.cache.insert(itemset);
 
             if is_new {
-                structure.push(it);
+                let size = structure.push(it);
                 let error = self.error_as_leaf(structure);
                 if let Some(node) = self.cache.get(itemset, child_index) {
                     node.leaf_error = error.0;
                     node.target = error.1;
+                    node.size = size;
                 }
+            } else { 
+              self.statistics.cache_callbacks += 1;  
             }
+            
             if let Some(node) = self.cache.get(itemset, child_index) {
                 node.lower_bound = branching_choice.2;
             }
@@ -331,23 +355,21 @@ where
                 &mut child_similarity_data,
             );
             itemset.remove(&it);
-
-            if left_error.is_infinite() || right_error.is_infinite() {
-                continue;
-            }
-
+            
             let feature_error = left_error + right_error;
 
             if feature_error < child_upper_bound {
                 child_upper_bound = feature_error;
+                parent_error = feature_error;
 
                 if let Some(parent_node) = self.cache.get(itemset, parent_index) {
                     parent_node.error = child_upper_bound;
-
                     parent_node.test = *child;
 
                     if float_is_null(parent_node.lower_bound - child_upper_bound) {
-                        break;
+                        parent_node.is_optimal = true;
+                        parent_node.upper_bound = upper_bound;
+                        return (parent_error, StopReason::Done, true);
                     }
                 }
             } else {
@@ -358,6 +380,8 @@ where
         let mut node_error = 0.0;
         if let Some(node) = self.cache.get(itemset, parent_index) {
             node_error = node.error;
+            node.is_optimal = true;
+            node.upper_bound = upper_bound;
             if node.error.is_infinite() {
                 node.lower_bound =
                     <f64>::max(node.lower_bound, <f64>::max(min_lower_bound, upper_bound));

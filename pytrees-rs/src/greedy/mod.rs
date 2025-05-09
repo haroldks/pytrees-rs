@@ -35,5 +35,6 @@ pub(crate) fn search_lgdt(
         tree: learner.tree.clone(),
         constraints: learner.constraints,
         statistics: learner.statistics,
+        duration: learner.statistics.duration.as_secs_f64(),
     }
 }

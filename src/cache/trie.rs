@@ -43,6 +43,11 @@ impl Caching for Trie {
         self.get_node(self.get_root_index()).map(|node| &node.infos)
     }
 
+    fn set_root_infos(&mut self) -> Option<&mut CacheEntry> {
+        self.get_node_mut(self.get_root_index())
+            .map(|node| &mut node.infos)
+    }
+
     // Check if there is a node inside the cache for the current itemset and return a mutable ref
     fn get(&mut self, itemset: &BTreeSet<usize>, index: Option<usize>) -> Option<&mut CacheEntry> {
         // If index is given and exists go for it
@@ -99,7 +104,10 @@ impl Caching for Trie {
                 index = self.create_cache_entry(index, *item);
             }
         }
-        (is_new, Some(index))
+        let leaf_is_infinite = self
+            .get_node(index)
+            .map_or(false, |node| node.infos.leaf_error.is_infinite());
+        (leaf_is_infinite || is_new, Some(index))
     }
 
     fn size(&self) -> usize {

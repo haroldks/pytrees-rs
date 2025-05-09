@@ -66,7 +66,7 @@ pub(crate) enum ArgCommand {
         init_strategy: CacheInitStrategy,
 
         /// Sorting heuristic
-        #[arg(short, long, value_enum, default_value_t = SearchHeuristic::None_)]
+        #[arg(long, value_enum, default_value_t = SearchHeuristic::None_)]
         heuristic: SearchHeuristic,
 
         /// Tree error initial upper bound

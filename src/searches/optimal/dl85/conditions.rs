@@ -18,8 +18,15 @@ impl StopConditions {
         max_time: usize,
         upper_bound: f64,
     ) -> (bool, StopReason) {
-        if self.time_limit_reached(current_time, max_time, node) {
-            return (true, StopReason::TimeLimitReached);
+        if node.error.is_finite() {
+            return (true, StopReason::Done);
+        }
+        if self.lower_bound_constrained(upper_bound, node) {
+            return (true, StopReason::LowerBoundConstrained);
+        }
+        
+        if self.pure_node(node) {
+            return (true, StopReason::PureNode);
         }
 
         if self.max_depth_reached(current_depth, max_depth, node) {
@@ -30,13 +37,11 @@ impl StopConditions {
             return (true, StopReason::NotEnoughSupport);
         }
 
-        if self.lower_bound_constrained(upper_bound, node) {
-            return (true, StopReason::LowerBoundConstrained);
+
+        if self.time_limit_reached(current_time, max_time, node) {
+            return (true, StopReason::TimeLimitReached);
         }
 
-        if self.pure_node(node) {
-            return (true, StopReason::PureNode);
-        }
         (false, StopReason::None)
     }
 

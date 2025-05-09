@@ -10,6 +10,8 @@ pub trait Caching {
 
     fn get_root_infos(&self) -> Option<&CacheEntry>;
 
+    fn set_root_infos(&mut self) -> Option<&mut CacheEntry>;
+
     // Check if there is a node inside the cache for the current itemset
     fn get(&mut self, itemset: &BTreeSet<usize>, index: Option<usize>) -> Option<&mut CacheEntry>;
 
@@ -34,6 +36,8 @@ pub struct CacheEntry {
     pub error: f64,
     pub upper_bound: f64,
     pub lower_bound: f64,
+    pub metric: f64,
+    pub size: usize,
     pub leaf_error: f64,
     pub target: f64,
     pub is_optimal: bool,
@@ -48,6 +52,8 @@ impl CacheEntry {
             error: MAX_ERROR,
             upper_bound: MAX_ERROR,
             lower_bound: 0.0,
+            metric: 0.0,
+            size: 0,
             leaf_error: MAX_ERROR,
             target: 0.0,
             is_optimal: false,
@@ -69,6 +75,8 @@ impl Default for CacheEntry {
             error: MAX_ERROR,
             upper_bound: MAX_ERROR,
             lower_bound: 0.0,
+            metric: 0.0,
+            size: 0,
             leaf_error: MAX_ERROR,
             target: 0.0,
             is_optimal: false,
