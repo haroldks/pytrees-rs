@@ -1,5 +1,7 @@
 mod conditions;
 mod similarity;
+mod config;
+mod builder;
 
 use crate::cache::{CacheEntry, Caching};
 use crate::globals::{attribute, float_is_null, get_tree_root_error, item};
@@ -256,8 +258,7 @@ where
                     node.target = error.1;
                     node.size = size;
                 }
-            }
-            else { 
+            } else {
                 self.statistics.cache_callbacks += 1;
             }
 
@@ -322,10 +323,10 @@ where
                     node.target = error.1;
                     node.size = size;
                 }
-            } else { 
-              self.statistics.cache_callbacks += 1;  
+            } else {
+                self.statistics.cache_callbacks += 1;
             }
-            
+
             if let Some(node) = self.cache.get(itemset, child_index) {
                 node.lower_bound = branching_choice.2;
             }
@@ -355,7 +356,7 @@ where
                 &mut child_similarity_data,
             );
             itemset.remove(&it);
-            
+
             let feature_error = left_error + right_error;
 
             if feature_error < child_upper_bound {
