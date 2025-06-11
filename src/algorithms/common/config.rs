@@ -1,3 +1,4 @@
+#[derive(Copy, Clone)]
 pub struct BaseSearchConfig {
     pub min_support: usize,
     pub max_depth: usize,

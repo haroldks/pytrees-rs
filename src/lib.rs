@@ -8,4 +8,4 @@ mod reader;
 pub mod searches;
 pub mod structures;
 pub mod tree;
-mod algorithms;
+pub mod algorithms;

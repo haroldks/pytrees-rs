@@ -60,6 +60,7 @@ impl InfoGainDT {
                 node.value.out = Some(error.1);
                 node_error += error.0;
             }
+
             structure.backtrack();
         }
 
@@ -276,6 +277,7 @@ mod info_gain_odt_test {
         let mut structure = Bitset::new(&data);
         let method = InfoGainDT::default();
         let tree = method.fit(1, 2, &mut structure);
+        tree.print();
         let error = tree.get_node(0).unwrap().value.error;
         assert_eq!(error, 151.0)
     }

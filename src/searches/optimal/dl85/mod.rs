@@ -38,7 +38,7 @@ where
     heuristic: Box<H>,
     pub tree: Tree,
     runtime: Instant,
-    murtree: Murtree,
+    murtree: Murtree // WARNING Only work for classification,
 }
 
 impl<C, E, H> DL85<C, E, H>

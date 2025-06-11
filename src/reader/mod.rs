@@ -1,5 +1,5 @@
 mod data_info;
-mod data_reader;
+pub mod data_reader;
 
 use std::error::Error;
 use std::fmt;

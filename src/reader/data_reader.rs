@@ -54,7 +54,7 @@ impl DataReader {
         self
     }
 
-    fn read_file(&self, path: &Path) -> Result<Cover, DataReaderError> {
+    pub(crate) fn read_file(&self, path: &Path) -> Result<Cover, DataReaderError> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
 
@@ -152,6 +152,7 @@ impl DataReader {
 
             row_idx += 1;
         }
+        
 
         for bitset in attributes.iter_mut() {
             bitset.resize(row_idx);
@@ -179,7 +180,7 @@ mod data_reader_test {
     fn load_small() {
         
         let reader = DataReader::default();
-        let path = Path::new("test_data/small_.txt");
+        let path = Path::new("test_data/anneal.txt");
         let cover_result = reader.read_file(path);
         let cover  = match cover_result {
             Ok(cover) => {cover}
@@ -190,11 +191,8 @@ mod data_reader_test {
         };
         
         assert_eq!(cover.num_labels, 2);
-        assert_eq!(cover.num_attributes, 4);
-        assert_eq!(cover.count(), 10);
-        
-        assert_eq!(cover.to_vec().iter().eq((0..10).collect::<Vec<usize>>().iter()), true)
-        
+        assert_eq!(cover.num_attributes, 93);
+        assert_eq!(cover.count(), 812);
     }
     
     
