@@ -1,2 +1,2 @@
-mod types;
 pub mod config;
+mod types;

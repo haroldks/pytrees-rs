@@ -121,10 +121,6 @@ impl Tree {
         position
     }
 
-    
-    
-    
-    
     pub fn add_root(&mut self, root: TreeNode) -> usize {
         self.add_node(0, false, root)
     }
@@ -132,8 +128,7 @@ impl Tree {
     pub fn add_default_root(&mut self) -> usize {
         self.add_root(TreeNode::default())
     }
-    
-    
+
     pub fn add_left_node(&mut self, parent: usize, node: TreeNode) -> usize {
         self.add_node(parent, true, node)
     }
@@ -144,8 +139,7 @@ impl Tree {
     pub fn create_child(&mut self, parent: usize, left: bool) -> usize {
         self.add_node(parent, left, TreeNode::default())
     }
-    
-    
+
     pub fn get_root_index(&self) -> usize {
         0
     }
@@ -228,13 +222,10 @@ impl Tree {
             .unwrap_or(NodeInfos::default())
     }
 
-
-
-
     pub fn root_error(&self) -> f64 {
         self.get_node(self.get_root_index())
             .map(|node| node.value.error)
-            .unwrap_or(f64::MAX)  // Or another sensible default
+            .unwrap_or(f64::MAX) // Or another sensible default
     }
 
     pub fn node_error(&self, index: usize) -> f64 {
@@ -248,7 +239,6 @@ impl Tree {
             .map(|node| node.value.metric)
             .unwrap_or(Some(0.0))
     }
-    
 
     pub fn root_output(&self) -> Option<f64> {
         self.get_node(self.get_root_index())
@@ -256,8 +246,7 @@ impl Tree {
     }
 
     pub fn node_output(&self, index: usize) -> Option<f64> {
-        self.get_node(index)
-            .and_then(|node| node.value.out)
+        self.get_node(index).and_then(|node| node.value.out)
     }
 
     pub fn root_test(&self) -> Option<usize> {
@@ -266,40 +255,43 @@ impl Tree {
     }
 
     pub fn node_test(&self, index: usize) -> Option<usize> {
-        self.get_node(index)
-            .and_then(|node| node.value.test)
+        self.get_node(index).and_then(|node| node.value.test)
     }
-    
-    
+
     pub fn update_node(&mut self, index: usize) -> Option<NodeUpdater> {
         self.get_node_mut(index).map(NodeUpdater::new)
     }
-    
+
     pub fn update_root(&mut self) -> Option<NodeUpdater> {
         self.get_node_mut(0).map(NodeUpdater::new)
     }
-    
+
     pub fn node_children(&self, index: usize) -> (usize, usize) {
-        self.get_node(index).map_or((0, 0), |node| (node.left, node.right))
+        self.get_node(index)
+            .map_or((0, 0), |node| (node.left, node.right))
     }
 
     pub fn update_leaf_node(&mut self, index: usize, error: (f64, f64)) -> &mut Self {
         if let Some(updater) = self.update_node(index) {
-            updater.error(error.0).output(error.1); // Maybe not the leaf 
+            updater.error(error.0).output(error.1); // Maybe not the leaf
         }
         self
     }
-    
-    
+
     pub fn update_subtree(&mut self, index: usize, origin: &Tree, origin_index: usize) {
-        let (left_index, right_index) =  self.update_node(index)
-            .map_or((0, 0), |updater| updater
+        let (left_index, right_index) = self.update_node(index).map_or((0, 0), |updater| {
+            updater
                 .value(origin.node_details(origin_index))
-                .get_children());
-        
+                .get_children()
+        });
+
         let (origin_left_index, origin_right_index) = origin.node_children(origin_index);
-        
-        for (branch_value, (&source, mut dest)) in [origin_left_index, origin_right_index].iter().zip([left_index, right_index]).enumerate() {
+
+        for (branch_value, (&source, mut dest)) in [origin_left_index, origin_right_index]
+            .iter()
+            .zip([left_index, right_index])
+            .enumerate()
+        {
             if source > 0 {
                 if dest == 0 {
                     dest = self.create_child(index, branch_value == 0);
@@ -308,8 +300,6 @@ impl Tree {
             }
         }
     }
-    
-    
 
     pub fn print(&self) {
         let mut stack: Vec<(usize, Option<&TreeNode>)> = Vec::new();
@@ -332,7 +322,6 @@ impl Tree {
     }
 }
 
-
 pub struct NodeUpdater<'a> {
     node: &'a mut TreeNode,
 }
@@ -341,7 +330,7 @@ impl<'a> NodeUpdater<'a> {
     pub fn new(node: &'a mut TreeNode) -> Self {
         Self { node }
     }
-    
+
     pub fn value(self, value: NodeInfos) -> Self {
         self.node.value = value;
         self
@@ -351,7 +340,7 @@ impl<'a> NodeUpdater<'a> {
         self.node.value.error = error;
         self
     }
-    
+
     pub fn metric(self, metric: f64) -> Self {
         self.node.value.metric = Some(metric);
         self
@@ -376,20 +365,17 @@ impl<'a> NodeUpdater<'a> {
         self.node.right = index;
         self
     }
-    
+
     pub fn leaf(self) -> Self {
         self.node.left = 0;
         self.node.right = 0;
         self
     }
-    
+
     pub fn get_children(&self) -> (usize, usize) {
         (self.node.left, self.node.right)
     }
 }
-
-
-
 
 #[cfg(test)]
 mod binary_tree_test {

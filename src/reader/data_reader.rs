@@ -152,7 +152,6 @@ impl DataReader {
 
             row_idx += 1;
         }
-        
 
         for bitset in attributes.iter_mut() {
             bitset.resize(row_idx);
@@ -171,29 +170,26 @@ impl DataReader {
 
 #[cfg(test)]
 mod data_reader_test {
-    use std::path::Path;
     use crate::cover::Cover;
     use crate::reader::data_reader::DataReader;
     use crate::reader::DataReaderError;
+    use std::path::Path;
 
     #[test]
     fn load_small() {
-        
         let reader = DataReader::default();
         let path = Path::new("test_data/anneal.txt");
         let cover_result = reader.read_file(path);
-        let cover  = match cover_result {
-            Ok(cover) => {cover}
+        let cover = match cover_result {
+            Ok(cover) => cover,
             Err(err) => {
-                println!("Data error {}", err );
+                println!("Data error {}", err);
                 panic!("oops")
             }
         };
-        
+
         assert_eq!(cover.num_labels, 2);
         assert_eq!(cover.num_attributes, 93);
         assert_eq!(cover.count(), 812);
     }
-    
-    
 }

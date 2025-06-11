@@ -1,8 +1,8 @@
+mod common;
 pub mod errors;
 pub mod greedy;
 pub mod optimal;
 mod utils;
-mod common;
 
 pub use utils::*;
 

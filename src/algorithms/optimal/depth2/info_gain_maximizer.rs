@@ -14,26 +14,24 @@ use crate::tree::Tree;
 
 pub struct InfoGainMaximizer<E>
 where
-    E: ErrorWrapper
+    E: ErrorWrapper,
 {
     error_fn: Box<E>,
     heuristic_fn: InformationGain,
 }
 
-impl Default for InfoGainMaximizer<NativeError>
-
-{
+impl Default for InfoGainMaximizer<NativeError> {
     fn default() -> Self {
         Self {
             error_fn: Box::<NativeError>::default(),
-            heuristic_fn: InformationGain::default()
+            heuristic_fn: InformationGain::default(),
         }
     }
 }
 
-impl <E> OptimalDepth2Tree for InfoGainMaximizer<E>
+impl<E> OptimalDepth2Tree for InfoGainMaximizer<E>
 where
-    E: ErrorWrapper
+    E: ErrorWrapper,
 {
     fn find_optimal_depth_one_tree(
         &self,
@@ -58,8 +56,7 @@ where
 
             let mut tree = Tree::new();
 
-            let (left, right) = tree
-                .node_children(tree.get_root_index());
+            let (left, right) = tree.node_children(tree.get_root_index());
 
             tree.update_leaf_node(left, left_error);
             tree.update_leaf_node(right, right_error);
@@ -89,7 +86,7 @@ where
         let matrix = build_labels_count_distribution_matrix(cover, &candidates);
 
         let root_distribution = cover.labels_count();
-        
+
         let parent_entropy = entropy(&root_distribution);
 
         if float_is_null(parent_entropy) {
@@ -197,7 +194,7 @@ where
 
 impl<E> InfoGainMaximizer<E>
 where
-    E: ErrorWrapper
+    E: ErrorWrapper,
 {
     fn find_best_attribute(&self, cover: &mut Cover, candidates: &mut Vec<usize>) -> Option<usize> {
         if candidates.is_empty() {

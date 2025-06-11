@@ -1,3 +1,4 @@
+pub mod algorithms;
 pub mod bitsets;
 pub mod cache;
 mod cover;
@@ -8,4 +9,3 @@ mod reader;
 pub mod searches;
 pub mod structures;
 pub mod tree;
-pub mod algorithms;

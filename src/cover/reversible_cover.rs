@@ -37,7 +37,7 @@ impl SparseBitset {
         for _ in 0..nb_words {
             words.push(state_manager.manage_u64(u64::MAX));
         }
-        
+
         let mask = if n % 64 == 0 {
             u64::MAX
         } else {

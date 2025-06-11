@@ -3,13 +3,11 @@ use crate::cover::Cover;
 use crate::tree::Tree;
 
 mod common;
-pub mod optimal;
 mod greedy;
+pub mod optimal;
 
 pub trait TreeSearchAlgorithm {
-    
     fn fit(&mut self, cover: &mut Cover) -> Result<(), FitError>;
-    
+
     fn tree(&self) -> &Tree;
-    
 }

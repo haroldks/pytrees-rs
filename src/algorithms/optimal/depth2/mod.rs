@@ -7,8 +7,8 @@ mod config;
 mod error_minimizer;
 mod info_gain_maximizer;
 
-pub use info_gain_maximizer::InfoGainMaximizer;
 pub use error_minimizer::ErrorMinimizer;
+pub use info_gain_maximizer::InfoGainMaximizer;
 
 pub trait OptimalDepth2Tree {
     fn fit(
@@ -38,8 +38,7 @@ pub trait OptimalDepth2Tree {
         cover: &mut Cover,
         provided_candidates: Option<&[usize]>,
     ) -> Result<Tree, FitError>;
-    
-    
+
     fn error(&self, distribution: &[usize]) -> (f64, f64);
 
     #[inline]

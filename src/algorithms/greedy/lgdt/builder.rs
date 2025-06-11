@@ -6,16 +6,15 @@ use crate::tree::Tree;
 
 pub struct LGDTBuilder<D>
 where
-    D: OptimalDepth2Tree + ?Sized
+    D: OptimalDepth2Tree + ?Sized,
 {
     config: BaseSearchConfig,
-    search: Option<Box<D>>
+    search: Option<Box<D>>,
 }
 
-
 impl<D> Default for LGDTBuilder<D>
-where 
-    D: OptimalDepth2Tree
+where
+    D: OptimalDepth2Tree,
 {
     fn default() -> Self {
         Self {
@@ -25,14 +24,14 @@ where
     }
 }
 
-impl <D>LGDTBuilder<D>
-where 
-    D: OptimalDepth2Tree
+impl<D> LGDTBuilder<D>
+where
+    D: OptimalDepth2Tree,
 {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     pub fn with_default_info_gain_maximizer() -> LGDTBuilder<InfoGainMaximizer<NativeError>> {
         LGDTBuilder::default().search(Box::new(InfoGainMaximizer::default()))
     }
@@ -40,7 +39,7 @@ where
     pub fn with_default_error_minimizer() -> LGDTBuilder<ErrorMinimizer<NativeError>> {
         LGDTBuilder::default().search(Box::new(ErrorMinimizer::default()))
     }
-    
+
     pub fn min_support(mut self, value: usize) -> Self {
         self.config.min_support = value;
         self
@@ -67,20 +66,17 @@ where
     }
 
     pub fn build(self) -> Result<LGDT<D>, String> {
-        let search = self.search.ok_or("Optimal Depth two Search algorithm is required")?;
+        let search = self
+            .search
+            .ok_or("Optimal Depth two Search algorithm is required")?;
         Ok(LGDT {
             search,
             config: self.config,
-            tree: Tree::default()
+            tree: Tree::default(),
         })
     }
-    
 }
-
 
 pub mod default_builders {
     use super::*;
-
-   
-   
 }

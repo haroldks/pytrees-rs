@@ -3,7 +3,12 @@ pub mod heuristics;
 use crate::cover::Cover;
 use crate::globals::item;
 
-pub fn find_valid_split_attributes(cover: &mut Cover, min_sup: usize, candidates: Option<&[usize]>, previous: Option<usize>) -> Vec<usize> {
+pub fn find_valid_split_attributes(
+    cover: &mut Cover,
+    min_sup: usize,
+    candidates: Option<&[usize]>,
+    previous: Option<usize>,
+) -> Vec<usize> {
     match candidates {
         Some(attrs) => {
             let mut valid = Vec::new();
@@ -20,7 +25,7 @@ pub fn find_valid_split_attributes(cover: &mut Cover, min_sup: usize, candidates
                 }
             }
             valid
-        },
+        }
 
         None => {
             let num_attributes = cover.num_attributes;
@@ -79,11 +84,7 @@ pub fn deduce_sibling_error(parent_supports: &[usize], child_supports: &[usize])
 }
 
 #[inline]
-pub fn deduce_sibling_error_with_buffer(
-    parent: &[usize],
-    sibling: &[usize],
-    buffer: &mut [usize]
-) {
+pub fn deduce_sibling_error_with_buffer(parent: &[usize], sibling: &[usize], buffer: &mut [usize]) {
     for i in 0..parent.len() {
         buffer[i] = parent[i] - sibling[i];
     }

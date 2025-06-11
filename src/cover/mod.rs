@@ -29,7 +29,7 @@ impl Cover {
     pub fn count(&self) -> usize {
         self.cover.count()
     }
-    
+
     pub fn labels_count(&self) -> Vec<usize> {
         self.cover.count_intersect_with_many(&self.labels)
     }

@@ -24,7 +24,7 @@ impl StopConditions {
         if self.lower_bound_constrained(upper_bound, node) {
             return (true, StopReason::LowerBoundConstrained);
         }
-        
+
         if self.pure_node(node) {
             return (true, StopReason::PureNode);
         }
@@ -36,7 +36,6 @@ impl StopConditions {
         if self.not_enough_support(support, min_sup, node) {
             return (true, StopReason::NotEnoughSupport);
         }
-
 
         if self.time_limit_reached(current_time, max_time, node) {
             return (true, StopReason::TimeLimitReached);

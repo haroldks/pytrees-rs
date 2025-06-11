@@ -3,7 +3,6 @@ pub struct BaseSearchConfig {
     pub max_depth: usize,
     pub max_error: f64,
     pub max_time: f64,
-
 }
 
 impl Default for BaseSearchConfig {

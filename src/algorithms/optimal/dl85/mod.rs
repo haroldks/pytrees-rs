@@ -1,29 +1,30 @@
 mod config;
 
+use crate::algorithms::optimal::dl85::config::DL85Config;
 use crate::cache::Caching;
 use crate::heuristics::Heuristic;
-use crate::searches::{BranchingStrategy, CacheInitStrategy, LowerBoundStrategy, NodeExposedData, Specialization};
 use crate::searches::errors::ErrorWrapper;
-use crate::algorithms::optimal::dl85::config::DL85Config;
+use crate::searches::{
+    BranchingStrategy, CacheInitStrategy, LowerBoundStrategy, NodeExposedData, Specialization,
+};
 
 struct DL85Builder<C, E, H>
 where
     C: Caching + ?Sized,
     E: ErrorWrapper + ?Sized,
-    H: Heuristic + ? Sized
+    H: Heuristic + ?Sized,
 {
-    config : DL85Config,
+    config: DL85Config,
     cache: Option<Box<C>>,
     error_fn: Option<Box<E>>,
-    heuristic_fn: Option<Box<H>>
+    heuristic_fn: Option<Box<H>>,
 }
 
-
-impl <C, E, H> Default for DL85Builder<C, E, H>
+impl<C, E, H> Default for DL85Builder<C, E, H>
 where
     C: Caching + ?Sized,
     E: ErrorWrapper + ?Sized,
-    H: Heuristic + ? Sized
+    H: Heuristic + ?Sized,
 {
     fn default() -> Self {
         Self {
@@ -35,17 +36,12 @@ where
     }
 }
 
-
-
-
-impl <C, E, H> DL85Builder<C, E, H>
+impl<C, E, H> DL85Builder<C, E, H>
 where
     C: Caching + ?Sized,
     E: ErrorWrapper + ?Sized,
-    H: Heuristic + ? Sized
-
+    H: Heuristic + ?Sized,
 {
-
     pub fn new() -> Self {
         Self::default()
     }
@@ -121,14 +117,10 @@ where
     }
 
     pub fn build(self) -> Result<(), String> {
-
         let cache = self.cache.ok_or("Cache is required")?;
         let error_function = self.error_fn.ok_or("Error function is required")?;
         let heuristic = self.heuristic_fn.ok_or("Heuristic is required")?;
 
         Ok(())
     }
-
-
-
 }

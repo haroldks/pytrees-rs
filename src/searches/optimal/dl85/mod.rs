@@ -1,7 +1,7 @@
-mod conditions;
-mod similarity;
-mod config;
 mod builder;
+mod conditions;
+mod config;
+mod similarity;
 
 use crate::cache::{CacheEntry, Caching};
 use crate::globals::{attribute, float_is_null, get_tree_root_error, item};
@@ -38,7 +38,7 @@ where
     heuristic: Box<H>,
     pub tree: Tree,
     runtime: Instant,
-    murtree: Murtree // WARNING Only work for classification,
+    murtree: Murtree, // WARNING Only work for classification,
 }
 
 impl<C, E, H> DL85<C, E, H>
