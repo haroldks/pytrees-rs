@@ -103,6 +103,7 @@ impl BitCollection for Bitset {
         } else if new_words < self.words.len() {
             self.words.truncate(new_words);
         }
+        self.capacity = 64 * self.words.len();
     }
 
     fn intersect_with(&mut self, other: &Bitset) {

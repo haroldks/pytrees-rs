@@ -29,6 +29,16 @@ impl Cover {
     pub fn count(&self) -> usize {
         self.cover.count()
     }
+    
+    pub fn labels_count(&self) -> Vec<usize> {
+        self.cover.count_intersect_with_many(&self.labels)
+    }
+
+    // TODO : Implementation to use when using a placeholder for hot activities
+    pub fn labels_count_with_buffer(&self, buffer: &mut Vec<usize>) {
+        buffer.clear();
+        buffer.extend_from_slice(&self.cover.count_intersect_with_many(&self.labels));
+    }
 
     pub fn branch_on(&mut self, item: usize) -> usize {
         self.branch.push(item);

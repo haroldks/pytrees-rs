@@ -33,7 +33,11 @@ impl SparseBitset {
         let mut state_manager = StateManager::default();
 
         let nb_words = (n + 63) / 64;
-        let mut words = vec![state_manager.manage_u64(u64::MAX); nb_words];
+        let mut words = Vec::with_capacity(nb_words);
+        for _ in 0..nb_words {
+            words.push(state_manager.manage_u64(u64::MAX));
+        }
+        
         let mask = if n % 64 == 0 {
             u64::MAX
         } else {
