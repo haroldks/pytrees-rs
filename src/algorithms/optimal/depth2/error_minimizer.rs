@@ -352,7 +352,7 @@ mod error_minimizer {
             Err(_) => panic!("oops"),
         };
 
-        let mut error_minimizer = ErrorMinimizer::default();
+        let error_minimizer = ErrorMinimizer::default();
         let tree = error_minimizer.fit(1, 2, &mut cover, None);
 
         if let Ok(t) = tree {

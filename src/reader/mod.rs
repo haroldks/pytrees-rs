@@ -3,8 +3,8 @@ pub mod data_reader;
 
 use std::error::Error;
 use std::fmt;
-use std::fs::File;
-use std::io::{BufRead, BufReader, Error as IoError};
+
+use std::io::Error as IoError;
 use std::path::Path;
 
 #[derive(Debug, Clone, Copy, PartialEq)]

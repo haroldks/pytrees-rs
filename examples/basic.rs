@@ -1,10 +1,9 @@
 use dtrees_rs::algorithms::common::errors::NativeError;
-use dtrees_rs::algorithms::common::heuristics::{InformationGain, NoHeuristic};
+use dtrees_rs::algorithms::common::heuristics::InformationGain;
 use dtrees_rs::algorithms::common::types::OptimalDepth2Policy;
 use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
 use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
-use dtrees_rs::algorithms::optimal::rules::common::TimeLimitRule;
-use dtrees_rs::algorithms::optimal::rules::{DiscrepancyRule, GainRule, Luby, Monotonic, TopkRule};
+
 use dtrees_rs::algorithms::TreeSearchAlgorithm;
 use dtrees_rs::caching::Trie;
 use dtrees_rs::reader::data_reader::DataReader;
@@ -19,18 +18,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let depth2 = Box::new(ErrorMinimizer::new(error_fn.clone()));
 
-    let topk = TopkRule::new(usize::MAX, Box::new(Luby::default()));
-    // let gain_rule = GainRule::new(0.0, 0.001, 4.0, Box::new(Monotonic::default()));
-    // let time_rule = TimeLimitRule::new(1.0).relaxable();
-
     let mut algo = DL85Builder::default()
         .max_depth(5)
         .min_support(1)
         .max_time(300.0)
         .always_sort(true)
-        .add_search_rule(Box::new(topk))
-        // .add_search_rule(Box::new(gain_rule))
-        // .add_search_rule(Box::new(time_rule))
         .specialization(OptimalDepth2Policy::Enabled)
         .cache(Box::<Trie>::default())
         .heuristic(Box::<InformationGain>::default())

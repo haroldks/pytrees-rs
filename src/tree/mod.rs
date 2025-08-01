@@ -213,13 +213,13 @@ impl Tree {
     pub fn root_details(&self) -> NodeInfos {
         self.get_node(self.get_root_index())
             .map(|node| node.value)
-            .unwrap_or(NodeInfos::default())
+            .unwrap_or_default()
     }
 
     pub fn node_details(&self, index: usize) -> NodeInfos {
         self.get_node(index)
             .map(|node| node.value)
-            .unwrap_or(NodeInfos::default())
+            .unwrap_or_default()
     }
 
     pub fn root_error(&self) -> f64 {
@@ -385,7 +385,7 @@ mod binary_tree_test {
     fn create_node_data() {
         let data = NodeInfos::new();
         assert_eq!(data.error, <f64>::INFINITY);
-        assert_eq!(data.test.is_none(), true);
+        assert!(data.test.is_none());
         assert_eq!(data.out, None);
     }
 
@@ -413,11 +413,11 @@ mod binary_tree_test {
     #[test]
     fn tree_is_empty() {
         let mut tree = Tree::new();
-        assert_eq!(tree.is_empty(), true);
+        assert!(tree.is_empty());
 
         let root = TreeNode::new(NodeInfos::default());
         tree.add_root(root);
-        assert_eq!(tree.is_empty(), false);
+        assert!(!tree.is_empty());
     }
 
     #[test]

@@ -40,12 +40,7 @@ impl SimilarityCover {
         let differences: Vec<Difference> = self
             .covers
             .iter()
-            .map(|sim_cover| {
-                sim_cover
-                    .as_ref()
-                    .map(|c| cover - c)
-                    .unwrap_or(Difference::default())
-            })
+            .map(|sim_cover| sim_cover.as_ref().map(|c| cover - c).unwrap_or_default())
             .collect();
 
         let min_idx = differences

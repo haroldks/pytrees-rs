@@ -4,7 +4,7 @@ use crate::algorithms::common::types::{
     BranchingChoice, BranchingPolicy, FitError, LowerBoundPolicy, NodeDataType, RuleType,
     SearchResult, SearchStatistics,
 };
-use crate::algorithms::optimal::depth2::{ErrorMinimizer, OptimalDepth2Tree};
+use crate::algorithms::optimal::depth2::OptimalDepth2Tree;
 use crate::algorithms::optimal::dl85::config::DL85Config;
 use crate::algorithms::optimal::rules::common::{SimilarityLowerBoundRule, TimeLimitRule};
 use crate::algorithms::optimal::rules::{
@@ -247,7 +247,7 @@ where
         let mut node_candidates = self.get_candidates(
             cover,
             self.config.base.min_support,
-            Some(&candidates),
+            Some(candidates),
             Some(attribute(parent_item)),
         );
 
@@ -298,11 +298,11 @@ where
 
             if scores.len() > 1 {
                 branch_context.gain(parent_context.gain + (scores[0] - scores[position]));
-                if self.statistics.restarts() <= 1 || self.gain_gap <= 0.0 {
-                    if self.gain_gap <= 0f64 || branch_context.gain < self.gain_gap {
-                        // println!("Path {:? } child {} Gap : {:?}", cover.path(), child, branch_context.gain);
-                        self.gain_gap = branch_context.gain;
-                    }
+                if (self.statistics.restarts() <= 1 || self.gain_gap <= 0.0)
+                    && (self.gain_gap <= 0f64 || branch_context.gain < self.gain_gap)
+                {
+                    // println!("Path {:? } child {} Gap : {:?}", cover.path(), child, branch_context.gain);
+                    self.gain_gap = branch_context.gain;
                 }
             }
 
@@ -470,7 +470,7 @@ where
         let first_result = self.recursive_search(
             cover,
             path,
-            &candidates,
+            candidates,
             current_depth + 1,
             branch_context.item,
             branch_index,
@@ -642,7 +642,7 @@ where
         {
             let key = index.to_cache_key(path);
             if let Some(node) = self.cache.node(&key) {
-                similarity.update(&cover.sparse(), node.error())
+                similarity.update(cover.sparse(), node.error())
             }
         }
         cover.backtrack();
@@ -652,7 +652,7 @@ where
     fn apply_specialized_depth2_search(
         &mut self,
         cover: &mut Cover,
-        candidates: &[usize],
+        _candidates: &[usize],
         parent_index: Index,
         upper_bound: f64,
         path: &mut SearchPath,
@@ -800,7 +800,7 @@ mod dl85_test {
     use crate::algorithms::common::heuristics::NoHeuristic;
     use crate::algorithms::common::types::OptimalDepth2Policy;
     use crate::algorithms::optimal::depth2::ErrorMinimizer;
-    use crate::algorithms::optimal::dl85::{DL85Builder, DL85};
+    use crate::algorithms::optimal::dl85::DL85Builder;
     use crate::algorithms::TreeSearchAlgorithm;
     use crate::caching::Trie;
     use crate::reader::data_reader::DataReader;

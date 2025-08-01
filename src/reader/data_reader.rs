@@ -157,7 +157,7 @@ impl DataReader {
             bitset.resize(row_idx);
         }
 
-        let unique_targets = target.iter().map(|t| *t).collect::<HashSet<usize>>().len();
+        let unique_targets = target.iter().copied().collect::<HashSet<usize>>().len();
 
         let mut targets = vec![Bitset::new(BitsetInit::Empty(row_idx)); unique_targets];
 
@@ -170,9 +170,9 @@ impl DataReader {
 
 #[cfg(test)]
 mod data_reader_test {
-    use crate::cover::Cover;
+
     use crate::reader::data_reader::DataReader;
-    use crate::reader::DataReaderError;
+
     use std::path::Path;
 
     #[test]

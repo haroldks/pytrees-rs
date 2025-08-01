@@ -1,33 +1,58 @@
-# Pytrees-rs: Dynamic Programming-based Decision Tree Learning Library
+# CADL8.5: Complete Anytime DL8.5
 
-Pytrees-rs is a library that encompasses decision tree learning algorithms implemented using dynamic programming.
+CADL8.5 is a **complete anytime framework** for decision tree learning that extends **DL8.5** with **rule-based restart strategies** inspired by **Complete Anytime Beam Search (CABS)**.
+It quickly finds high-quality solutions and improves them over time, while still guaranteeing **optimal solutions**.
+Compared to DL8.5 and Blossom, CADL8.5 often solves **more instances to optimality** and performs at least as well as greedy baselines in early stages.
 
-The currently available algorithms include:
+---
 
+## Installation and Execution
 
-### DL8.5: Optimal Decision Tree Learning Algorithm
-DL8.5 is an algorithm designed for learning optimal decision trees,
-incorporating default misclassification error and a user-provided objective function.
-The method uses a branch-and-bound approach with caching to minimize the search space exploration and a
-speed-up the exploration. For further insights, refer to the relevant [paper](https://dial.uclouvain.be/pr/boreal/fr/object/boreal%3A223390/datastream/PDF_01/view),
-and find the native [implementation](https://github.com/aia-uclouvain/pydl8.5).
-Both implementations incorporate concepts introduced by [Murtree](https://www.jmlr.org/papers/volume23/20-520/20-520.pdf), another optimal decision learning algorithm.
+This project is implemented in **Rust**, and `cargo` is required to build and run it.
+Clone and build:
 
+```bash
+git clone <repository-url>
+cd CADL8.5
+cargo build --release
+```
 
-### LDS-DL8.5 :Anytime Optimal Decision Tree Learning Algorithm
-An anytime decision tree learning algorithm, building upon the foundation of DL8.5.
-This algorithm addresses dynamic programming challenges, preventing stagnation in a particular part of the search space.
-It ensures minimal tree quality within time constraints by leveraging Limited Discrepancy Search and a strategically designed restart strategy.
-For in-depth details, refer to the comprehensive information available in the associated [paper](https://dial.uclouvain.be/pr/boreal/fr/object/boreal%3A266060/datastream/PDF_01/view).
+All algorithms are provided as examples in the examples/ folder. You can run them as follows:
 
+```bash
+cargo run --release --example $ALGO -- \
+    --input $DATASET \
+    --depth $DEPTH \
+    --support $SUPPORT \
+    --timeout $TIMEOUT \
+    --heuristic information-gain \
+    --result $OUTPUT_DIR \
+    --fast-d2 enabled
+```
 
-### LGDT : Less Greedy Decision Tree Learning Algorithm
+Where:
 
-LGDT employs a reversible sparse bitset data structure, also found in DL8.5 and LDS-DL8.5.
-Additionally, it incorporates Murtree's specialized depth-2 algorithm to provide decision trees with less
-myopic evaluation. Unlike purely greedy algorithms such as CART and C4.5,
-LGDT assesses error or information gain over two levels to determine the local best node value.
-For a more in-depth understanding, refer to the details provided in the accompanying [paper](https://www.info.ucl.ac.be/~pschaus/assets/publi/ida2024_efficient_lookehead_decision_trees.pdf).
+$ALGO is the example file name (e.g., discrepancy, topk, gain, ...)
 
+$DATASET is the dataset path (.txt)
 
-For more information on how to use Pytrees-rs, check the [documentation](https://haroldks.github.io/pytrees-rs/installation.html).
+$DEPTH is the maximum decision tree depth
+
+$SUPPORT is the minimum support threshold (integer)
+
+$TIMEOUT is the time limit in seconds
+
+$OUTPUT_DIR is the folder where results are stored
+
+**Example** :
+
+```bash
+cargo run --release --example discrepancy -- \
+    --input test_data/anneal.txt \
+    --depth 6 \
+    --support 1 \
+    --timeout 300 \
+    --result .
+    --fast-d2 enabled
+
+```

@@ -196,17 +196,23 @@ cython_debug/
 
 
 datasets*/*
-test_data/*
+#test_data/*
 data/*
 *result*
-!test_data/small.txt
-!test_data/small_.txt
-!test_data/anneal.txt
-!test_data/rsparse_dataset.txt
-!test_data/ionosphere.txt
-!test_data/splice-1.txt
-!test_data/letter.txt
-!test_data/mushroom.txt
+test_data/small.txt
+test_data/small_.txt
+#!test_data/anneal.txt
+#!test_data/rsparse_dataset.txt
+#!test_data/ionosphere.txt
+#!test_data/splice-1.txt
+#!test_data/letter.txt
+#!test_data/mushroom.txt
+test_data/tic-tac-toe_.txt
+test_data/tic-tac-toe__.txt
+test_data/ttt.txt
+test_data/iris_multi.txt
+test_data/paper.txt
+
 
 experiments/*
 TODO.md

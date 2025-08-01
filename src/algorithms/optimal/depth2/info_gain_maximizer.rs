@@ -3,13 +3,11 @@ use crate::algorithms::common::heuristics::helpers::{entropy, information_gain};
 use crate::algorithms::common::heuristics::{Heuristic, InformationGain};
 use crate::algorithms::common::types::FitError;
 use crate::algorithms::common::utils::{
-    build_labels_count_distribution_matrix, deduce_sibling_error, deduce_sibling_error_with_buffer,
+    build_labels_count_distribution_matrix, deduce_sibling_error,
 };
 use crate::algorithms::optimal::depth2::OptimalDepth2Tree;
 use crate::cover::Cover;
-use crate::globals::{
-    compute_entropy, float_is_null, get_tree_root_error, get_tree_root_gain, item,
-};
+use crate::globals::{float_is_null, get_tree_root_error, item};
 use crate::tree::Tree;
 
 pub struct InfoGainMaximizer<E>
@@ -24,7 +22,7 @@ impl Default for InfoGainMaximizer<NativeError> {
     fn default() -> Self {
         Self {
             error_fn: Box::<NativeError>::default(),
-            heuristic_fn: InformationGain::default(),
+            heuristic_fn: InformationGain,
         }
     }
 }
@@ -224,9 +222,7 @@ where
                 deduce_sibling_error(&attr1_left_dist, &attr1_left_attr2_right_dist)
             }
             (true, false) => {
-                let attr1_left_attr2_right_dist =
-                    deduce_sibling_error(&matrix[attr2][attr2], attr1_right_attr2_right_dist);
-                attr1_left_attr2_right_dist
+                deduce_sibling_error(&matrix[attr2][attr2], attr1_right_attr2_right_dist)
             }
             (false, true) => deduce_sibling_error(attr1_right_dist, attr1_right_attr2_right_dist),
             (false, false) => attr1_right_attr2_right_dist.to_vec(),

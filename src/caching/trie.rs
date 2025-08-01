@@ -81,7 +81,7 @@ impl Caching for Trie {
     fn node(&self, key: &CacheKey) -> Option<&CacheEntry> {
         match key {
             CacheKey::Index(index) => self.get_node(*index).map(|node| &node.entry),
-            CacheKey::Path(path) => self.find(&path),
+            CacheKey::Path(path) => self.find(path),
         }
     }
 
@@ -99,7 +99,7 @@ impl Caching for Trie {
             CacheKey::Index(index) => self
                 .get_node_mut(*index)
                 .map(|node| CacheEntryUpdater::new(&mut node.entry)),
-            CacheKey::Path(path) => self.find_mut(&path).map(CacheEntryUpdater::new),
+            CacheKey::Path(path) => self.find_mut(path).map(CacheEntryUpdater::new),
         }
     }
 
@@ -189,21 +189,21 @@ impl Trie {
 
 #[cfg(test)]
 mod trie_test {
-    use crate::caching::helpers::{CacheKey, Index};
+    use crate::caching::helpers::Index;
     use crate::caching::trie::{Trie, TrieNode};
     use crate::caching::Caching;
 
     #[test]
     fn test_cache_init() {
         let mut cache = Trie::new();
-        assert_eq!(cache.is_empty(), true);
+        assert!(cache.is_empty());
 
         let root_data = TrieNode::default();
         cache.add_root(root_data);
         cache.add_node(0, TrieNode::default());
         println!("Cache 0 {:?}", cache.arena[0].children);
 
-        assert_eq!(cache.is_empty(), false);
+        assert!(!cache.is_empty());
 
         let mut itemset = Vec::new();
         itemset.push(0);
@@ -214,7 +214,7 @@ mod trie_test {
 
         match idx {
             Index::NewUnknown => {}
-            Index::New(pos) | Index::Existing(pos) => {}
+            Index::New(_pos) | Index::Existing(_pos) => {}
         }
 
         itemset.remove(1);

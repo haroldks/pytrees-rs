@@ -216,6 +216,12 @@ pub struct LowerBoundRule {
     current_state: RuleState,
 }
 
+impl Default for LowerBoundRule {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LowerBoundRule {
     pub fn new() -> Self {
         Self {
@@ -277,6 +283,12 @@ pub struct UsableNodeRule {
     current_state: RuleState,
 }
 
+impl Default for UsableNodeRule {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl UsableNodeRule {
     pub fn new() -> Self {
         Self {
@@ -329,6 +341,12 @@ pub struct PureNodeRule {
     priority: u8,
 }
 
+impl Default for PureNodeRule {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PureNodeRule {
     pub fn new() -> Self {
         Self { priority: 99 }
@@ -375,6 +393,12 @@ impl Rule for PureNodeRule {
 pub struct SimilarityLowerBoundRule {
     priority: u8,
     current_state: RuleState,
+}
+
+impl Default for SimilarityLowerBoundRule {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SimilarityLowerBoundRule {

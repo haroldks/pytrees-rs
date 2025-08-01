@@ -147,30 +147,3 @@ where
         error.0
     }
 }
-
-mod test_lgdt {
-    use crate::algorithms::greedy::lgdt::factories::with_error_minimizer;
-    use crate::algorithms::TreeSearchAlgorithm;
-    use crate::reader::data_reader::DataReader;
-    use std::path::Path;
-
-    #[test]
-    fn test_d2_lgdt() {
-        let reader = DataReader::default();
-        let path = Path::new("test_data/anneal.txt");
-        let cover_result = reader.read_file(path);
-
-        let mut cover = match cover_result {
-            Ok(cover) => cover,
-            Err(_) => panic!("oops"),
-        };
-
-        let mut lgdt = with_error_minimizer()
-            .min_support(1)
-            .max_depth(5)
-            .build()
-            .unwrap();
-        let x = lgdt.fit(&mut cover).unwrap();
-        lgdt.tree.print()
-    }
-}

@@ -153,14 +153,14 @@ impl SparseBitset {
 }
 
 // Helpers for more readability
-impl Into<ShallowBitset> for &SparseBitset {
-    fn into(self) -> ShallowBitset {
-        let mut words = Vec::with_capacity(self.words.len());
-        let non_zero_words = self.non_zero_words.clone();
+impl From<&SparseBitset> for ShallowBitset {
+    fn from(val: &SparseBitset) -> Self {
+        let mut words = Vec::with_capacity(val.words.len());
+        let non_zero_words = val.non_zero_words.clone();
 
-        let nb_non_zero = self.state_manager.get_usize(self.nb_non_zero);
-        for i in 0..self.words.len() {
-            words.push(self.state_manager.get_u64(self.words[i]));
+        let nb_non_zero = val.state_manager.get_usize(val.nb_non_zero);
+        for i in 0..val.words.len() {
+            words.push(val.state_manager.get_u64(val.words[i]));
         }
 
         ShallowBitset {
@@ -275,7 +275,7 @@ mod sparse_test {
         cover.restore();
         println!("{:?}", cover.to_vec());
 
-        let diff = &cover - shallow_cover;
+        let _diff = &cover - shallow_cover;
 
         // let shallow : ShallowBitset = (&cover).into();
         // println!("shallow : {:?}", shallow)
