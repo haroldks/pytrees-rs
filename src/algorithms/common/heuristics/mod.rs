@@ -8,19 +8,18 @@ use crate::cover::Cover;
 use crate::globals::item;
 
 pub trait Heuristic {
-    fn compute(&self, cover: &mut Cover, candidates: &mut Vec<usize>);
+    fn compute(&self, cover: &mut Cover, candidates: &mut Vec<usize>) -> Vec<f64>;
 
-    fn compute_with_scorer<F>(
+    fn compute_with_scorer(
         &self,
+        parent_entropy: f64,
         cover: &mut Cover,
         candidates: &mut Vec<usize>,
-        scorer: F,
+        scorer: Box<dyn Fn(&[usize], &[usize], &[usize], f64) -> f64>,
         lower_is_better: bool,
-    ) where
-        F: Fn(&[usize], &[usize], &[usize]) -> f64,
-    {
+    ) -> Vec<f64> {
         if candidates.is_empty() {
-            return;
+            return vec![];
         }
 
         let root_distribution = cover.labels_count();
@@ -40,7 +39,12 @@ pub trait Heuristic {
                     &mut right_distribution,
                 );
 
-                let score = scorer(&root_distribution, &left_distribution, &right_distribution);
+                let score = scorer(
+                    &root_distribution,
+                    &left_distribution,
+                    &right_distribution,
+                    parent_entropy,
+                );
 
                 (attr, score)
             })
@@ -53,7 +57,9 @@ pub trait Heuristic {
         }
 
         candidates.clear();
-        candidates.extend(scores.into_iter().map(|(attr, _)| attr));
+        let (sorted_candidates, scores): (Vec<usize>, Vec<f64>) = scores.into_iter().unzip();
+        candidates.extend(sorted_candidates);
+        scores
     }
 }
 
@@ -61,15 +67,17 @@ pub trait Heuristic {
 pub struct NoHeuristic;
 
 impl Heuristic for NoHeuristic {
-    fn compute(&self, _cover: &mut Cover, _candidates: &mut Vec<usize>) {}
+    fn compute(&self, _cover: &mut Cover, _candidates: &mut Vec<usize>) -> Vec<f64> {
+        vec![]
+    }
 }
 
 #[derive(Default)]
 pub struct GiniIndex;
 
 impl Heuristic for GiniIndex {
-    fn compute(&self, cover: &mut Cover, candidates: &mut Vec<usize>) {
-        self.compute_with_scorer(cover, candidates, gini_index, true)
+    fn compute(&self, cover: &mut Cover, candidates: &mut Vec<usize>) -> Vec<f64> {
+        self.compute_with_scorer(0.0, cover, candidates, Box::new(gini_index), true)
     }
 }
 
@@ -77,18 +85,19 @@ impl Heuristic for GiniIndex {
 pub struct InformationGain;
 
 impl Heuristic for InformationGain {
-    fn compute(&self, cover: &mut Cover, candidates: &mut Vec<usize>) {
+    fn compute(&self, cover: &mut Cover, candidates: &mut Vec<usize>) -> Vec<f64> {
         if candidates.is_empty() {
-            return;
+            return vec![];
         }
 
         let parent_distribution = cover.labels_count();
         let parent_entropy = entropy(&parent_distribution);
 
         self.compute_with_scorer(
+            parent_entropy,
             cover,
             candidates,
-            |root, left, right| information_gain(parent_entropy, root, left, right),
+            Box::new(information_gain),
             false,
         )
     }
@@ -98,7 +107,7 @@ impl Heuristic for InformationGain {
 pub struct WeightedEntropy;
 
 impl Heuristic for WeightedEntropy {
-    fn compute(&self, cover: &mut Cover, candidates: &mut Vec<usize>) {
-        self.compute_with_scorer(cover, candidates, weighted_entropy, true)
+    fn compute(&self, cover: &mut Cover, candidates: &mut Vec<usize>) -> Vec<f64> {
+        self.compute_with_scorer(0.0, cover, candidates, Box::new(weighted_entropy), true)
     }
 }
