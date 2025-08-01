@@ -33,11 +33,11 @@ where
     }
 
     pub fn with_default_info_gain_maximizer() -> LGDTBuilder<InfoGainMaximizer<NativeError>> {
-        LGDTBuilder::default().search(Box::new(InfoGainMaximizer::default()))
+        LGDTBuilder::default().search(Box::<InfoGainMaximizer<NativeError>>::default())
     }
 
     pub fn with_default_error_minimizer() -> LGDTBuilder<ErrorMinimizer<NativeError>> {
-        LGDTBuilder::default().search(Box::new(ErrorMinimizer::default()))
+        LGDTBuilder::default().search(Box::<ErrorMinimizer<NativeError>>::default())
     }
 
     pub fn min_support(mut self, value: usize) -> Self {

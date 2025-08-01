@@ -132,6 +132,13 @@ pub enum SearchHeuristic {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum)]
+pub enum SearchStepStrategy {
+    Monotonic,
+    Luby,
+    Exponential,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum)]
 pub enum D2Objective {
     Error,
     InformationGain,

@@ -54,7 +54,7 @@ impl DataReader {
         self
     }
 
-    pub(crate) fn read_file(&self, path: &Path) -> Result<Cover, DataReaderError> {
+    pub fn read_file(&self, path: &Path) -> Result<Cover, DataReaderError> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
 

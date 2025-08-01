@@ -129,10 +129,10 @@ where
                     let branch_index = if val == 0 { left_index } else { right_index };
 
                     let branch_gain = information_gain(
-                        parent_entropy,
                         &root_distribution,
                         &left_leaf_distribution,
                         &right_leaf_distribution,
+                        parent_entropy,
                     );
 
                     let left_leaf_error = self.error_fn.compute(&left_leaf_distribution);

@@ -1,11 +1,13 @@
 pub mod algorithms;
 pub mod bitsets;
 pub mod cache;
+pub mod caching;
 mod cover;
 pub mod data;
+pub mod example_parser;
 pub mod globals;
 pub mod heuristics;
-mod reader;
+pub mod reader;
 pub mod searches;
 pub mod structures;
 pub mod tree;

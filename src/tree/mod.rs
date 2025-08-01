@@ -45,7 +45,7 @@ impl TreeNode {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Tree {
     tree: Vec<TreeNode>,
 }
@@ -104,7 +104,7 @@ impl Tree {
         count + 1
     }
 
-    pub(crate) fn add_node(&mut self, parent: usize, is_left: bool, mut node: TreeNode) -> usize {
+    pub fn add_node(&mut self, parent: usize, is_left: bool, mut node: TreeNode) -> usize {
         node.index = self.tree.len();
         self.tree.push(node);
         let position = self.tree.len() - 1;
