@@ -3,15 +3,15 @@ use dtrees_rs::algorithms::common::errors::NativeError;
 use dtrees_rs::algorithms::common::heuristics::{
     GiniIndex, Heuristic, InformationGain, NoHeuristic,
 };
+use dtrees_rs::algorithms::common::types::{SearchHeuristic, SearchStepStrategy};
 use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
 use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
 use dtrees_rs::algorithms::optimal::rules::common::TimeLimitRule;
 use dtrees_rs::algorithms::optimal::Reason;
 use dtrees_rs::algorithms::TreeSearchAlgorithm;
 use dtrees_rs::caching::Trie;
-use dtrees_rs::example_parser::{load_results, save_results, ExampleParser, Res};
+use dtrees_rs::parser::{load_results, save_results, ExampleParser, Res};
 use dtrees_rs::reader::data_reader::DataReader;
-use dtrees_rs::searches::{SearchHeuristic, SearchStepStrategy};
 use std::fs;
 use std::fs::remove_file;
 use std::path::Path;

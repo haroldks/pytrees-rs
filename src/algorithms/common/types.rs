@@ -116,4 +116,19 @@ pub enum CacheInitStrategy {
     Disabled,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum)]
+pub enum SearchHeuristic {
+    InformationGain,
+    InformationGainRatio,
+    GiniIndex,
+    None_,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum)]
+pub enum SearchStepStrategy {
+    Monotonic,
+    Luby,
+    Exponential,
+}
+
 pub type BranchingChoice = (usize, f64, f64);
