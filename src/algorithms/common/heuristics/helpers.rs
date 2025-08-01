@@ -20,6 +20,7 @@ pub fn gini_index(
     parent_distribution: &[usize],
     left_distribution: &[usize],
     right_distribution: &[usize],
+    _parent_entropy: f64,
 ) -> f64 {
     let total_samples = parent_distribution.iter().sum::<usize>();
     if total_samples == 0 {
@@ -53,10 +54,10 @@ fn calculate_branch_impurity(distribution: &[usize], total: f64) -> f64 {
 
 #[inline]
 pub fn information_gain(
-    parent_entropy: f64,
     parent_distribution: &[usize],
     left_distribution: &[usize],
     right_distribution: &[usize],
+    parent_entropy: f64,
 ) -> f64 {
     let total_count = parent_distribution.iter().sum::<usize>() as f64;
     if total_count < 1.0 {
@@ -79,6 +80,7 @@ pub fn weighted_entropy(
     parent_distribution: &[usize],
     left_distribution: &[usize],
     right_distribution: &[usize],
+    _parent_entropy: f64,
 ) -> f64 {
     let total_count = parent_distribution.iter().sum::<usize>() as f64;
     if total_count < 1.0 {

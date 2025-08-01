@@ -2,6 +2,7 @@ pub trait ErrorWrapper {
     fn compute(&self, data: &[usize]) -> (f64, f64);
 }
 
+#[derive(Debug, Clone)]
 pub struct NativeError {
     function: fn(&[usize]) -> (f64, f64),
 }

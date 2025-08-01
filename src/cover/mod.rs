@@ -3,7 +3,7 @@ use crate::cover::reversible_cover::{ShallowBitset, SparseBitset};
 use crate::globals::{attribute, item_type};
 
 pub mod reversible_cover;
-mod similarities;
+pub mod similarities;
 
 pub struct Cover {
     pub num_attributes: usize,
@@ -69,5 +69,13 @@ impl Cover {
     pub fn shallow_cover(&self) -> ShallowBitset {
         let cover = &self.cover;
         cover.into()
+    }
+
+    pub fn sparse(&self) -> &SparseBitset {
+        &self.cover
+    }
+
+    pub fn path(&self) -> &[usize] {
+        &self.branch
     }
 }
