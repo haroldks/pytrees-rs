@@ -56,3 +56,6 @@ cargo run --release --example discrepancy -- \
     --fast-d2 enabled
 
 ```
+
+
+All the benchmarks results are generated with `all.sh`

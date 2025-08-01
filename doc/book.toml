@@ -1,6 +1,0 @@
-[book]
-authors = ["haroldks"]
-language = "en"
-multilingual = false
-src = "src"
-title = "Improving Algorithms for Exact Decision Trees"
