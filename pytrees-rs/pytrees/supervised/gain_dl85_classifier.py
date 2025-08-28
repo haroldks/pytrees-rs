@@ -3,58 +3,57 @@ import json
 from .. import *
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils import check_array, check_X_y, assert_all_finite
-from pytreesrs.odt import PyLDSDl85
+from pytreesrs.odt import dl85, PyGenericDl85
 
 
-class LDSDL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
+class GainDL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
     def __init__(
         self,
         min_sup=1,
         max_depth=1,
-        budget=0,
         max_error=1e10,
+        purity=0.5,
+        epsilon=0.1,
         max_time=600,
         cache_init_size=0,
-        one_time_sort=False,
-        discrepancy_strategy=ExposedDiscrepancyStrategy.Monotonic,
         data_format=ExposedDataFormat.ClassSupports,
         specialization=ExposedSpecialization.Murtree,
         lower_bound=ExposedLowerBoundStrategy.Similarity,
         branching_type=ExposedBranchingStrategy.Dynamic,
-        heuristic=ExposedSearchHeuristic.None_,
         cache_init_strategy=ExposedCacheInitStrategy.None_,
         error_function=None,
     ):
         super().__init__()
         self.min_sup = min_sup
         self.max_depth = max_depth
-        self.budget = budget
-        self.strategy = discrepancy_strategy
         self.max_error = max_error
+        self.purity = purity
+        self.epsilon = epsilon
         self.max_time = max_time
         self.cache_init_size = cache_init_size
-        self.one_time_sort = one_time_sort
+        self.one_time_sort = False
         self.data_format = data_format
         self.specialization = specialization
         self.lower_bound = lower_bound
         self.branching_type = branching_type
-        self.heuristic = heuristic
+        self.heuristic = ExposedSearchHeuristic.InformationGain
         self.cache_init_strategy = cache_init_strategy
         self.error_function = error_function
 
-        self.results = None
         self.first = True
+        self.results = None
         self.is_optimal = False
 
-        self.internal = PyLDSDl85(
+        self.internal = PyGenericDl85(
             self.min_sup,
             self.max_depth,
-            self.budget,
-            self.max_error,
+            None,
             self.max_time,
-            self.one_time_sort,
+            self.purity,
+            self.epsilon,
             self.cache_init_size,
-            self.strategy,
+            self.max_error,
+            self.one_time_sort,
             self.data_format,
             self.specialization,
             self.lower_bound,
@@ -62,6 +61,7 @@ class LDSDL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
             self.heuristic,
             self.cache_init_strategy,
             self.error_function,
+            ExposedSearchStrategy.GainLimit,
         )
 
     def fit(self, X, y=None):

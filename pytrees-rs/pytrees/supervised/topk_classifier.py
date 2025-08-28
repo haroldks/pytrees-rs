@@ -16,7 +16,7 @@ class TopKDL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
         max_error=1e10,
         max_time=600,
         cache_init_size=0,
-        one_time_sort=True,
+        one_time_sort=False,
         discrepancy_strategy=ExposedDiscrepancyStrategy.Monotonic,
         data_format=ExposedDataFormat.ClassSupports,
         specialization=ExposedSpecialization.Murtree,

@@ -23,7 +23,7 @@ use pyo3::{pyclass, pymethods, PyObject};
 // TODO : merge with LDS
 #[pyclass]
 pub struct PyTopKDl85 {
-    learner: TopKDL85<Trie, dyn Discrepancy + Send, dyn ErrorWrapper + Send, dyn Heuristic + Send>,
+    learner: TopKDL85<Trie, dyn Discrepancy + Send + Sync, dyn ErrorWrapper + Send + Sync, dyn Heuristic + Send + Sync>,
     pub(crate) error: f64,
     pub(crate) results: LearningResult,
     pub(crate) duration: f64,
@@ -78,20 +78,20 @@ impl PyTopKDl85 {
             ExposedBranchingStrategy::None_ => BranchingStrategy::None_,
         };
 
-        let heuristic: Box<dyn Heuristic + Send> = match heuristic {
+        let heuristic: Box<dyn Heuristic + Send + Sync> = match heuristic {
             ExposedSearchHeuristic::InformationGain => Box::<InformationGain>::default(),
             ExposedSearchHeuristic::InformationGainRatio => Box::<InformationGainRatio>::default(),
             ExposedSearchHeuristic::GiniIndex => Box::<GiniIndex>::default(),
             ExposedSearchHeuristic::None_ => Box::<NoHeuristic>::default(),
         };
 
-        let discrepancy_function: Box<dyn Discrepancy + Send> = match discrepancy_strategy {
+        let discrepancy_function: Box<dyn Discrepancy + Send+ Sync> = match discrepancy_strategy {
             ExposedDiscrepancyStrategy::Monotonic => Box::<MonotonicDiscrepancy>::default(),
             ExposedDiscrepancyStrategy::Exponential => Box::<ExponentialDiscrepancy>::default(),
             ExposedDiscrepancyStrategy::Luby => Box::<LubyDiscrepancy>::default(),
         };
 
-        let external_error: Box<dyn ErrorWrapper + Send> = match error_function {
+        let external_error: Box<dyn ErrorWrapper + Send+ Sync> = match error_function {
             Some(function) => {
                 specialization = Specialization::None_;
                 Box::new(PythonError::new(function))

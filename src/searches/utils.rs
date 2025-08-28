@@ -115,6 +115,7 @@ pub enum SearchStrategy {
     LessGreedyInfoGain,
     RestartTimeout,
     PurityLimit,
+    GainLimit,
     NormalDL85,
     None_,
 }
@@ -139,6 +140,13 @@ pub enum SearchHeuristic {
     InformationGainRatio,
     GiniIndex,
     None_,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum)]
+pub enum DiscrepancyStrategy {
+    Monotonic,
+    Exponential,
+    Luby,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum)]

@@ -2,17 +2,14 @@ use clap::Parser;
 use dtrees_rs::cache::{Caching, Trie};
 use dtrees_rs::data::{BinaryData, FileReader};
 use dtrees_rs::example::{load_results, save_results, ExampleParser, Res};
-use dtrees_rs::heuristics::{
-    GiniIndex, Heuristic, InformationGain, InformationGainRatio, NoHeuristic,
-};
+use dtrees_rs::heuristics::InformationGain;
 use dtrees_rs::searches::errors::NativeError;
 use dtrees_rs::searches::optimal::{
-    Discrepancy, ExponentialDiscrepancy, LubyDiscrepancy, MonotonicDiscrepancy, TopKDL85, DL85,
-    LDSDL85,
+    Discrepancy, ExponentialDiscrepancy, LubyDiscrepancy, MonotonicDiscrepancy, RelativeGainDL85,
 };
 use dtrees_rs::searches::{
     BranchingStrategy, CacheInitStrategy, DiscrepancyStrategy, LowerBoundStrategy, NodeExposedData,
-    SearchHeuristic, Specialization,
+    Specialization,
 };
 use dtrees_rs::structures::RevBitset;
 use std::fs;
@@ -21,7 +18,7 @@ use std::path::Path;
 
 fn main() {
     let app = ExampleParser::parse();
-    let method = "topk".to_string();
+    let method = "gain".to_string();
 
     assert!(app.input.exists(), "File does not exist");
 
@@ -30,9 +27,9 @@ fn main() {
     let support = app.support;
     let fast_d2 = app.fast_d2;
     let time_limit = app.timeout;
+    let metric = app.metric;
+    let epsilon = app.epsilon;
     let one_time_sort = !app.always_sort;
-    let heuristic_strategy = app.heuristic;
-    let lds_strategy = app.discrepancy;
 
     // How often to save checkpoints (every N iterations)
     let checkpoint_interval = 10;
@@ -101,26 +98,20 @@ fn main() {
     let mut structure = RevBitset::new(&data);
     let error_function = Box::<NativeError>::default();
     let cache = Box::<Trie>::default();
+    let heuristics = Box::<InformationGain>::default();
 
-    let heuristics: Box<dyn Heuristic + Send> = match heuristic_strategy {
-        SearchHeuristic::InformationGain => Box::<InformationGain>::default(),
-        SearchHeuristic::InformationGainRatio => Box::<InformationGainRatio>::default(),
-        SearchHeuristic::GiniIndex => Box::<GiniIndex>::default(),
-        SearchHeuristic::None_ => Box::<NoHeuristic>::default(),
-    };
-
-    let discrepancy: Box<dyn Discrepancy + Send> = match lds_strategy {
+    let discrepancy: Box<dyn Discrepancy + Send> = match app.discrepancy {
         DiscrepancyStrategy::Monotonic => Box::<MonotonicDiscrepancy>::default(),
         DiscrepancyStrategy::Exponential => Box::<ExponentialDiscrepancy>::default(),
         DiscrepancyStrategy::Luby => Box::<LubyDiscrepancy>::default(),
     };
 
-    let mut learner = TopKDL85::new(
+    let mut learner = RelativeGainDL85::new(
         support,
         depth,
-        1,
-        usize::MAX,
         <f64>::INFINITY,
+        metric,
+        epsilon,
         time_limit,
         one_time_sort,
         0,
@@ -138,13 +129,12 @@ fn main() {
         error_function,
         heuristics,
     );
-
     let mut counter = 0;
     while !learner.time_is_up() {
         let r = learner.partial_fit(&mut structure, None);
         result.errors.push(r.0);
         result.cache.push(learner.cache.size());
-        result.metric.push(r.1);
+        result.metric.push(learner.get_metric());
         result.runtimes.push(learner.current_runtime());
         result.tree = learner.tree.clone();
         // Save checkpoint at regular intervals
@@ -156,6 +146,7 @@ fn main() {
             result.completed = true;
             break;
         }
+        //break
     }
 
     result.completed = true;
@@ -164,9 +155,5 @@ fn main() {
 
     if app.print_stats {
         println!("{:?}", learner.statistics);
-    }
-
-    if app.print_tree {
-        learner.tree.print()
     }
 }

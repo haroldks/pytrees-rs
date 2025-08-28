@@ -20,37 +20,29 @@ impl StopConditions {
         discrepancy: Option<usize>,
         discrepancy_budget: Option<usize>,
     ) -> (bool, StopReason) {
-        if self.node_is_optimal(node) && node.upper_bound >= upper_bound {
-            if node.upper_bound < upper_bound {
-                node.is_optimal = false;
-            } else {
-                return (true, StopReason::Done);
-            }
+        if node.error.is_finite() {
+            //  println!("Node error : {:?}", node);
+            return (true, StopReason::Done);
         }
 
-        if self.time_limit_reached(current_time, max_time, node) {
-            if let Some(dis) = discrepancy {
-                node.discrepancy = dis
-            }
-            return (true, StopReason::TimeLimitReached);
-        }
-
-        if self.max_depth_reached(current_depth, max_depth, node) {
-            if let Some(dis) = discrepancy {
-                node.discrepancy = dis
-            }
-            return (true, StopReason::MaxDepthReached);
-        }
-
-        if self.not_enough_support(support, min_sup, node) {
-            if let Some(dis) = discrepancy {
-                node.discrepancy = dis
-            }
-            return (true, StopReason::NotEnoughSupport);
+        if self.lower_bound_constrained(upper_bound, node) {
+            return (true, StopReason::LowerBoundConstrained);
         }
 
         if self.pure_node(node) {
             return (true, StopReason::PureNode);
+        }
+
+        if self.max_depth_reached(current_depth, max_depth, node) {
+            return (true, StopReason::MaxDepthReached);
+        }
+
+        if self.not_enough_support(support, min_sup, node) {
+            return (true, StopReason::NotEnoughSupport);
+        }
+
+        if self.time_limit_reached(current_time, max_time, node) {
+            return (true, StopReason::TimeLimitReached);
         }
 
         // FIXME : the condition is not exact
@@ -59,14 +51,15 @@ impl StopConditions {
         //     return (true, StopReason::LowerBoundConstrained);
         // }
 
-        if self.lower_bound_constrained(upper_bound, node) {
-            if let Some(dis) = discrepancy_budget {
-                if node.discrepancy >= dis {
-                    return (true, StopReason::PureNode); // TODO : Change this to another condition
-                }
-            }
-            return (true, StopReason::LowerBoundConstrained);
-        }
+        // if self.lower_bound_constrained(upper_bound, node) {
+        //     if let Some(dis) = discrepancy_budget {
+        //         if node.discrepancy >= dis {
+        //             return (true, StopReason::PureNode); // TODO : Change this to another condition
+        //         }
+        //     }
+        //     println!("Upper bound : {:?} lb {}", upper_bound, node.lower_bound);
+        //     return (true, StopReason::LowerBoundConstrained);
+        // }
 
         (false, StopReason::None)
     }
@@ -85,46 +78,32 @@ impl StopConditions {
         discrepancy: Option<usize>,
         discrepancy_budget: Option<usize>,
     ) -> (bool, StopReason) {
-        if self.node_is_optimal(node) && node.upper_bound >= upper_bound {
-            if node.upper_bound < upper_bound {
-                node.is_optimal = false;
-            } else {
-                return (true, StopReason::Done);
-            }
+        if node.error.is_finite() && node.upper_bound.is_finite() {
+            return (true, StopReason::Done);
         }
 
-        if self.time_limit_reached(current_time, max_time, node) || max_time_budget_exhausted {
-            if let Some(dis) = discrepancy {
-                node.discrepancy = dis
-            }
-            return (true, StopReason::TimeLimitReached);
+        if self.lower_bound_constrained(upper_bound, node) {
+            return (true, StopReason::LowerBoundConstrained);
+        }
+
+        if self.pure_node(node) {
+            node.upper_bound = upper_bound;
+            return (true, StopReason::PureNode);
         }
 
         if self.max_depth_reached(current_depth, max_depth, node) {
-            if let Some(dis) = discrepancy {
-                node.discrepancy = dis
-            }
+            node.upper_bound = upper_bound;
             return (true, StopReason::MaxDepthReached);
         }
 
         if self.not_enough_support(support, min_sup, node) {
-            if let Some(dis) = discrepancy {
-                node.discrepancy = dis
-            }
+            node.upper_bound = upper_bound;
             return (true, StopReason::NotEnoughSupport);
         }
 
-        if self.pure_node(node) {
-            return (true, StopReason::PureNode);
-        }
-
-        if self.lower_bound_constrained(upper_bound, node) {
-            if let Some(dis) = discrepancy_budget {
-                if node.discrepancy >= dis {
-                    return (true, StopReason::PureNode); // TODO : Change this to another condition
-                }
-            }
-            return (true, StopReason::LowerBoundConstrained);
+        if self.time_limit_reached(current_time, max_time, node) || max_time_budget_exhausted {
+            node.upper_bound = f64::INFINITY;
+            return (true, StopReason::TimeLimitReached);
         }
 
         (false, StopReason::None)
@@ -143,47 +122,33 @@ impl StopConditions {
         discrepancy: Option<usize>,
         discrepancy_budget: Option<usize>,
     ) -> (bool, StopReason) {
-        if self.node_is_optimal(node) && node.discrepancy >= discrepancy.unwrap() {
-            if node.upper_bound >= upper_bound {
-                return (true, StopReason::Done);
-            } else {
-                node.is_optimal = false;
-            }
+        if node.error.is_finite() && node.upper_bound.is_finite() {
+            return (true, StopReason::Done);
         }
 
-        if self.time_limit_reached(current_time, max_time, node) {
-            if let Some(dis) = discrepancy {
-                node.discrepancy = dis
-            }
-            return (true, StopReason::TimeLimitReached);
-        }
-
-        if self.max_depth_reached(current_depth, max_depth, node) {
-            if let Some(dis) = discrepancy {
-                node.discrepancy = dis
-            }
-            return (true, StopReason::MaxDepthReached);
+        if self.lower_bound_constrained(upper_bound, node) {
+            return (true, StopReason::LowerBoundConstrained);
         }
 
         if self.pure_node(node) {
+            node.upper_bound = upper_bound;
             return (true, StopReason::PureNode);
         }
 
+        if self.max_depth_reached(current_depth, max_depth, node) {
+            node.upper_bound = upper_bound;
+            return (true, StopReason::MaxDepthReached);
+        }
+
         if self.not_enough_support(support, min_sup, node) {
-            if let Some(dis) = discrepancy {
-                node.discrepancy = dis
-            }
+            node.upper_bound = upper_bound;
             return (true, StopReason::NotEnoughSupport);
         }
 
-        // if self.lower_bound_constrained(upper_bound, node) {
-        //     if let Some(dis) = discrepancy_budget {
-        //         if node.discrepancy >= dis {
-        //             return (true, StopReason::PureNode); // TODO : Change this to another condition
-        //         }
-        //     }
-        //     return (true, StopReason::LowerBoundConstrained);
-        // }
+        if self.time_limit_reached(current_time, max_time, node) {
+            node.upper_bound = f64::INFINITY;
+            return (true, StopReason::TimeLimitReached);
+        }
 
         (false, StopReason::None)
     }
@@ -202,58 +167,82 @@ impl StopConditions {
         discrepancy_budget: Option<usize>,
         purity: f64,
     ) -> (bool, StopReason) {
+        if node.error.is_finite() && node.upper_bound.is_finite() {
+            return (true, StopReason::Done);
+        }
+
+        if self.lower_bound_constrained(upper_bound, node) {
+            return (true, StopReason::LowerBoundConstrained);
+        }
+
         if self.pure_node(node) {
+            node.upper_bound = upper_bound;
             return (true, StopReason::PureNode);
         }
 
         if self.is_pure_enough(node, purity) {
+            node.upper_bound = f64::INFINITY;
             return (true, StopReason::PureEnough);
         }
 
-        // if self.node_is_optimal(node) && node.upper_bound >= upper_bound && node.metric >= purity {
-        //     if node.upper_bound < upper_bound || node.metric < purity {
-        //         node.is_optimal = false;
-        //     } else {
-        //         return (true, StopReason::Done);
-        //     }
-        // }
-
-        if self.time_limit_reached(current_time, max_time, node) {
-            if let Some(dis) = discrepancy {
-                node.discrepancy = dis
-            }
-            return (true, StopReason::TimeLimitReached);
-        }
-
         if self.max_depth_reached(current_depth, max_depth, node) {
-            if let Some(dis) = discrepancy {
-                node.discrepancy = dis
-            }
+            node.upper_bound = upper_bound;
             return (true, StopReason::MaxDepthReached);
         }
 
         if self.not_enough_support(support, min_sup, node) {
-            if let Some(dis) = discrepancy {
-                node.discrepancy = dis
-            }
+            node.upper_bound = upper_bound;
             return (true, StopReason::NotEnoughSupport);
         }
 
-        if self.node_is_optimal(node) {
-            if node.upper_bound < upper_bound || node.metric < purity {
-                node.is_optimal = false;
-            } else {
-                return (true, StopReason::Done);
-            }
+        if self.time_limit_reached(current_time, max_time, node) {
+            node.upper_bound = f64::INFINITY;
+            return (true, StopReason::TimeLimitReached);
+        }
+
+        (false, StopReason::None)
+    }
+
+    pub(crate) fn check_gain(
+        &self,
+        node: &mut CacheEntry,
+        support: usize,
+        min_sup: usize,
+        current_depth: usize,
+        max_depth: usize,
+        current_time: Duration,
+        max_time: usize,
+        upper_bound: f64,
+        discrepancy: Option<usize>,
+        discrepancy_budget: Option<usize>,
+        purity: f64,
+    ) -> (bool, StopReason) {
+        if node.error.is_finite() && node.upper_bound.is_finite() {
+            return (true, StopReason::Done);
         }
 
         if self.lower_bound_constrained(upper_bound, node) {
-            if let Some(dis) = discrepancy_budget {
-                if node.discrepancy >= dis {
-                    return (true, StopReason::PureNode); // TODO : Change this to another condition
-                }
-            }
             return (true, StopReason::LowerBoundConstrained);
+        }
+
+        if self.pure_node(node) {
+            node.upper_bound = upper_bound;
+            return (true, StopReason::PureNode);
+        }
+
+        if self.max_depth_reached(current_depth, max_depth, node) {
+            node.upper_bound = upper_bound;
+            return (true, StopReason::MaxDepthReached);
+        }
+
+        if self.not_enough_support(support, min_sup, node) {
+            node.upper_bound = upper_bound;
+            return (true, StopReason::NotEnoughSupport);
+        }
+
+        if self.time_limit_reached(current_time, max_time, node) {
+            node.upper_bound = f64::INFINITY;
+            return (true, StopReason::TimeLimitReached);
         }
 
         (false, StopReason::None)
@@ -288,7 +277,6 @@ impl StopConditions {
 
     fn lower_bound_constrained(&self, actual_upper_bound: f64, node: &mut CacheEntry) -> bool {
         //println!("Node : {:?}", node);
-        //println!("Upper bound : {:?}", actual_upper_bound);
         actual_upper_bound <= node.lower_bound || float_is_null(actual_upper_bound)
     }
 
@@ -331,6 +319,10 @@ impl StopConditions {
 
         purity >= threshold
     }
+
+    // fn is_same_run(&self, node: &mut CacheEntry, current_run: usize) -> bool {
+    //     node.run == current_run
+    // }
 
     // fn discrepancy_lower_bound(&self, budget: usize, actual_upper_bound: usize,  node: &mut CacheEntry) -> bool {
     //     match Some(budget){

@@ -12,10 +12,8 @@ crate-type = ["cdylib", "lib"]
 test = true
 
 [dependencies]
-ndarray = "0.15.3"
-numpy = "0.20.0"
-pyo3 = { version = "0.20.0"}
-serde = { version = "1.0", features = ["derive"] }
+numpy = "0.24.0"
+pyo3 = { version = "0.24.1" }
 serde_json = "1.0"
 dtrees-rs = {version = "0.1.0", path = ".."}
 

@@ -5,6 +5,7 @@ from .supervised import (
     DL85Classifier,
     RestartDL85Classifier,
     PurityDL85Classifier,
+    GainDL85Classifier,
     LDSDL85Classifier,
     TopKDL85Classifier,
 )

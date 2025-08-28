@@ -1,0 +1,402 @@
+{
+  "name": "../test_data/anneal.txt",
+  "method": "lds",
+  "depth": 4,
+  "support": 1,
+  "completed": true,
+  "one_time_sort": false,
+  "fast_d2": true,
+  "metric": [
+    0.0,
+    1.0,
+    2.0,
+    4.0,
+    8.0,
+    16.0,
+    32.0,
+    64.0,
+    128.0,
+    256.0
+  ],
+  "runtimes": [
+    0.0023056,
+    0.006573115,
+    0.011104155,
+    0.019493936,
+    0.042581541,
+    0.130683253,
+    0.475511999,
+    1.780468341,
+    5.120620279,
+    5.622812648
+  ],
+  "errors": [
+    126.0,
+    126.0,
+    123.0,
+    123.0,
+    121.0,
+    119.0,
+    104.0,
+    98.0,
+    92.0,
+    92.0
+  ],
+  "cache": [
+    31,
+    68,
+    123,
+    243,
+    598,
+    2031,
+    6833,
+    22902,
+    59622,
+    64822
+  ],
+  "tree": {
+    "tree": [
+      {
+        "value": {
+          "test": 80,
+          "error": 92.0,
+          "metric": null,
+          "out": null
+        },
+        "index": 0,
+        "left": 1,
+        "right": 16
+      },
+      {
+        "value": {
+          "test": 62,
+          "error": 59.0,
+          "metric": null,
+          "out": null
+        },
+        "index": 1,
+        "left": 2,
+        "right": 9
+      },
+      {
+        "value": {
+          "test": 86,
+          "error": 13.0,
+          "metric": null,
+          "out": null
+        },
+        "index": 2,
+        "left": 3,
+        "right": 6
+      },
+      {
+        "value": {
+          "test": 88,
+          "error": 7.0,
+          "metric": null,
+          "out": null
+        },
+        "index": 3,
+        "left": 4,
+        "right": 5
+      },
+      {
+        "value": {
+          "test": null,
+          "error": 4.0,
+          "metric": null,
+          "out": 1.0
+        },
+        "index": 4,
+        "left": 0,
+        "right": 0
+      },
+      {
+        "value": {
+          "test": null,
+          "error": 3.0,
+          "metric": null,
+          "out": 0.0
+        },
+        "index": 5,
+        "left": 0,
+        "right": 0
+      },
+      {
+        "value": {
+          "test": 84,
+          "error": 6.0,
+          "metric": null,
+          "out": null
+        },
+        "index": 6,
+        "left": 7,
+        "right": 8
+      },
+      {
+        "value": {
+          "test": null,
+          "error": 3.0,
+          "metric": null,
+          "out": 1.0
+        },
+        "index": 7,
+        "left": 0,
+        "right": 0
+      },
+      {
+        "value": {
+          "test": null,
+          "error": 3.0,
+          "metric": null,
+          "out": 0.0
+        },
+        "index": 8,
+        "left": 0,
+        "right": 0
+      },
+      {
+        "value": {
+          "test": 5,
+          "error": 46.0,
+          "metric": null,
+          "out": null
+        },
+        "index": 9,
+        "left": 10,
+        "right": 13
+      },
+      {
+        "value": {
+          "test": 58,
+          "error": 29.0,
+          "metric": null,
+          "out": null
+        },
+        "index": 10,
+        "left": 11,
+        "right": 12
+      },
+      {
+        "value": {
+          "test": null,
+          "error": 29.0,
+          "metric": null,
+          "out": 0.0
+        },
+        "index": 11,
+        "left": 0,
+        "right": 0
+      },
+      {
+        "value": {
+          "test": null,
+          "error": 0.0,
+          "metric": null,
+          "out": 1.0
+        },
+        "index": 12,
+        "left": 0,
+        "right": 0
+      },
+      {
+        "value": {
+          "test": 30,
+          "error": 17.0,
+          "metric": null,
+          "out": null
+        },
+        "index": 13,
+        "left": 14,
+        "right": 15
+      },
+      {
+        "value": {
+          "test": null,
+          "error": 0.0,
+          "metric": null,
+          "out": 0.0
+        },
+        "index": 14,
+        "left": 0,
+        "right": 0
+      },
+      {
+        "value": {
+          "test": null,
+          "error": 17.0,
+          "metric": null,
+          "out": 1.0
+        },
+        "index": 15,
+        "left": 0,
+        "right": 0
+      },
+      {
+        "value": {
+          "test": 36,
+          "error": 33.0,
+          "metric": null,
+          "out": null
+        },
+        "index": 16,
+        "left": 17,
+        "right": 24
+      },
+      {
+        "value": {
+          "test": 70,
+          "error": 0.0,
+          "metric": null,
+          "out": null
+        },
+        "index": 17,
+        "left": 18,
+        "right": 21
+      },
+      {
+        "value": {
+          "test": 72,
+          "error": 0.0,
+          "metric": null,
+          "out": null
+        },
+        "index": 18,
+        "left": 19,
+        "right": 20
+      },
+      {
+        "value": {
+          "test": null,
+          "error": 0.0,
+          "metric": null,
+          "out": 1.0
+        },
+        "index": 19,
+        "left": 0,
+        "right": 0
+      },
+      {
+        "value": {
+          "test": null,
+          "error": 0.0,
+          "metric": null,
+          "out": 0.0
+        },
+        "index": 20,
+        "left": 0,
+        "right": 0
+      },
+      {
+        "value": {
+          "test": 9,
+          "error": 0.0,
+          "metric": null,
+          "out": null
+        },
+        "index": 21,
+        "left": 22,
+        "right": 23
+      },
+      {
+        "value": {
+          "test": null,
+          "error": 0.0,
+          "metric": null,
+          "out": 1.0
+        },
+        "index": 22,
+        "left": 0,
+        "right": 0
+      },
+      {
+        "value": {
+          "test": null,
+          "error": 0.0,
+          "metric": null,
+          "out": 0.0
+        },
+        "index": 23,
+        "left": 0,
+        "right": 0
+      },
+      {
+        "value": {
+          "test": 5,
+          "error": 33.0,
+          "metric": null,
+          "out": null
+        },
+        "index": 24,
+        "left": 25,
+        "right": 28
+      },
+      {
+        "value": {
+          "test": 78,
+          "error": 11.0,
+          "metric": null,
+          "out": null
+        },
+        "index": 25,
+        "left": 26,
+        "right": 27
+      },
+      {
+        "value": {
+          "test": null,
+          "error": 0.0,
+          "metric": null,
+          "out": 0.0
+        },
+        "index": 26,
+        "left": 0,
+        "right": 0
+      },
+      {
+        "value": {
+          "test": null,
+          "error": 11.0,
+          "metric": null,
+          "out": 1.0
+        },
+        "index": 27,
+        "left": 0,
+        "right": 0
+      },
+      {
+        "value": {
+          "test": 34,
+          "error": 22.0,
+          "metric": null,
+          "out": null
+        },
+        "index": 28,
+        "left": 29,
+        "right": 30
+      },
+      {
+        "value": {
+          "test": null,
+          "error": 0.0,
+          "metric": null,
+          "out": 0.0
+        },
+        "index": 29,
+        "left": 0,
+        "right": 0
+      },
+      {
+        "value": {
+          "test": null,
+          "error": 22.0,
+          "metric": null,
+          "out": 1.0
+        },
+        "index": 30,
+        "left": 0,
+        "right": 0
+      }
+    ]
+  }
+}

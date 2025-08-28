@@ -8,7 +8,7 @@ use crate::utils::{
     ExposedSearchStrategy, ExposedSpecialization,
 };
 use numpy::pyo3::{pymodule, PyResult, Python};
-use pyo3::prelude::PyModule;
+use pyo3::prelude::{PyModule, PyModuleMethods, Bound, PyAnyMethods};
 use pyo3::wrap_pyfunction;
 
 mod greedy;
@@ -16,7 +16,7 @@ mod optimal;
 mod utils;
 
 #[pymodule]
-fn pytreesrs(py: Python<'_>, m: &PyModule) -> PyResult<()> {
+fn pytreesrs(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     odt(py, m)?;
     greed(py, m)?;
     enums(py, m)?;
@@ -25,7 +25,7 @@ fn pytreesrs(py: Python<'_>, m: &PyModule) -> PyResult<()> {
 
 #[pymodule]
 #[pyo3(name = "enums")]
-fn enums(py: Python<'_>, parent_module: &PyModule) -> PyResult<()> {
+fn enums(py: Python<'_>, parent_module: &Bound<'_, PyModule>) -> PyResult<()> {
     let module = PyModule::new(py, "enums")?;
     module.add_class::<ExposedSearchHeuristic>()?;
     module.add_class::<ExposedDataFormat>()?;
@@ -37,7 +37,7 @@ fn enums(py: Python<'_>, parent_module: &PyModule) -> PyResult<()> {
     module.add_class::<ExposedSearchStrategy>()?;
     module.add_class::<ExposedDiscrepancyStrategy>()?;
 
-    parent_module.add_submodule(module)?;
+    parent_module.add_submodule(&module)?;
     py.import("sys")?
         .getattr("modules")?
         .set_item("pytreesrs.enums", module)?;
@@ -46,14 +46,14 @@ fn enums(py: Python<'_>, parent_module: &PyModule) -> PyResult<()> {
 
 #[pymodule]
 #[pyo3(name = "odt")]
-fn odt(py: Python<'_>, parent_module: &PyModule) -> PyResult<()> {
+fn odt(py: Python<'_>, parent_module: &Bound<'_, PyModule>) -> PyResult<()> {
     let module = PyModule::new(py, "odt")?;
-    module.add_function(wrap_pyfunction!(optimal_search_dl85, module)?)?;
+    module.add_function(wrap_pyfunction!(optimal_search_dl85, &module)?)?;
     module.add_class::<PyGenericDl85>()?;
     module.add_class::<PyLDSDl85>()?;
     module.add_class::<PyTopKDl85>()?;
 
-    parent_module.add_submodule(module)?;
+    parent_module.add_submodule(&module)?;
     py.import("sys")?
         .getattr("modules")?
         .set_item("pytreesrs.odt", module)?;
@@ -63,11 +63,11 @@ fn odt(py: Python<'_>, parent_module: &PyModule) -> PyResult<()> {
 
 #[pymodule]
 #[pyo3(name = "greedy")]
-fn greed(py: Python<'_>, parent_module: &PyModule) -> PyResult<()> {
+fn greed(py: Python<'_>, parent_module: &Bound<'_, PyModule>) -> PyResult<()> {
     let module = PyModule::new(py, "greedy")?;
-    module.add_function(wrap_pyfunction!(search_lgdt, module)?)?;
+    module.add_function(wrap_pyfunction!(search_lgdt, &module)?)?;
 
-    parent_module.add_submodule(module)?;
+    parent_module.add_submodule(&module)?;
     py.import("sys")?
         .getattr("modules")?
         .set_item("pytreesrs.greedy", module)?;

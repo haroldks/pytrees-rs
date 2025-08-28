@@ -28,7 +28,7 @@ where
     constraints: Constraints,
     pub statistics: Statistics,
     stop_conditions: StopConditions,
-    cache: Box<C>,
+    pub cache: Box<C>,
     error_function: Box<E>,
     discrepancy: usize,
     discrepancy_function: Box<D>,
@@ -122,11 +122,14 @@ where
         &mut self,
         structure: &mut S,
         max_time: Option<usize>,
-    ) -> SearchReturn {
+    ) -> (f64, f64) {
         self.nb_runs += 1;
         let mut root_index = Some(0);
         let mut error = <f64>::INFINITY;
-        self.remaining_time = max_time.unwrap();
+        self.remaining_time = match max_time {
+            None => self.constraints.max_time - self.runtime.elapsed().as_secs() as usize,
+            Some(t) => t,
+        };
         if self.nb_runs <= 1 {
             self.statistics.num_attributes = structure.num_attributes();
             self.statistics.num_samples = structure.support();
@@ -137,6 +140,7 @@ where
                 root.error = root_error.0;
                 root.leaf_error = root_error.0;
                 root.target = root_error.1;
+                root.upper_bound = f64::INFINITY;
                 root.size = self.statistics.num_samples;
             }
             error = root_error.0;
@@ -164,7 +168,6 @@ where
                 Self::discrepancy_limit(self.root_candidates.len(), self.constraints.max_depth),
             );
             self.statistics.constraints.discrepancy_budget = self.constraints.discrepancy_budget;
-            self.discrepancy = self.discrepancy_function.next();
             self.runtime = Instant::now();
         } else if let Some(root) = self.cache.get_root_infos() {
             error = root.error;
@@ -188,12 +191,14 @@ where
 
         self.update_statistics();
         self.get_solution_tree();
+
         self.is_optimal = float_is_null(return_infos.0)
             || self.discrepancy >= self.constraints.discrepancy_budget
             || matches!(return_infos.1, StopReason::FromSpecializedAlgorithm)
             || matches!(return_infos.1, StopReason::Done);
+        let current = self.discrepancy as f64;
         self.discrepancy = self.discrepancy_function.next();
-        return_infos
+        (return_infos.0, current)
     }
 
     fn recursion<S: Structure>(
@@ -301,6 +306,9 @@ where
             // TODO for the last node or the node to be fully explored is to be checked.
 
             if position > budget {
+                if let Some(parent_node) = self.cache.get(&itemset, parent_index) {
+                    parent_node.upper_bound = f64::INFINITY;
+                }
                 return (parent_error, StopReason::BranchBudgetExhausted, true);
             }
             let branching_choice =
@@ -343,6 +351,10 @@ where
                 &mut child_similarity_data,
             );
 
+            // if structure.get_position().iter().eq([8, 10, 22].iter()) {
+            //     println!("Left - Child {} Returns {:?} ub = {}", child, first_child_return, child_upper_bound );
+            // }
+
             let left_error = first_child_return.0;
 
             exhausted = matches!(first_child_return.1, StopReason::BranchBudgetExhausted);
@@ -357,6 +369,7 @@ where
                 child_index,
                 &mut child_similarity_data,
             );
+            // println!("Itemset:{:?} Child:{} Left Returns:{:?} ub:{} pruned:{} position:{} budget:{}", structure.get_position(), child, first_child_return, child_upper_bound, left_error >= child_upper_bound - branching_choice.2, position, budget);
 
             if left_error >= child_upper_bound - branching_choice.2 {
                 if let Some(node) = self.cache.get(itemset, child_index) {
@@ -370,6 +383,9 @@ where
                 }
                 itemset.remove(&it);
                 if self.restart_timer.elapsed().as_secs() as usize >= self.remaining_time {
+                    if let Some(parent_node) = self.cache.get(&itemset, parent_index) {
+                        parent_node.upper_bound = f64::INFINITY;
+                    }
                     return (parent_error, StopReason::TimeLimitReached, true);
                 }
                 continue;
@@ -429,8 +445,11 @@ where
             itemset.remove(&it);
 
             let feature_error = left_error + right_error;
+            // println!("Itemset:{:?} Child:{} Right Returns:{:?} ub:{} pruned:{} position:{} budget:{} updated:{} parent_error:{}", structure.get_position(), child, second_child_return, right_upper_bound, child_upper_bound < left_error + right_error, position, budget, feature_error<child_upper_bound, parent_error);
 
-            if feature_error < child_upper_bound {
+            if feature_error < child_upper_bound
+                || (feature_error < parent_error && feature_error <= child_upper_bound)
+            {
                 child_upper_bound = feature_error;
 
                 if let Some(parent_node) = self.cache.get(itemset, parent_index) {
@@ -449,6 +468,9 @@ where
                 min_lower_bound = <f64>::min(feature_error, min_lower_bound);
             }
             if self.restart_timer.elapsed().as_secs() as usize >= self.remaining_time {
+                if let Some(parent_node) = self.cache.get(&itemset, parent_index) {
+                    parent_node.upper_bound = f64::INFINITY;
+                }
                 return (parent_error, StopReason::TimeLimitReached, true);
             }
         }
@@ -458,7 +480,10 @@ where
             node_error = node.error;
             node.is_optimal = !exhausted;
             node.discrepancy = self.constraints.discrepancy_budget;
-            node.upper_bound = upper_bound;
+            node.upper_bound = match exhausted {
+                true => f64::INFINITY,
+                false => upper_bound,
+            };
             if node.error.is_infinite() {
                 node.lower_bound =
                     <f64>::max(node.lower_bound, <f64>::max(min_lower_bound, upper_bound));
@@ -466,6 +491,9 @@ where
             }
         }
         if exhausted {
+            if let Some(parent_node) = self.cache.get(&itemset, parent_index) {
+                parent_node.upper_bound = f64::INFINITY;
+            }
             return (node_error, StopReason::BranchBudgetExhausted, true);
         }
         (node_error, StopReason::Done, true)
@@ -665,8 +693,12 @@ where
         }
     }
 
-    fn time_is_up(&self) -> bool {
+    pub fn time_is_up(&self) -> bool {
         self.runtime.elapsed().as_secs() >= self.constraints.max_time.try_into().unwrap()
+    }
+
+    pub fn current_runtime(&self) -> f64 {
+        self.runtime.elapsed().as_secs_f64()
     }
 
     fn create_solution_tree_entry(&self, cache_entry: &CacheEntry) -> NodeInfos {

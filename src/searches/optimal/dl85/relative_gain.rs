@@ -1,46 +1,58 @@
 use crate::cache::{CacheEntry, Caching};
-use crate::globals::{attribute, float_is_null, get_tree_root_error, item};
+use crate::globals::{attribute, compute_entropy, float_is_null, get_tree_root_error, item};
 use crate::heuristics::Heuristic;
 use crate::searches::errors::ErrorWrapper;
 use crate::searches::optimal::d2::Murtree;
 use crate::searches::optimal::dl85::conditions::StopConditions;
 use crate::searches::optimal::dl85::similarity::SimilarityCover;
 use crate::searches::optimal::dl85::{BranchChoice, SearchReturn};
-use crate::searches::optimal::Depth2Algorithm;
+use crate::searches::optimal::{
+    Depth2Algorithm, Discrepancy, ExponentialDiscrepancy, LubyDiscrepancy, MonotonicDiscrepancy,
+};
 use crate::searches::{
     BranchingStrategy, CacheInitStrategy, Constraints, LowerBoundStrategy, NodeExposedData,
     SearchStrategy, Specialization, Statistics, StopReason,
 };
 use crate::structures::Structure;
 use crate::tree::{NodeInfos, Tree, TreeNode};
+use float_cmp::{ApproxEq, F64Margin};
+use std::cmp::min;
 use std::collections::BTreeSet;
 use std::time::Instant;
 
-pub struct RestartDL85<C, E, H>
+pub struct RelativeGainDL85<C, D, E, H>
 where
     C: Caching + ?Sized,
+    D: Discrepancy + ?Sized,
     E: ErrorWrapper + ?Sized + Send,
     H: Heuristic + ?Sized + Send,
 {
     constraints: Constraints,
     pub statistics: Statistics,
-    restart_time: Option<usize>,
+    remaining_time: usize,
     stop_conditions: StopConditions,
     pub cache: Box<C>,
     error_function: Box<E>,
     heuristic: Box<H>,
     pub tree: Tree,
     runtime: Instant,
-    restart_timer: Instant,
-    root_candidates: Vec<usize>,
+    root_candidates: Vec<(usize, f64)>,
+    //root_candidates: Vec<usize>,
     nb_runs: usize,
     is_optimal: bool,
+    gain: f64,
+    epsilon: f64,
     murtree: Murtree,
+    // budget: usize,
+    discrepancy: Box<D>,
+    cumulative_gap: f64,
+    min_gap: f64,
 }
 
-impl<C, E, H> RestartDL85<C, E, H>
+impl<C, D, E, H> RelativeGainDL85<C, D, E, H>
 where
     C: Caching + ?Sized,
+    D: Discrepancy + ?Sized,
     E: ErrorWrapper + ?Sized + Send,
     H: Heuristic + ?Sized + Send,
 {
@@ -48,7 +60,8 @@ where
         min_sup: usize,
         max_depth: usize,
         max_error: f64,
-        restart_time: Option<usize>,
+        gain: f64,
+        epsilon: f64,
         max_time: usize,
         one_time_sort: bool,
         cache_init_size: usize,
@@ -58,6 +71,7 @@ where
         branching: BranchingStrategy,
         data_format: NodeExposedData,
         cache: Box<C>,
+        discrepancy_function: Box<D>,
         error_function: Box<E>,
         heuristic: Box<H>,
     ) -> Self {
@@ -73,7 +87,7 @@ where
             branching_strategy: branching,
             cache_init_size,
             cache_init_strategy,
-            search_strategy: SearchStrategy::RestartTimeout,
+            search_strategy: SearchStrategy::GainLimit,
             discrepancy_budget: 0,
         };
         Self {
@@ -82,18 +96,23 @@ where
                 constraints,
                 ..Statistics::default()
             },
-            restart_time,
+            remaining_time: max_time,
             stop_conditions: StopConditions,
             cache,
             error_function,
             heuristic,
             tree: Tree::default(),
             runtime: Instant::now(),
-            restart_timer: Instant::now(),
             root_candidates: vec![],
             nb_runs: 0,
             is_optimal: false,
+            gain,
+            epsilon,
             murtree: Murtree::default(),
+            cumulative_gap: 0f64,
+            // budget: 0,
+            discrepancy: discrepancy_function,
+            min_gap: 0f64,
         }
     }
 
@@ -102,21 +121,22 @@ where
         self.statistics.num_samples = structure.support();
 
         // Check if there is a restart scheme involved. If so. time for restart should be lower than max time
-        if let Some(restart_duration) = self.restart_time {
-            assert!(restart_duration <= self.constraints.max_time, "Runtime for each algo run should be lower than the maximum time allowed for the search");
-        }
 
         self.runtime = Instant::now();
-        let time_limit = self
-            .restart_time
-            .map_or(self.constraints.max_time, |time| time);
-        while !self.time_is_up() {
-            let return_infos = self.partial_fit(structure, Some(time_limit));
 
-            if float_is_null(return_infos.0) || self.is_optimal() {
+        while !self.time_is_up() {
+            let return_infos = self.partial_fit(structure, Some(self.remaining_time));
+            // println!("Gain {}  {:?} {}", self.gain + self.epsilon, return_infos, self.cache.size());
+            self.remaining_time =
+                self.constraints.max_time - self.runtime.elapsed().as_secs() as usize;
+            if self.is_optimal {
                 break;
             }
         }
+    }
+
+    pub fn current_runtime(&self) -> f64 {
+        self.runtime.elapsed().as_secs_f64()
     }
 
     pub fn partial_fit<S: Structure>(
@@ -127,9 +147,9 @@ where
         self.nb_runs += 1;
         let mut root_index = Some(0);
         let mut error = <f64>::INFINITY;
-        self.restart_time = match max_time {
-            None => self.restart_time,
-            Some(t) => Some(t),
+        self.remaining_time = match max_time {
+            None => self.remaining_time,
+            Some(time) => time,
         };
 
         if self.nb_runs <= 1 {
@@ -143,6 +163,7 @@ where
                 root.leaf_error = root_error.0;
                 root.target = root_error.1;
                 root.upper_bound = f64::INFINITY;
+                root.size = self.statistics.num_samples;
             }
             error = root_error.0;
             error = <f64>::min(error, self.constraints.max_error);
@@ -150,19 +171,30 @@ where
             // Generate the candidates once
             let mut candidates = Vec::new();
             if self.constraints.min_sup == 1 {
-                candidates = (0..structure.num_attributes()).collect();
+                for i in 0..structure.num_attributes() {
+                    candidates.push((i, 0.0));
+                    //candidates.push(i);
+                }
             } else {
                 for i in 0..structure.num_attributes() {
                     if structure.temp_push(item(i, 0)) >= self.constraints.min_sup
                         && structure.temp_push(item(i, 1)) >= self.constraints.min_sup
                     {
-                        candidates.push(i);
+                        candidates.push((i, 0.0));
+                        //candidates.push(i);
                     }
                 }
             }
 
-            self.heuristic.compute(structure, &mut candidates);
+            candidates = self
+                .heuristic
+                .compute_and_metric(structure, &mut candidates);
+            self.gain = self.gain.min(candidates[0].1);
+            // self.heuristic.compute(structure, &mut candidates);
+            // self.constraints.discrepancy_budget = Self::discrepancy_limit(candidates.len(), self.constraints.max_depth);
             self.root_candidates = candidates;
+
+            // self.budget = self.discrepancy.next();
             self.runtime = Instant::now();
         } else if let Some(root) = self.cache.get_root_infos() {
             error = root.error;
@@ -171,10 +203,13 @@ where
         let mut itemset = BTreeSet::new();
         let mut similarity = SimilarityCover::default();
 
-        self.restart_timer = Instant::now();
+        // println!("Self gain {}", self.gain);
+        //  println!("min gap : {}", self.min_gap);
+
         let return_infos = self.recursion(
             structure,
             0,
+            0.0,
             error,
             <usize>::MAX,
             &mut itemset,
@@ -185,20 +220,46 @@ where
         );
         self.update_statistics();
         self.get_solution_tree();
+        //println!("min gap : {}", self.min_gap);
         self.is_optimal = float_is_null(return_infos.0)
-            || !matches!(return_infos.1, StopReason::TimeLimitReached)
+            // || (self.gain <= 0f64 && self.budget >= self.constraints.discrepancy_budget)
+            //|| !matches!(return_infos.1, StopReason::BranchBudgetExhausted)
+            || matches!(return_infos.1, StopReason::Done)
+            || matches!(return_infos.1, StopReason::FromSpecializedAlgorithm)
             || self.time_is_up();
-        (return_infos.0, self.runtime.elapsed().as_secs_f64())
+        // println!("Return infos : {:?} {} {}", return_infos, self.cache.size(), self.cumulative_gap);
+        let current = self.cumulative_gap;
+        if self.nb_runs <= 1 {
+            // println!("Cum : {}", self.cumulative_gap);
+            // println!("min gap : {}", self.min_gap);
+            // println!("Next : {}", self.discrepancy.next() as f64 * self.min_gap);
+            self.epsilon = self.min_gap;
+        }
+        self.cumulative_gap = self.discrepancy.next() as f64 * self.epsilon;
+        // println!("Cum : {}", self.cumulative_gap);
+        self.gain = (self.gain - self.epsilon).max(0.0);
+        // self.budget = self.discrepancy.next();
+        self.remaining_time = self.constraints.max_time - self.runtime.elapsed().as_secs() as usize;
+
+        // TODO Check if I want to increase the purity here
+
+        (return_infos.0, current)
+    }
+
+    pub fn get_metric(&self) -> f64 {
+        self.cumulative_gap - self.epsilon
     }
 
     fn recursion<S: Structure>(
         &mut self,
         structure: &mut S,
         depth: usize,
+        gap: f64,
         upper_bound: f64,
         parent_item: usize,
         itemset: &mut BTreeSet<usize>,
-        candidates: &[usize],
+        candidates: &[(usize, f64)],
+        //candidates: &[usize],
         parent_index: Option<usize>,
         parent_is_new: bool,
         similarity: &mut SimilarityCover,
@@ -207,32 +268,31 @@ where
         let current_support = structure.support();
         self.statistics.search_space_size += 1;
         // BEGIN STEP: Check if we should stop
-        let time_limit = self
-            .restart_time
-            .map_or(self.constraints.max_time, |time| time);
+
         let mut candidates = candidates;
         if depth == 0 {
             candidates = &self.root_candidates;
         }
 
-        let time_is_up = self.time_is_up();
         if let Some(node) = self.cache.get(itemset, parent_index) {
-            let return_condition = self.stop_conditions.check_restart(
+            let return_condition = self.stop_conditions.check_gain(
                 node,
                 current_support,
                 self.constraints.min_sup,
                 depth,
                 self.constraints.max_depth,
-                self.restart_timer.elapsed(),
-                time_is_up,
-                time_limit,
+                self.runtime.elapsed(),
+                self.constraints.max_time,
                 child_upper_bound,
                 None,
                 None,
+                self.gain,
             );
 
+            // println!("Itemset {:?} condition : {:?}", itemset, return_condition);
+
             if return_condition.0 {
-                // node.upper_bound = upper_bound;
+                //node.upper_bound = upper_bound;
                 return (node.error, return_condition.1, false);
             }
         }
@@ -269,6 +329,9 @@ where
         }
 
         // BEGIN STEP: Get the node candidates
+
+        // println!("Parent entr {}", parent_entropy);
+
         let mut node_candidates =
             self.get_node_candidates(structure, attribute(parent_item), candidates);
 
@@ -280,8 +343,20 @@ where
         }
 
         if !self.constraints.one_time_sort {
-            self.heuristic.compute(structure, &mut node_candidates);
+            node_candidates = self
+                .heuristic
+                .compute_and_metric(structure, &mut node_candidates);
+            //self.heuristic.compute(structure, &mut node_candidates);
         }
+
+        // FOr the first run take C4.5
+        if self.nb_runs <= 1 {
+            self.gain = node_candidates[0].1.min(self.gain);
+
+            // println!("{:?} First run gain {}", itemset, self.gain);
+        }
+
+        // println!("Node cand : {:?}", node_candidates);
 
         let mut child_similarity_data = SimilarityCover::default();
         let mut min_lower_bound = <f64>::INFINITY;
@@ -291,7 +366,52 @@ where
             .get(itemset, parent_index)
             .map_or(<f64>::INFINITY, |infos| infos.error);
 
-        for &child in node_candidates.iter() {
+        let mut optimal = true;
+
+        let best_child_info_gain = node_candidates[0].1;
+
+        for (i, &(child, info_gain)) in node_candidates.iter().enumerate() {
+            // println!("Child {} info gain {} limit {}", child, info_gain, self.gain);
+            let child_gap = gap + (best_child_info_gain - info_gain);
+            // println!("Its  {:?} Feature : {}, gap {} limit {} {}", structure.get_position(), child, child_gap, self.cumulative_gap, info_gain);
+
+            if child_gap > self.cumulative_gap {
+                if self.nb_runs <= 1 {
+                    // println!("Min gap before {}", self.min_gap);
+                    if self.min_gap > 0f64 {
+                        self.min_gap = self.min_gap.min(child_gap);
+                    } else {
+                        self.min_gap = child_gap;
+                    }
+                    // println!("Current min gap = {}", self.min_gap)
+                }
+                if let Some(parent_node) = self.cache.get(&itemset, parent_index) {
+                    parent_node.upper_bound = f64::INFINITY;
+                }
+                return (parent_error, StopReason::BranchBudgetExhausted, true);
+            }
+
+            // if info_gain < self.gain || i > budget {
+            //     if let Some(parent_node) = self.cache.get(&itemset, parent_index) {
+            //         parent_node.upper_bound = f64::INFINITY;
+            //     }
+            //     return (parent_error, StopReason::BranchBudgetExhausted, true);
+            // }
+            //
+            // if self.nb_runs <= 1 && i > 0 {
+            //     if let Some(parent_node) = self.cache.get(&itemset, parent_index) {
+            //         parent_node.upper_bound = f64::INFINITY;
+            //     }
+            //     return (parent_error, StopReason::BranchBudgetExhausted, true);
+            // }
+
+            // if self.gain > 0.0 && parent_entropy > 0.0 && (info_gain / parent_entropy) < self.gain {
+            //   if let Some(parent_node) = self.cache.get(&itemset, parent_index) {
+            //       parent_node.upper_bound = f64::INFINITY;
+            //   }
+            //   return (parent_error, StopReason::BranchBudgetExhausted, true);
+            // }
+
             let branching_choice =
                 self.branching_strategy(child, itemset, structure, &mut child_similarity_data);
 
@@ -321,6 +441,7 @@ where
             let first_child_return = self.recursion(
                 structure,
                 depth + 1,
+                child_gap,
                 child_upper_bound,
                 it,
                 itemset,
@@ -355,12 +476,7 @@ where
                 }
                 itemset.remove(&it);
 
-                if self.restart_timer.elapsed().as_secs() as usize >= time_limit
-                    || self.time_is_up()
-                {
-                    if let Some(parent_node) = self.cache.get(&itemset, parent_index) {
-                        parent_node.upper_bound = f64::INFINITY;
-                    }
+                if self.time_is_up() {
                     return (parent_error, StopReason::TimeLimitReached, true);
                 }
 
@@ -396,6 +512,7 @@ where
             let second_child_return = self.recursion(
                 structure,
                 depth + 1,
+                child_gap,
                 right_upper_bound,
                 it,
                 itemset,
@@ -406,6 +523,12 @@ where
             );
 
             let right_error = second_child_return.0;
+
+            if matches!(first_child_return.1, StopReason::BranchBudgetExhausted)
+                || matches!(first_child_return.1, StopReason::BranchBudgetExhausted)
+            {
+                optimal = false;
+            }
 
             // Now that the search is done. We have to see if that we need to go back to previous
             self.backtrack(
@@ -420,15 +543,20 @@ where
             itemset.remove(&it);
 
             let feature_error = left_error + right_error;
+            // println!("Left {} right  {}", left_error, right_error);
+            // println!("Feature error : {}", feature_error);
             if feature_error < child_upper_bound {
                 child_upper_bound = feature_error;
                 if let Some(parent_node) = self.cache.get(itemset, parent_index) {
                     parent_node.error = child_upper_bound;
                     parent_error = child_upper_bound;
                     parent_node.test = child;
+                    parent_node.metric = info_gain;
+                    // let purity = 1.0 - parent_error / parent_node.size as f64;
 
                     if float_is_null(parent_node.lower_bound - child_upper_bound) {
                         parent_node.is_optimal = true;
+                        //parent_node.metric = self.gain;
                         parent_node.upper_bound = upper_bound;
                         return (parent_error, StopReason::Done, true);
                     }
@@ -437,10 +565,7 @@ where
                 min_lower_bound = <f64>::min(feature_error, min_lower_bound);
             }
 
-            if self.restart_timer.elapsed().as_secs() as usize >= time_limit || self.time_is_up() {
-                if let Some(parent_node) = self.cache.get(&itemset, parent_index) {
-                    parent_node.upper_bound = f64::INFINITY;
-                }
+            if self.time_is_up() {
                 return (parent_error, StopReason::TimeLimitReached, true);
             }
         }
@@ -450,8 +575,12 @@ where
 
         if let Some(node) = self.cache.get(itemset, parent_index) {
             node_error = node.error;
-            node.is_optimal = true;
-            node.upper_bound = upper_bound;
+            node.is_optimal = optimal;
+            //node.metric = self.gain;
+            node.upper_bound = match optimal {
+                true => upper_bound,
+                false => f64::INFINITY,
+            };
 
             if node.error.is_infinite() {
                 node.lower_bound =
@@ -459,8 +588,17 @@ where
                 return (node.error, StopReason::LowerBoundConstrained, true);
             }
         }
-
+        if !optimal {
+            if let Some(parent_node) = self.cache.get(&itemset, parent_index) {
+                parent_node.upper_bound = f64::INFINITY;
+            }
+            return (node_error, StopReason::BranchBudgetExhausted, true);
+        }
         (node_error, StopReason::Done, true)
+    }
+
+    pub fn is_optimal(&self) -> bool {
+        self.is_optimal
     }
 
     fn error_as_leaf<S: Structure>(&self, structure: &mut S) -> (f64, f64) {
@@ -473,15 +611,59 @@ where
         error
     }
 
+    fn evaluate_gain<S: Structure>(&self, structure: &mut S, attribute: usize) -> f64 {
+        let root_classes_support = structure.labels_support().to_vec();
+        let parent_entropy = compute_entropy(&root_classes_support);
+
+        if float_is_null(parent_entropy) {
+            return 0.0;
+        }
+
+        let _ = structure.push(item(attribute, 0));
+        let left_classes_supports = structure.labels_support().to_vec();
+        structure.backtrack();
+
+        let right_classes_support = root_classes_support
+            .iter()
+            .enumerate()
+            .map(|(idx, val)| *val - left_classes_supports[idx])
+            .collect::<Vec<usize>>();
+
+        let actual_size = root_classes_support.iter().sum::<usize>();
+        let left_split_size = left_classes_supports.iter().sum::<usize>();
+        let right_split_size = right_classes_support.iter().sum::<usize>();
+
+        let left_weight = match actual_size {
+            0 => 0f64,
+            _ => left_split_size as f64 / actual_size as f64,
+        };
+
+        let right_weight = match actual_size {
+            0 => 0f64,
+            _ => right_split_size as f64 / actual_size as f64,
+        };
+
+        let left_split_entropy = compute_entropy(&left_classes_supports);
+        let right_split_entropy = compute_entropy(&right_classes_support);
+
+        let info_gain = parent_entropy
+            - (left_weight * left_split_entropy + right_weight * right_split_entropy);
+
+        info_gain / parent_entropy
+    }
+
     fn get_node_candidates<S: Structure>(
         &self,
         structure: &mut S,
         last_candidate: usize,
-        candidates: &[usize],
-    ) -> Vec<usize> {
+        candidates: &[(usize, f64)],
+        //candidates: &[usize],
+    ) -> Vec<(usize, f64)> {
+        //) -> Vec<usize> {
         let mut node_candidates = Vec::new();
         let support = structure.support();
-        for potential_candidate in candidates {
+        for (potential_candidate, value) in candidates {
+            //for potential_candidate in candidates {
             if *potential_candidate == last_candidate {
                 continue;
             }
@@ -490,7 +672,8 @@ where
 
             if left_support >= self.constraints.min_sup && right_support >= self.constraints.min_sup
             {
-                node_candidates.push(*potential_candidate);
+                //node_candidates.push(*potential_candidate);
+                node_candidates.push((*potential_candidate, *value));
             }
         }
         node_candidates
@@ -654,20 +837,13 @@ where
     }
 
     pub fn time_is_up(&self) -> bool {
-        self.runtime.elapsed().as_secs() >= self.constraints.max_time.try_into().unwrap()
-    }
-
-    pub fn current_runtime(&self) -> f64 {
-        self.runtime.elapsed().as_secs_f64()
-    }
-
-    pub fn is_optimal(&self) -> bool {
-        self.is_optimal
+        self.runtime.elapsed().as_secs() as usize >= self.constraints.max_time
     }
 
     fn create_solution_tree_entry(&self, cache_entry: &CacheEntry) -> NodeInfos {
         let mut infos = NodeInfos {
             error: cache_entry.error,
+            metric: Some(cache_entry.metric),
             ..Default::default()
         };
         match cache_entry.is_leaf {

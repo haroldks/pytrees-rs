@@ -28,7 +28,7 @@ where
     constraints: Constraints,
     pub statistics: Statistics,
     stop_conditions: StopConditions,
-    cache: Box<C>,
+    pub cache: Box<C>,
     error_function: Box<E>,
     k: usize,
     increment_function: Box<D>,
@@ -123,11 +123,14 @@ where
         &mut self,
         structure: &mut S,
         max_time: Option<usize>,
-    ) -> SearchReturn {
+    ) -> (f64, f64) {
         self.nb_runs += 1;
         let mut root_index = Some(0);
         let mut error = <f64>::INFINITY;
-        self.remaining_time = max_time.unwrap();
+        self.remaining_time = match max_time {
+            None => self.constraints.max_time - self.runtime.elapsed().as_secs() as usize,
+            Some(t) => t,
+        };
         if self.nb_runs <= 1 {
             self.statistics.num_attributes = structure.num_attributes();
             self.statistics.num_samples = structure.support();
@@ -137,6 +140,7 @@ where
             if let Some(root) = self.cache.set_root_infos() {
                 root.error = root_error.0;
                 root.leaf_error = root_error.0;
+                root.upper_bound = f64::INFINITY;
                 root.target = root_error.1;
                 root.size = self.statistics.num_samples;
             }
@@ -191,8 +195,9 @@ where
             || self.k >= self.constraints.discrepancy_budget
             || matches!(return_infos.1, StopReason::FromSpecializedAlgorithm)
             || matches!(return_infos.1, StopReason::Done);
+        let current = self.k as f64;
         self.k = self.increment_function.next();
-        return_infos
+        (return_infos.0, current)
     }
 
     fn recursion<S: Structure>(
@@ -364,6 +369,9 @@ where
                 }
                 itemset.remove(&it);
                 if self.restart_timer.elapsed().as_secs() as usize >= self.remaining_time {
+                    if let Some(parent_node) = self.cache.get(&itemset, parent_index) {
+                        parent_node.upper_bound = f64::INFINITY;
+                    }
                     return (parent_error, StopReason::TimeLimitReached, true);
                 }
                 continue;
@@ -443,6 +451,9 @@ where
                 min_lower_bound = <f64>::min(feature_error, min_lower_bound);
             }
             if self.restart_timer.elapsed().as_secs() as usize >= self.remaining_time {
+                if let Some(parent_node) = self.cache.get(&itemset, parent_index) {
+                    parent_node.upper_bound = f64::INFINITY;
+                }
                 return (parent_error, StopReason::TimeLimitReached, true);
             }
         }
@@ -452,7 +463,10 @@ where
             node_error = node.error;
             node.is_optimal = !exhausted;
             node.discrepancy = self.constraints.discrepancy_budget;
-            node.upper_bound = upper_bound;
+            node.upper_bound = match exhausted {
+                true => f64::INFINITY,
+                false => upper_bound,
+            };
             if node.error.is_infinite() {
                 node.lower_bound =
                     <f64>::max(node.lower_bound, <f64>::max(min_lower_bound, upper_bound));
@@ -460,6 +474,9 @@ where
             }
         }
         if exhausted {
+            if let Some(parent_node) = self.cache.get(&itemset, parent_index) {
+                parent_node.upper_bound = f64::INFINITY;
+            }
             return (node_error, StopReason::BranchBudgetExhausted, true);
         }
         (node_error, StopReason::Done, true)
@@ -659,8 +676,12 @@ where
         }
     }
 
-    fn time_is_up(&self) -> bool {
+    pub fn time_is_up(&self) -> bool {
         self.runtime.elapsed().as_secs() >= self.constraints.max_time.try_into().unwrap()
+    }
+
+    pub fn current_runtime(&self) -> f64 {
+        self.runtime.elapsed().as_secs_f64()
     }
 
     fn create_solution_tree_entry(&self, cache_entry: &CacheEntry) -> NodeInfos {

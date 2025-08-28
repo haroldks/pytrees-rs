@@ -7,7 +7,7 @@ use dtrees_rs::heuristics::{
 };
 use dtrees_rs::searches::errors::NativeError;
 use dtrees_rs::searches::optimal::{
-    Discrepancy, ExponentialDiscrepancy, LubyDiscrepancy, MonotonicDiscrepancy, TopKDL85, DL85,
+    Discrepancy, DynTopkDL85, ExponentialDiscrepancy, LubyDiscrepancy, MonotonicDiscrepancy, DL85,
     LDSDL85,
 };
 use dtrees_rs::searches::{
@@ -21,7 +21,7 @@ use std::path::Path;
 
 fn main() {
     let app = ExampleParser::parse();
-    let method = "topk".to_string();
+    let method = "dyntopk".to_string();
 
     assert!(app.input.exists(), "File does not exist");
 
@@ -115,7 +115,7 @@ fn main() {
         DiscrepancyStrategy::Luby => Box::<LubyDiscrepancy>::default(),
     };
 
-    let mut learner = TopKDL85::new(
+    let mut learner = DynTopkDL85::new(
         support,
         depth,
         1,

@@ -4,51 +4,60 @@ use crate::heuristics::Heuristic;
 use crate::searches::errors::ErrorWrapper;
 use crate::searches::optimal::d2::Murtree;
 use crate::searches::optimal::dl85::conditions::StopConditions;
+use crate::searches::optimal::dl85::discrepancies::Discrepancy;
 use crate::searches::optimal::dl85::similarity::SimilarityCover;
 use crate::searches::optimal::dl85::{BranchChoice, SearchReturn};
 use crate::searches::optimal::Depth2Algorithm;
+use crate::searches::rules::context::BaseContext;
+use crate::searches::rules::manager::RuleManager;
+use crate::searches::rules::Rule;
 use crate::searches::{
     BranchingStrategy, CacheInitStrategy, Constraints, LowerBoundStrategy, NodeExposedData,
     SearchStrategy, Specialization, Statistics, StopReason,
 };
 use crate::structures::Structure;
 use crate::tree::{NodeInfos, Tree, TreeNode};
+use std::cmp::min;
 use std::collections::BTreeSet;
 use std::time::Instant;
 
-pub struct RestartDL85<C, E, H>
+pub struct BeamDL85<B, C, E, H>
 where
     C: Caching + ?Sized,
-    E: ErrorWrapper + ?Sized + Send,
-    H: Heuristic + ?Sized + Send,
+    E: ErrorWrapper + ?Sized,
+    H: Heuristic + ?Sized,
+    B: BaseContext,
 {
     constraints: Constraints,
     pub statistics: Statistics,
-    restart_time: Option<usize>,
     stop_conditions: StopConditions,
-    pub cache: Box<C>,
+    cache: Box<C>,
     error_function: Box<E>,
+    discrepancy: usize,
     heuristic: Box<H>,
     pub tree: Tree,
     runtime: Instant,
     restart_timer: Instant,
     root_candidates: Vec<usize>,
-    nb_runs: usize,
-    is_optimal: bool,
     murtree: Murtree,
+    nb_runs: usize,
+    remaining_time: usize,
+    is_optimal: bool,
+    rule_manager: RuleManager<B>,
 }
 
-impl<C, E, H> RestartDL85<C, E, H>
+impl<B, C, E, H> BeamDL85<B, C, E, H>
 where
+    B: BaseContext,
     C: Caching + ?Sized,
-    E: ErrorWrapper + ?Sized + Send,
-    H: Heuristic + ?Sized + Send,
+    E: ErrorWrapper + ?Sized,
+    H: Heuristic + ?Sized,
 {
     pub fn new(
         min_sup: usize,
         max_depth: usize,
+        discrepancy_budget: usize,
         max_error: f64,
-        restart_time: Option<usize>,
         max_time: usize,
         one_time_sort: bool,
         cache_init_size: usize,
@@ -58,6 +67,7 @@ where
         branching: BranchingStrategy,
         data_format: NodeExposedData,
         cache: Box<C>,
+        rule_manager: RuleManager<B>,
         error_function: Box<E>,
         heuristic: Box<H>,
     ) -> Self {
@@ -73,8 +83,8 @@ where
             branching_strategy: branching,
             cache_init_size,
             cache_init_strategy,
-            search_strategy: SearchStrategy::RestartTimeout,
-            discrepancy_budget: 0,
+            discrepancy_budget,
+            search_strategy: SearchStrategy::DiscrepancySearchMonotonic,
         };
         Self {
             constraints,
@@ -82,7 +92,6 @@ where
                 constraints,
                 ..Statistics::default()
             },
-            restart_time,
             stop_conditions: StopConditions,
             cache,
             error_function,
@@ -91,29 +100,22 @@ where
             runtime: Instant::now(),
             restart_timer: Instant::now(),
             root_candidates: vec![],
-            nb_runs: 0,
-            is_optimal: false,
             murtree: Murtree::default(),
+            is_optimal: false,
+            nb_runs: 0,
+            remaining_time: max_time,
+            discrepancy: 0,
+            rule_manager,
         }
     }
 
     pub fn fit<S: Structure>(&mut self, structure: &mut S) {
-        self.statistics.num_attributes = structure.num_attributes();
-        self.statistics.num_samples = structure.support();
-
-        // Check if there is a restart scheme involved. If so. time for restart should be lower than max time
-        if let Some(restart_duration) = self.restart_time {
-            assert!(restart_duration <= self.constraints.max_time, "Runtime for each algo run should be lower than the maximum time allowed for the search");
-        }
-
         self.runtime = Instant::now();
-        let time_limit = self
-            .restart_time
-            .map_or(self.constraints.max_time, |time| time);
         while !self.time_is_up() {
-            let return_infos = self.partial_fit(structure, Some(time_limit));
-
-            if float_is_null(return_infos.0) || self.is_optimal() {
+            let _ = self.partial_fit(structure, Some(self.remaining_time));
+            self.remaining_time =
+                self.constraints.max_time - self.runtime.elapsed().as_secs() as usize;
+            if self.is_optimal {
                 break;
             }
         }
@@ -123,15 +125,11 @@ where
         &mut self,
         structure: &mut S,
         max_time: Option<usize>,
-    ) -> (f64, f64) {
+    ) -> SearchReturn {
         self.nb_runs += 1;
         let mut root_index = Some(0);
         let mut error = <f64>::INFINITY;
-        self.restart_time = match max_time {
-            None => self.restart_time,
-            Some(t) => Some(t),
-        };
-
+        self.remaining_time = max_time.unwrap();
         if self.nb_runs <= 1 {
             self.statistics.num_attributes = structure.num_attributes();
             self.statistics.num_samples = structure.support();
@@ -142,7 +140,7 @@ where
                 root.error = root_error.0;
                 root.leaf_error = root_error.0;
                 root.target = root_error.1;
-                root.upper_bound = f64::INFINITY;
+                root.size = self.statistics.num_samples;
             }
             error = root_error.0;
             error = <f64>::min(error, self.constraints.max_error);
@@ -163,11 +161,17 @@ where
 
             self.heuristic.compute(structure, &mut candidates);
             self.root_candidates = candidates;
+
+            self.constraints.discrepancy_budget = <usize>::min(
+                self.constraints.discrepancy_budget,
+                Self::discrepancy_limit(self.root_candidates.len(), self.constraints.max_depth),
+            );
+            self.statistics.constraints.discrepancy_budget = self.constraints.discrepancy_budget;
+            // self.discrepancy = self.discrepancy_function.next();
             self.runtime = Instant::now();
         } else if let Some(root) = self.cache.get_root_infos() {
             error = root.error;
         }
-
         let mut itemset = BTreeSet::new();
         let mut similarity = SimilarityCover::default();
 
@@ -175,6 +179,7 @@ where
         let return_infos = self.recursion(
             structure,
             0,
+            self.discrepancy,
             error,
             <usize>::MAX,
             &mut itemset,
@@ -183,18 +188,22 @@ where
             true,
             &mut similarity,
         );
+
         self.update_statistics();
         self.get_solution_tree();
         self.is_optimal = float_is_null(return_infos.0)
-            || !matches!(return_infos.1, StopReason::TimeLimitReached)
-            || self.time_is_up();
-        (return_infos.0, self.runtime.elapsed().as_secs_f64())
+            || self.discrepancy >= self.constraints.discrepancy_budget
+            || matches!(return_infos.1, StopReason::FromSpecializedAlgorithm)
+            || matches!(return_infos.1, StopReason::Done);
+        // self.discrepancy = self.discrepancy_function.next();
+        return_infos
     }
 
     fn recursion<S: Structure>(
         &mut self,
         structure: &mut S,
         depth: usize,
+        current_discrepancy: usize,
         upper_bound: f64,
         parent_item: usize,
         itemset: &mut BTreeSet<usize>,
@@ -207,38 +216,32 @@ where
         let current_support = structure.support();
         self.statistics.search_space_size += 1;
         // BEGIN STEP: Check if we should stop
-        let time_limit = self
-            .restart_time
-            .map_or(self.constraints.max_time, |time| time);
         let mut candidates = candidates;
         if depth == 0 {
             candidates = &self.root_candidates;
         }
 
-        let time_is_up = self.time_is_up();
         if let Some(node) = self.cache.get(itemset, parent_index) {
-            let return_condition = self.stop_conditions.check_restart(
+            let return_condition = self.stop_conditions.check_discrepancy(
                 node,
                 current_support,
                 self.constraints.min_sup,
                 depth,
                 self.constraints.max_depth,
                 self.restart_timer.elapsed(),
-                time_is_up,
-                time_limit,
+                self.constraints.max_time,
                 child_upper_bound,
-                None,
-                None,
+                Some(current_discrepancy),
+                Some(self.constraints.discrepancy_budget),
             );
 
             if return_condition.0 {
-                // node.upper_bound = upper_bound;
                 return (node.error, return_condition.1, false);
             }
         }
 
         if !parent_is_new {
-            let _ = structure.push(parent_item);
+            structure.push(parent_item);
         }
 
         // TODO: Implement the similarity
@@ -283,20 +286,30 @@ where
             self.heuristic.compute(structure, &mut node_candidates);
         }
 
-        let mut child_similarity_data = SimilarityCover::default();
-        let mut min_lower_bound = <f64>::INFINITY;
+        let mut budget =
+            Self::discrepancy_limit(node_candidates.len(), self.constraints.max_depth - depth);
+        budget = min(budget, current_discrepancy);
 
         let mut parent_error = self
             .cache
             .get(itemset, parent_index)
             .map_or(<f64>::INFINITY, |infos| infos.error);
 
-        for &child in node_candidates.iter() {
+        let mut child_similarity_data = SimilarityCover::default();
+        let mut min_lower_bound = <f64>::INFINITY;
+
+        let mut exhausted = false;
+
+        for (position, &child) in node_candidates.iter().enumerate() {
+            // TODO for the last node or the node to be fully explored is to be checked.
+
+            if position > budget {
+                return (parent_error, StopReason::BranchBudgetExhausted, true);
+            }
             let branching_choice =
                 self.branching_strategy(child, itemset, structure, &mut child_similarity_data);
 
             let it = item(child, branching_choice.0);
-
             itemset.insert(it);
 
             let (is_new, child_index) = self.cache.insert(itemset);
@@ -308,7 +321,7 @@ where
                 if let Some(node) = self.cache.get(itemset, child_index) {
                     node.leaf_error = error.0;
                     node.target = error.1;
-                    node.size = size;
+                    node.size = size
                 }
             } else {
                 self.statistics.cache_callbacks += 1;
@@ -318,9 +331,12 @@ where
                 node.lower_bound = branching_choice.1;
             }
 
+            // TODO : Add here a flag to check if the part is fully explored so that if it is not the case We can say it to the cache
+
             let first_child_return = self.recursion(
                 structure,
                 depth + 1,
+                budget - position,
                 child_upper_bound,
                 it,
                 itemset,
@@ -332,7 +348,9 @@ where
 
             let left_error = first_child_return.0;
 
-            // Now that the search is done. We have to see if that we need to go back to previous
+            exhausted = matches!(first_child_return.1, StopReason::BranchBudgetExhausted);
+
+            // Now that the search is done. We have to see if the we new to go back to previous
             self.backtrack(
                 structure,
                 itemset,
@@ -354,16 +372,9 @@ where
                     );
                 }
                 itemset.remove(&it);
-
-                if self.restart_timer.elapsed().as_secs() as usize >= time_limit
-                    || self.time_is_up()
-                {
-                    if let Some(parent_node) = self.cache.get(&itemset, parent_index) {
-                        parent_node.upper_bound = f64::INFINITY;
-                    }
+                if self.restart_timer.elapsed().as_secs() as usize >= self.remaining_time {
                     return (parent_error, StopReason::TimeLimitReached, true);
                 }
-
                 continue;
             }
 
@@ -388,7 +399,6 @@ where
             } else {
                 self.statistics.cache_callbacks += 1;
             }
-
             if let Some(node) = self.cache.get(itemset, child_index) {
                 node.lower_bound = branching_choice.2;
             }
@@ -396,6 +406,7 @@ where
             let second_child_return = self.recursion(
                 structure,
                 depth + 1,
+                budget - position,
                 right_upper_bound,
                 it,
                 itemset,
@@ -406,8 +417,9 @@ where
             );
 
             let right_error = second_child_return.0;
+            exhausted |= matches!(second_child_return.1, StopReason::BranchBudgetExhausted);
 
-            // Now that the search is done. We have to see if that we need to go back to previous
+            // Now that the search is done. We have to see if the we new to go back to previous
             self.backtrack(
                 structure,
                 itemset,
@@ -420,15 +432,18 @@ where
             itemset.remove(&it);
 
             let feature_error = left_error + right_error;
+
             if feature_error < child_upper_bound {
                 child_upper_bound = feature_error;
+
                 if let Some(parent_node) = self.cache.get(itemset, parent_index) {
                     parent_node.error = child_upper_bound;
                     parent_error = child_upper_bound;
                     parent_node.test = child;
 
-                    if float_is_null(parent_node.lower_bound - child_upper_bound) {
+                    if float_is_null(child_upper_bound) {
                         parent_node.is_optimal = true;
+                        parent_node.discrepancy = self.constraints.discrepancy_budget;
                         parent_node.upper_bound = upper_bound;
                         return (parent_error, StopReason::Done, true);
                     }
@@ -436,31 +451,31 @@ where
             } else {
                 min_lower_bound = <f64>::min(feature_error, min_lower_bound);
             }
-
-            if self.restart_timer.elapsed().as_secs() as usize >= time_limit || self.time_is_up() {
-                if let Some(parent_node) = self.cache.get(&itemset, parent_index) {
-                    parent_node.upper_bound = f64::INFINITY;
-                }
+            if self.restart_timer.elapsed().as_secs() as usize >= self.remaining_time {
                 return (parent_error, StopReason::TimeLimitReached, true);
             }
         }
 
-        // TODO : useless Parent error should be directly used
         let mut node_error = 0.0;
-
         if let Some(node) = self.cache.get(itemset, parent_index) {
             node_error = node.error;
-            node.is_optimal = true;
+            node.is_optimal = !exhausted;
+            node.discrepancy = self.constraints.discrepancy_budget;
             node.upper_bound = upper_bound;
-
             if node.error.is_infinite() {
                 node.lower_bound =
                     <f64>::max(node.lower_bound, <f64>::max(min_lower_bound, upper_bound));
                 return (node.error, StopReason::LowerBoundConstrained, true);
             }
         }
-
+        if exhausted {
+            return (node_error, StopReason::BranchBudgetExhausted, true);
+        }
         (node_error, StopReason::Done, true)
+    }
+
+    pub fn is_optimal(&self) -> bool {
+        self.is_optimal
     }
 
     fn error_as_leaf<S: Structure>(&self, structure: &mut S) -> (f64, f64) {
@@ -653,16 +668,8 @@ where
         }
     }
 
-    pub fn time_is_up(&self) -> bool {
+    fn time_is_up(&self) -> bool {
         self.runtime.elapsed().as_secs() >= self.constraints.max_time.try_into().unwrap()
-    }
-
-    pub fn current_runtime(&self) -> f64 {
-        self.runtime.elapsed().as_secs_f64()
-    }
-
-    pub fn is_optimal(&self) -> bool {
-        self.is_optimal
     }
 
     fn create_solution_tree_entry(&self, cache_entry: &CacheEntry) -> NodeInfos {
@@ -679,7 +686,7 @@ where
         infos
     }
 
-    fn get_solution_tree(&mut self) {
+    pub fn get_solution_tree(&mut self) {
         let mut tree = Tree::new();
         let mut path = BTreeSet::new();
         if let Some(cache_root) = self.cache.get_root_infos() {
@@ -722,7 +729,6 @@ mod dl85_test {
     use crate::searches::errors::NativeError;
     use crate::searches::optimal::dl85::discrepancies::MonotonicDiscrepancy;
     use crate::searches::optimal::dl85::lds::LDSDL85;
-    use crate::searches::optimal::dl85::restart::RestartDL85;
     use crate::searches::optimal::dl85::DL85;
     use crate::searches::utils::{
         BranchingStrategy, CacheInitStrategy, LowerBoundStrategy, NodeExposedData, Specialization,
@@ -734,23 +740,25 @@ mod dl85_test {
         let data = BinaryData::read("test_data/anneal.txt", false, 0.0);
         let mut structure = RevBitset::new(&data);
         let error_function = Box::<NativeError>::default();
+        let discrepancy_strat = Box::<MonotonicDiscrepancy>::default();
         let cache = Box::<Trie>::default();
-        let heuristics = Box::<NoHeuristic>::default();
+        let heuristics = Box::<InformationGain>::default();
 
-        let mut learner = RestartDL85::new(
+        let mut learner = LDSDL85::new(
             1,
             2,
+            usize::MAX,
             <f64>::INFINITY,
-            Some(20),
-            20,
-            false,
             600,
+            false,
+            0,
             CacheInitStrategy::None_,
             Specialization::None_,
             LowerBoundStrategy::None_,
             BranchingStrategy::None_,
             NodeExposedData::ClassesSupport,
             cache,
+            discrepancy_strat,
             error_function,
             heuristics,
         );

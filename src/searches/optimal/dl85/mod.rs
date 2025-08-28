@@ -1,7 +1,10 @@
+mod beam;
 mod conditions;
 pub mod discrepancies;
+pub mod dyntopk;
 pub mod lds;
 pub mod purity;
+pub mod relative_gain;
 pub mod restart;
 mod similarity;
 pub mod topk;
@@ -108,7 +111,7 @@ where
 
         let root_error = self.error_as_leaf(structure);
         if let Some(root) = self.cache.set_root_infos() {
-            root.error = root_error.0;
+            //root.error = root_error.0;
             root.leaf_error = root_error.0;
             root.target = root_error.1;
             root.size = self.statistics.num_samples;
@@ -119,6 +122,7 @@ where
         let mut candidates = Vec::new();
         if self.constraints.min_sup == 1 {
             candidates = (0..structure.num_attributes()).collect();
+            //  candidates.shuffle(&mut thread_rng());
         } else {
             for i in 0..structure.num_attributes() {
                 if structure.temp_push(item(i, 0)) >= self.constraints.min_sup
@@ -366,9 +370,9 @@ where
 
             if feature_error < child_upper_bound {
                 child_upper_bound = feature_error;
+                parent_error = feature_error;
                 if let Some(parent_node) = self.cache.get(itemset, parent_index) {
                     parent_node.error = child_upper_bound;
-                    parent_error = child_upper_bound;
                     parent_node.test = child;
 
                     if float_is_null(parent_node.lower_bound - child_upper_bound) {
@@ -662,7 +666,7 @@ mod dl85_test {
             false,
             0,
             CacheInitStrategy::None_,
-            Specialization::None_,
+            Specialization::Murtree,
             LowerBoundStrategy::None_,
             BranchingStrategy::None_,
             NodeExposedData::ClassesSupport,

@@ -1,6 +1,7 @@
 pub mod errors;
 pub mod greedy;
 pub mod optimal;
+mod rules;
 mod utils;
 
 pub use utils::*;

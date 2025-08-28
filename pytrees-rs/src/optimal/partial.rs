@@ -20,7 +20,7 @@ use pyo3::{pyclass, pymethods, PyObject};
 
 #[pyclass]
 pub struct PyGenericDl85 {
-    learner: GenericDL85<Trie, dyn ErrorWrapper + Send, dyn Heuristic + Send>,
+    learner: GenericDL85<Trie, dyn ErrorWrapper + Send + Sync, dyn Heuristic + Send + Sync>,
     pub(crate) error: f64,
     pub(crate) results: LearningResult,
     pub(crate) duration: f64,
@@ -79,20 +79,21 @@ impl PyGenericDl85 {
         let search_strategy = match search_strategy {
             ExposedSearchStrategy::RestartTimeout => SearchStrategy::RestartTimeout,
             ExposedSearchStrategy::PurityLimit => SearchStrategy::PurityLimit,
+            ExposedSearchStrategy::GainLimit => SearchStrategy::GainLimit,
             ExposedSearchStrategy::NormalDL85 => SearchStrategy::NormalDL85,
             _ => {
                 panic!("Search strategy not allowed her")
             }
         };
 
-        let heuristic: Box<dyn Heuristic + Send> = match heuristic {
+        let heuristic: Box<dyn Heuristic + Send + Sync> = match heuristic {
             ExposedSearchHeuristic::InformationGain => Box::<InformationGain>::default(),
             ExposedSearchHeuristic::InformationGainRatio => Box::<InformationGainRatio>::default(),
             ExposedSearchHeuristic::GiniIndex => Box::<GiniIndex>::default(),
             ExposedSearchHeuristic::None_ => Box::<NoHeuristic>::default(),
         };
 
-        let external_error: Box<dyn ErrorWrapper + Send> = match error_function {
+        let external_error: Box<dyn ErrorWrapper + Send + Sync> = match error_function {
             Some(function) => {
                 specialization = Specialization::None_;
                 Box::new(PythonError::new(function))

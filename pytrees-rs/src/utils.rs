@@ -64,6 +64,7 @@ pub enum ExposedSearchStrategy {
     LessGreedyInfoGain,
     RestartTimeout,
     PurityLimit,
+    GainLimit,
     NormalDL85,
     None_,
 }

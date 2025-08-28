@@ -26,7 +26,7 @@ where
     pub statistics: Statistics,
     remaining_time: usize,
     stop_conditions: StopConditions,
-    cache: Box<C>,
+    pub cache: Box<C>,
     error_function: Box<E>,
     heuristic: Box<H>,
     pub tree: Tree,
@@ -112,23 +112,35 @@ where
 
         while !self.time_is_up() {
             let return_infos = self.partial_fit(structure, Some(self.remaining_time));
-            self.remaining_time =
-                self.constraints.max_time - self.runtime.elapsed().as_secs() as usize;
+            println!(
+                "Gain {}  {:?} {}",
+                self.purity - self.epsilon,
+                return_infos,
+                self.cache.size()
+            );
+
             if self.is_optimal {
                 break;
             }
         }
     }
 
+    pub fn current_runtime(&self) -> f64 {
+        self.runtime.elapsed().as_secs_f64()
+    }
+
     pub fn partial_fit<S: Structure>(
         &mut self,
         structure: &mut S,
         max_time: Option<usize>,
-    ) -> SearchReturn {
+    ) -> (f64, f64) {
         self.nb_runs += 1;
         let mut root_index = Some(0);
         let mut error = <f64>::INFINITY;
-        self.remaining_time = max_time.unwrap();
+        self.remaining_time = match max_time {
+            None => self.remaining_time,
+            Some(time) => time,
+        };
 
         if self.nb_runs <= 1 {
             self.statistics.num_attributes = structure.num_attributes();
@@ -137,10 +149,11 @@ where
             root_index = self.cache.init();
             let root_error = self.error_as_leaf(structure);
             if let Some(root) = self.cache.set_root_infos() {
-                root.error = root_error.0;
+                //root.error = root_error.0;
                 root.leaf_error = root_error.0;
                 root.target = root_error.1;
                 root.size = self.statistics.num_samples;
+                root.upper_bound = f64::INFINITY;
             }
             error = root_error.0;
             error = <f64>::min(error, self.constraints.max_error);
@@ -190,11 +203,16 @@ where
         } else {
             self.is_optimal = false;
         }
-
+        // println!("{:?}, {} {} {}", return_infos, self.is_optimal, self.purity, self.cache.size());
+        if self.purity >= 1.0 {
+            self.is_optimal = true;
+        }
+        let current = self.purity;
         self.purity += self.epsilon;
+        self.remaining_time = self.constraints.max_time - self.runtime.elapsed().as_secs() as usize;
 
         // TODO Check if I want to increase the purity here
-        return_infos
+        (return_infos.0, current)
     }
 
     fn recursion<S: Structure>(
@@ -235,7 +253,7 @@ where
             );
 
             if return_condition.0 {
-                node.upper_bound = upper_bound;
+                //node.upper_bound = upper_bound;
                 return (node.error, return_condition.1, false);
             }
         }
@@ -359,6 +377,9 @@ where
                 itemset.remove(&it);
 
                 if self.restart_timer.elapsed().as_secs() as usize >= self.remaining_time {
+                    if let Some(parent_node) = self.cache.get(&itemset, parent_index) {
+                        parent_node.upper_bound = f64::INFINITY;
+                    }
                     return (parent_error, StopReason::TimeLimitReached, true);
                 }
 
@@ -426,13 +447,18 @@ where
                     parent_node.test = child;
                     let purity = 1.0 - parent_error / parent_node.size as f64;
 
-                    if float_is_null(parent_node.lower_bound - child_upper_bound)
-                        || purity >= self.purity
-                    {
+                    if float_is_null(parent_node.lower_bound - child_upper_bound) {
                         parent_node.is_optimal = true;
                         parent_node.metric = self.purity;
                         parent_node.upper_bound = upper_bound;
                         return (parent_error, StopReason::Done, true);
+                    }
+
+                    if self.purity < 1.0 && purity >= self.purity {
+                        parent_node.is_optimal = true;
+                        parent_node.metric = self.purity;
+                        parent_node.upper_bound = f64::INFINITY;
+                        return (parent_error, StopReason::PureEnough, true);
                     }
                 }
             } else {
@@ -440,6 +466,9 @@ where
             }
 
             if self.restart_timer.elapsed().as_secs() as usize >= self.remaining_time {
+                if let Some(parent_node) = self.cache.get(&itemset, parent_index) {
+                    parent_node.upper_bound = f64::INFINITY;
+                }
                 return (parent_error, StopReason::TimeLimitReached, true);
             }
         }
@@ -451,7 +480,10 @@ where
             node_error = node.error;
             node.is_optimal = true;
             node.metric = self.purity;
-            node.upper_bound = upper_bound;
+            node.upper_bound = match self.purity < 1.0 {
+                true => f64::INFINITY,
+                false => upper_bound,
+            };
 
             if node.error.is_infinite() {
                 node.lower_bound =
@@ -657,7 +689,7 @@ where
         }
     }
 
-    fn time_is_up(&self) -> bool {
+    pub fn time_is_up(&self) -> bool {
         self.runtime.elapsed().as_secs() >= self.constraints.max_time.try_into().unwrap()
     }
 

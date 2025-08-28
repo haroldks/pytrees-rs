@@ -45,6 +45,7 @@ pub struct CacheEntry {
     pub target: f64,
     pub is_optimal: bool,
     pub is_leaf: bool,
+    pub run: usize,
 }
 
 impl CacheEntry {
@@ -54,7 +55,7 @@ impl CacheEntry {
             test: <usize>::MAX,
             discrepancy: 0,
             error: MAX_ERROR,
-            upper_bound: MAX_ERROR,
+            upper_bound: 0.0, // TODO
             lower_bound: 0.0,
             metric: 0.0,
             size: 0,
@@ -62,6 +63,7 @@ impl CacheEntry {
             target: 0.0,
             is_optimal: false,
             is_leaf: false,
+            run: 0,
         }
     }
 
@@ -78,7 +80,7 @@ impl Default for CacheEntry {
             test: <usize>::MAX,
             discrepancy: 0,
             error: MAX_ERROR,
-            upper_bound: MAX_ERROR,
+            upper_bound: 0.0, // TODO
             lower_bound: 0.0,
             metric: 0.0,
             size: 0,
@@ -86,6 +88,7 @@ impl Default for CacheEntry {
             target: 0.0,
             is_optimal: false,
             is_leaf: false,
+            run: 0,
         }
     }
 }

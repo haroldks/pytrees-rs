@@ -7,6 +7,11 @@ use float_cmp::{ApproxEq, F64Margin};
 
 pub trait Heuristic {
     fn compute(&self, structure: &mut dyn Structure, candidates: &mut Vec<usize>);
+    fn compute_and_metric(
+        &self,
+        structure: &mut dyn Structure,
+        candidates: &mut Vec<(usize, f64)>,
+    ) -> Vec<(usize, f64)>;
 }
 
 #[derive(Default)]
@@ -14,6 +19,14 @@ pub struct NoHeuristic;
 
 impl Heuristic for NoHeuristic {
     fn compute(&self, _structure: &mut dyn Structure, _candidates: &mut Vec<usize>) {}
+
+    fn compute_and_metric(
+        &self,
+        structure: &mut dyn Structure,
+        candidates: &mut Vec<(usize, f64)>,
+    ) -> Vec<(usize, f64)> {
+        vec![]
+    }
 }
 
 #[derive(Default)]
@@ -32,6 +45,21 @@ impl Heuristic for GiniIndex {
             .iter()
             .map(|(a, _)| *a)
             .collect::<Vec<usize>>();
+    }
+
+    fn compute_and_metric(
+        &self,
+        structure: &mut dyn Structure,
+        candidates: &mut Vec<(usize, f64)>,
+    ) -> Vec<(usize, f64)> {
+        let root_classes_support = structure.labels_support().to_vec();
+        let mut candidates_sorted = vec![];
+        for (attribute, _) in candidates.iter() {
+            let gini = Self::gini_index(*attribute, structure, &root_classes_support);
+            candidates_sorted.push((*attribute, gini));
+        }
+        candidates_sorted.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        candidates_sorted
     }
 }
 
@@ -88,6 +116,14 @@ impl Heuristic for InformationGain {
     fn compute(&self, structure: &mut dyn Structure, candidates: &mut Vec<usize>) {
         self.internally_compute(structure, candidates, false);
     }
+
+    fn compute_and_metric(
+        &self,
+        structure: &mut dyn Structure,
+        candidates: &mut Vec<(usize, f64)>,
+    ) -> Vec<(usize, f64)> {
+        self.internally_compute_and_metric(structure, candidates, false)
+    }
 }
 
 #[derive(Default)]
@@ -96,8 +132,16 @@ pub struct InformationGainRatio;
 impl Handler for InformationGainRatio {}
 
 impl Heuristic for InformationGainRatio {
-    fn compute(&self, structure: &mut dyn Structure, candidates: &mut Vec<usize>) {
+    fn compute(&self, structure: &mut dyn Structure, candidates: &mut Vec<(usize)>) {
         self.internally_compute(structure, candidates, true);
+    }
+
+    fn compute_and_metric(
+        &self,
+        structure: &mut dyn Structure,
+        candidates: &mut Vec<(usize, f64)>,
+    ) -> Vec<(usize, f64)> {
+        self.internally_compute_and_metric(structure, candidates, true)
     }
 }
 
@@ -128,6 +172,29 @@ trait Handler {
             .iter()
             .map(|(a, _)| *a)
             .collect::<Vec<usize>>();
+    }
+
+    fn internally_compute_and_metric(
+        &self,
+        structure: &mut dyn Structure,
+        attributes: &mut Vec<(usize, f64)>,
+        ratio: bool,
+    ) -> Vec<(usize, f64)> {
+        let root_classes_support = structure.labels_support().to_vec();
+        let parent_entropy = compute_entropy(&root_classes_support);
+        let mut candidates_sorted = vec![];
+        for (attribute, _) in attributes.iter() {
+            let info_gain = Self::information_gain(
+                *attribute,
+                structure,
+                &root_classes_support,
+                parent_entropy,
+                ratio,
+            );
+            candidates_sorted.push((*attribute, info_gain));
+        }
+        candidates_sorted.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        candidates_sorted
     }
 
     fn information_gain(
@@ -191,49 +258,49 @@ trait Handler {
         info_gain
     }
 }
-
-#[derive(Default)]
-pub struct Purity;
-
-impl Heuristic for Purity {
-    fn compute(&self, structure: &mut dyn Structure, candidates: &mut Vec<usize>) {
-        let root_classes_support = structure.labels_support().to_vec();
-        let mut candidates_sorted = vec![];
-        for attribute in candidates.iter() {
-            let purity = Self::purity_by_attribute(*attribute, structure, &root_classes_support);
-            candidates_sorted.push((*attribute, purity));
-        }
-        candidates_sorted.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-        *candidates = candidates_sorted
-            .iter()
-            .map(|(a, _)| *a)
-            .collect::<Vec<usize>>();
-    }
-}
-
-impl Purity {
-    fn purity_by_attribute(
-        attribute: usize,
-        structure: &mut dyn Structure,
-        root_classes_support: &[usize],
-    ) -> f64 {
-        let _ = structure.push(item(attribute, 0));
-        let left_classes_supports = structure.labels_support().to_vec();
-
-        let left_error = classification_error(&left_classes_supports);
-
-        structure.backtrack();
-
-        let total = root_classes_support.iter().sum::<usize>() as f64;
-
-        let right_classes_support = root_classes_support
-            .iter()
-            .enumerate()
-            .map(|(idx, val)| *val - left_classes_supports[idx])
-            .collect::<Vec<usize>>();
-
-        let right_error = classification_error(&right_classes_support);
-
-        (left_error.0 + right_error.0) / total
-    }
-}
+//
+// #[derive(Default)]
+// pub struct Purity;
+//
+// impl Heuristic for Purity {
+//     fn compute(&self, structure: &mut dyn Structure, candidates: &mut Vec<usize>) {
+//         let root_classes_support = structure.labels_support().to_vec();
+//         let mut candidates_sorted = vec![];
+//         for attribute in candidates.iter() {
+//             let purity = Self::purity_by_attribute(*attribute, structure, &root_classes_support);
+//             candidates_sorted.push((*attribute, purity));
+//         }
+//         candidates_sorted.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+//         *candidates = candidates_sorted
+//             .iter()
+//             .map(|(a, _)| *a)
+//             .collect::<Vec<usize>>();
+//     }
+// }
+//
+// impl Purity {
+//     fn purity_by_attribute(
+//         attribute: usize,
+//         structure: &mut dyn Structure,
+//         root_classes_support: &[usize],
+//     ) -> f64 {
+//         let _ = structure.push(item(attribute, 0));
+//         let left_classes_supports = structure.labels_support().to_vec();
+//
+//         let left_error = classification_error(&left_classes_supports);
+//
+//         structure.backtrack();
+//
+//         let total = root_classes_support.iter().sum::<usize>() as f64;
+//
+//         let right_classes_support = root_classes_support
+//             .iter()
+//             .enumerate()
+//             .map(|(idx, val)| *val - left_classes_supports[idx])
+//             .collect::<Vec<usize>>();
+//
+//         let right_error = classification_error(&right_classes_support);
+//
+//         (left_error.0 + right_error.0) / total
+//     }
+// }

@@ -141,7 +141,7 @@ mod discrepancy_test {
 
     #[test]
     fn test_luby() {
-        let mut luby = LubyDiscrepancy::new(2);
+        let mut luby = LubyDiscrepancy::default();
         for _ in 0..60 {
             let x = luby.next();
             print!("{x} ")
