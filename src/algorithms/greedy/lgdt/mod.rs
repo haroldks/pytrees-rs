@@ -37,7 +37,7 @@ where
 
         let root_tree = self.search.fit(self.config.min_support, 2, cover, None)?;
 
-        let root_attribute = root_tree.root_test().ok_or(FitError::LGDTEmptyTree)?;
+        let root_attribute = root_tree.root_test().ok_or(FitError::EmptyTree)?;
         solution_tree
             .update_root()
             .map(|updater| updater.value(root_tree.root_details()));
@@ -84,7 +84,7 @@ where
                 let child_tree_result =
                     self.search.fit(self.config.min_support, depth, cover, None);
                 parent_error += match child_tree_result {
-                    Err(FitError::LGDTEmptyTree) => {
+                    Err(FitError::EmptyTree) | Err(FitError::EmptyCandidates)  => {
                         self.create_leaf_node_in_tree(tree, parent, branch_value == 0, cover)
                     }
                     Ok(child_tree) => {
@@ -97,7 +97,7 @@ where
             } else {
                 let child_tree_result = self.search.fit(self.config.min_support, 2, cover, None);
                 let child_error_result = match child_tree_result {
-                    Err(FitError::LGDTEmptyTree) => {
+                    Err(FitError::EmptyTree) | Err(FitError::EmptyCandidates) => {
                         Ok(self.create_leaf_node_in_tree(tree, parent, branch_value == 0, cover))
                     }
                     Ok(child_tree) => {
@@ -115,6 +115,7 @@ where
                             let next_attribute = child_tree
                                 .node_test(child_tree.get_root_index())
                                 .ok_or(FitError::AlgorithmError)?;
+
                             error =
                                 self.recursion(depth - 1, cover, tree, child_index, next_attribute);
                         }
@@ -146,6 +147,11 @@ where
         tree.update_leaf_node(child_index, error);
         error.0
     }
+
+    pub fn config(&self) -> &BaseSearchConfig {
+        &self.config
+    }
+
 }
 
 mod test_lgdt {
@@ -167,7 +173,7 @@ mod test_lgdt {
 
         let mut lgdt = with_error_minimizer()
             .min_support(1)
-            .max_depth(5)
+            .max_depth(12)
             .build()
             .unwrap();
         let x = lgdt.fit(&mut cover).unwrap();

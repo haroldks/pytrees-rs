@@ -8,6 +8,7 @@ pub mod similarities;
 pub struct Cover {
     pub num_attributes: usize,
     pub num_labels: usize,
+    pub num_samples: usize,
     attributes: Vec<Bitset>,
     labels: Vec<Bitset>,
     cover: SparseBitset,
@@ -15,13 +16,14 @@ pub struct Cover {
 }
 
 impl Cover {
-    pub fn new(attributes: Vec<Bitset>, labels: Vec<Bitset>, size: usize) -> Self {
+    pub fn new(attributes: Vec<Bitset>, labels: Vec<Bitset>, num_samples: usize) -> Self {
         Self {
             num_attributes: attributes.len(),
             num_labels: labels.len(),
+            num_samples,
             attributes,
             labels,
-            cover: SparseBitset::new(size),
+            cover: SparseBitset::new(num_samples),
             branch: vec![],
         }
     }

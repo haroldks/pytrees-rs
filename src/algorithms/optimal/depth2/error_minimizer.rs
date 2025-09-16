@@ -73,6 +73,10 @@ where
             }
         }
 
+        if tree.root_error().is_infinite() {
+            return Err(FitError::EmptyTree);
+        }
+
         Ok(tree)
     }
 
@@ -314,6 +318,10 @@ where
                     break;
                 }
             }
+        }
+
+        if best_tree.root_error().is_infinite() {
+            return Err(FitError::EmptyTree);
         }
         Ok(best_tree)
     }

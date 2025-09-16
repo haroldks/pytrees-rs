@@ -4,7 +4,7 @@ use crate::cover::Cover;
 use crate::tree::Tree;
 
 pub mod common;
-mod greedy;
+pub mod greedy;
 pub mod optimal;
 
 pub trait TreeSearchAlgorithm {

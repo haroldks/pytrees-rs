@@ -63,10 +63,14 @@ where
 
             tree.update_root()
                 .map(|updater| updater.test(best_attr).error(left_error.0 + right_error.0));
+
+            if tree.root_error().is_infinite() {
+                return Err(FitError::EmptyTree);
+            }
             return Ok(tree);
         }
 
-        Err(FitError::AlgorithmError)
+        Err(FitError::EmptyTree)
     }
 
     fn find_optimal_depth_two_tree(
@@ -184,6 +188,11 @@ where
                 break;
             }
         }
+
+        if best_tree.root_error().is_infinite() {
+            return Err(FitError::EmptyTree);
+        }
+
         Ok(best_tree)
     }
 

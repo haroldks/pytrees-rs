@@ -7,7 +7,9 @@ use std::fmt::Formatter;
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum SearchStrategy {
     Depth2ErrorMinimizer,
-    Depth2InfoGainMaximize,
+    Depth2InfoGainMaximizer,
+    LGDTErrorMinimizer,
+    LGDTInfoGainMaximizer,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -17,7 +19,7 @@ pub enum FitError {
     EmptyCandidates,
     AlgorithmError,
     InsufficientData,
-    LGDTEmptyTree,
+    EmptyTree,
 }
 
 impl fmt::Display for FitError {
@@ -30,7 +32,7 @@ impl fmt::Display for FitError {
             FitError::EmptyCandidates => write!(f, "Empty candidates list found"),
             FitError::AlgorithmError => write!(f, "Error in algorithm execution"),
             FitError::InsufficientData => write!(f, "Insufficient data for training"),
-            FitError::LGDTEmptyTree => write!(f, "LGDT produced an empty tree"),
+            FitError::EmptyTree => write!(f, "Search produced an empty tree"),
         }
     }
 }

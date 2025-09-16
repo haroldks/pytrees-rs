@@ -2,7 +2,7 @@ pub mod algorithms;
 pub mod bitsets;
 pub mod cache;
 pub mod caching;
-mod cover;
+pub mod cover;
 pub mod data;
 pub mod example_parser;
 pub mod globals;
