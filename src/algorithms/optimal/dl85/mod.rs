@@ -19,10 +19,9 @@ use crate::globals::{attribute, float_is_null, item};
 use crate::tree::{NodeInfos, Tree, TreeNode};
 
 mod builder;
-mod config;
+pub mod config;
 
 pub use builder::DL85Builder;
-
 pub struct DL85<C, D, E, H>
 where
     C: Caching + ?Sized,
@@ -100,6 +99,10 @@ where
             gain_gap: 0.0,
             gain_limit: 0.0,
         }
+    }
+
+    pub fn config(&self) -> DL85Config {
+        self.config
     }
 
     pub fn partial_fit(&mut self, cover: &mut Cover) -> SearchResult {

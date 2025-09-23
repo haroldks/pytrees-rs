@@ -1,40 +1,36 @@
-use crate::utils::{ExposedSearchStrategy, LearningResult};
-use dtrees_rs::data::{BinaryData, FileReader};
-use dtrees_rs::searches::greedy::LGDT;
-use dtrees_rs::searches::SearchStrategy;
-use dtrees_rs::structures::RevBitset;
+pub mod builder;
+
 use numpy::PyReadonlyArrayDyn;
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use crate::common::create_cover_from_numpy;
+use crate::common::enums::ExposedSearchStrategy;
+use crate::common::types::SearchOutput;
 
 #[pyfunction]
 #[pyo3(name = "lgdt")]
 pub(crate) fn search_lgdt(
     input: PyReadonlyArrayDyn<f64>,
-    target: PyReadonlyArrayDyn<f64>,
+    target: Option<PyReadonlyArrayDyn<f64>>,
     search_strategy: ExposedSearchStrategy,
     min_sup: usize,
     max_depth: usize,
-) -> LearningResult {
-    let search_strategy = match search_strategy {
-        ExposedSearchStrategy::LessGreedyInfoGain => SearchStrategy::LessGreedyInfoGain,
-        ExposedSearchStrategy::LessGreedyMurtree => SearchStrategy::LessGreedyMurtree,
-        _ => panic!("Invalid strategy for this approach"),
-    };
-
-    let input = input.as_array().map(|a| *a as usize);
-    let target = target.as_array().map(|a| *a as usize);
-    let dataset = BinaryData::read_from_numpy(&input, Some(&target));
-    let mut structure = RevBitset::new(&dataset);
-
-    let mut learner = LGDT::new(min_sup, max_depth, search_strategy);
-
-    learner.fit(&mut structure);
-
-    LearningResult {
-        error: learner.error,
-        tree: learner.tree.clone(),
-        constraints: learner.constraints,
-        statistics: learner.statistics,
-        duration: learner.statistics.duration.as_secs_f64(),
+) -> PyResult<SearchOutput> {
+    if min_sup == 0 {
+        return Err(PyValueError::new_err("min_sup must be greater than 0"));
     }
+    if max_depth == 0 {
+        return Err(PyValueError::new_err("max_depth must be greater than 0"));
+    }
+
+    let mut cover = create_cover_from_numpy(input, target.as_ref())?;
+
+    if cover.count() == 0 {
+        return Err(PyValueError::new_err("Input data contains no samples"));
+    }
+
+    let mut builder = search_strategy.to_lgdt_builder(min_sup, max_depth)?;
+
+    builder.fit_and_get_result(&mut cover)
 }
+

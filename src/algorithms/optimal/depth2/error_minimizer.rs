@@ -10,7 +10,7 @@ use crate::tree::Tree;
 
 pub struct ErrorMinimizer<E>
 where
-    E: ErrorWrapper,
+    E: ErrorWrapper + ?Sized,
 {
     error_fn: Box<E>,
 }
@@ -25,7 +25,7 @@ impl Default for ErrorMinimizer<NativeError> {
 
 impl<E> OptimalDepth2Tree for ErrorMinimizer<E>
 where
-    E: ErrorWrapper,
+    E: ErrorWrapper + ?Sized,
 {
     fn find_optimal_depth_one_tree(
         &self,
@@ -333,7 +333,7 @@ where
 
 impl<E> ErrorMinimizer<E>
 where
-    E: ErrorWrapper,
+    E: ErrorWrapper + ?Sized,
 {
     pub fn new(error_function: Box<E>) -> Self {
         Self {

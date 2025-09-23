@@ -11,12 +11,12 @@ use dtrees_rs::algorithms::optimal::rules::{
 use dtrees_rs::algorithms::optimal::Reason;
 use dtrees_rs::algorithms::TreeSearchAlgorithm;
 use dtrees_rs::caching::Trie;
-use dtrees_rs::example_parser::{load_results, save_results, ExampleParser, Res};
+use dtrees_rs::parsers::examples::{load_results, save_results, ExampleParser, Res};
 use dtrees_rs::reader::data_reader::DataReader;
-use dtrees_rs::searches::{SearchHeuristic, SearchStepStrategy};
 use std::fs;
 use std::fs::remove_file;
 use std::path::Path;
+use dtrees_rs::algorithms::common::types::{SearchHeuristic, SearchStepStrategy};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = ExampleParser::parse();
@@ -104,7 +104,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let heuristics: Box<dyn Heuristic> = match heuristic_strategy {
         SearchHeuristic::InformationGain => Box::<InformationGain>::default(),
         SearchHeuristic::GiniIndex => Box::<GiniIndex>::default(),
-        SearchHeuristic::None_ => Box::<NoHeuristic>::default(),
+        SearchHeuristic::NoHeuristic => Box::<NoHeuristic>::default(),
         _ => Box::<NoHeuristic>::default(),
     };
 

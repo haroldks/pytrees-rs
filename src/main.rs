@@ -1,44 +1,40 @@
-use crate::cache::trie::Trie;
-use crate::cache::Caching;
-use crate::data::{BinaryData, FileReader};
-use crate::heuristics::{GiniIndex, Heuristic, InformationGain, InformationGainRatio, NoHeuristic};
-use crate::parser::{App, ArgCommand};
-use crate::searches::errors::NativeError;
-use crate::searches::greedy::LGDT;
-use crate::searches::optimal::d2::GenericDepth2;
-use crate::searches::optimal::DL85;
-use crate::searches::{
-    CacheType, D2Objective, NodeExposedData, SearchHeuristic, SearchStrategy, Statistics,
-};
-use crate::structures::RevBitset;
+
 use crate::tree::Tree;
 use clap::Parser;
+use crate::algorithms::common::heuristics::Heuristic;
+use crate::algorithms::greedy::{LGDTBuilder, LGDT};
+use crate::algorithms::TreeSearchAlgorithm;
+use crate::algorithms::common::errors::NativeError;
+use crate::algorithms::common::types::{CacheType, NodeDataType, SearchStatistics, SearchStrategy};
+use crate::algorithms::optimal::depth2::{ErrorMinimizer, InfoGainMaximizer, OptimalDepth2Tree};
+use crate::algorithms::optimal::dl85::DL85Builder;
+use crate::caching::{Caching, Trie};
+use crate::parsers::{MainApp, ArgCommand};
+use crate::reader::data_reader::DataReader;
 
-mod cache;
-mod data;
+mod caching;
+mod cover;
+mod bitsets;
+mod reader;
 mod globals;
-mod heuristics;
-mod parser;
-mod searches;
-mod structures;
+mod parsers;
+mod algorithms;
 mod tree;
 
-fn main() {
-    let app = App::parse();
-
+fn main() -> Result<(), Box<dyn std::error::Error>>{
+    let app = MainApp::parse();
     if !app.input.exists() {
         panic!("File does not exist");
     }
 
-    let file = app.input.to_str().unwrap();
-    let data = BinaryData::read(file, false, 0.0);
-    let mut structure = RevBitset::new(&data);
+    let reader = DataReader::default();
+    let mut cover = reader.read_file(&app.input)?;
 
-    let mut statistics = Statistics::default();
+    let mut statistics = SearchStatistics::default();
     let mut tree = Tree::default();
 
     match app.command {
-        ArgCommand::d2_odt {
+        ArgCommand::D2 {
             support,
             depth,
             objective,
@@ -46,56 +42,64 @@ fn main() {
             if depth == 0 || depth > 2 {
                 panic!("Invalid depth depth must be 1 or 2");
             }
-            let strategy = match objective {
-                D2Objective::Error => SearchStrategy::LessGreedyMurtree,
-                D2Objective::InformationGain => SearchStrategy::LessGreedyInfoGain,
+
+            let learner: Box<dyn OptimalDepth2Tree> = match objective {
+                SearchStrategy::Depth2ErrorMinimizer => Box::new(ErrorMinimizer::default()),
+                SearchStrategy::Depth2InfoGainMaximizer => {Box::new(InfoGainMaximizer::default())}
+                _ => {
+                    panic!("Error wrong algorithm")
+                }
             };
 
-            let mut learner = GenericDepth2::new(strategy);
-            tree = learner.fit(support, depth, &mut structure);
+            tree = learner.fit(support, depth, &mut cover, None)?;
         }
 
-        ArgCommand::lgdt {
+        ArgCommand::LGDT {
             support,
             depth,
             objective,
+            print_config
         } => {
-            let strategy = match objective {
-                D2Objective::Error => SearchStrategy::LessGreedyMurtree,
-                D2Objective::InformationGain => SearchStrategy::LessGreedyInfoGain,
+
+
+            let obejective_fn: Box<dyn OptimalDepth2Tree> = match objective {
+                SearchStrategy::Depth2ErrorMinimizer => Box::new(ErrorMinimizer::default()),
+                SearchStrategy::Depth2InfoGainMaximizer => {Box::new(InfoGainMaximizer::default())}
+                _ => {
+                    panic!("Error wrong objective method")
+                }
             };
 
-            let mut learner = LGDT::new(support, depth, strategy);
-            learner.fit(&mut structure);
-            statistics = learner.statistics;
-            tree = learner.tree.clone();
+            let mut learner = LGDTBuilder::default()
+                .min_support(support)
+                .max_depth(depth)
+                .search(obejective_fn)
+                .build()?;
+
+            learner.fit(&mut cover)?;
+            tree = learner.tree().clone();
+
+            if print_config {
+                println!("{:#?}", learner.config())
+            }
         }
 
-        ArgCommand::dl85 {
+        ArgCommand::DL85 {
             support,
             depth,
-            sorting_once,
-            specialization,
-            lower_bound_heuristic,
-            branching,
+            always_sort,
+            depth2_policy,
+            lower_bound_policy,
+            branching_policy,
             cache_type,
-            cache_init_size,
-            init_strategy,
             heuristic,
             max_error,
             timeout,
+            print_config,
         } => {
-            let timeout = match timeout {
-                None => <usize>::MAX,
-                Some(t) => t,
-            };
+            let timeout = timeout.unwrap_or_else(|| f64::INFINITY);
 
-            let heuristic_fn: Box<dyn Heuristic> = match heuristic {
-                SearchHeuristic::None_ => Box::<NoHeuristic>::default(),
-                SearchHeuristic::InformationGain => Box::<InformationGain>::default(),
-                SearchHeuristic::InformationGainRatio => Box::<InformationGainRatio>::default(),
-                SearchHeuristic::GiniIndex => Box::<GiniIndex>::default(),
-            };
+            let heuristic_fn: Box<dyn Heuristic> = heuristic.into();
             let cache: Box<dyn Caching> = match cache_type {
                 CacheType::Trie => Box::<Trie>::default(),
                 CacheType::Hashmap => {
@@ -103,29 +107,41 @@ fn main() {
                 }
             };
 
-            let mut learner = DL85::new(
-                support,
-                depth,
-                max_error,
-                timeout,
-                sorting_once,
-                cache_init_size,
-                init_strategy,
-                specialization,
-                lower_bound_heuristic,
-                branching,
-                NodeExposedData::ClassesSupport,
-                cache,
-                Box::<NativeError>::default(),
-                heuristic_fn,
-            );
+            let depth2_search = Box::new(ErrorMinimizer::default());
+            let error_fn = Box::<NativeError>::default();
 
-            learner.fit(&mut structure);
+            let mut learner = DL85Builder::default()
+                .min_support(support)
+                .max_depth(depth)
+                .max_time(timeout)
+                .max_error(max_error)
+                .always_sort(always_sort)
+                .cache(cache)
+                .specialization(depth2_policy)
+                .depth2_search(depth2_search)
+                .error_function(error_fn)
+                .heuristic(heuristic_fn)
+                .lower_bound_strategy(lower_bound_policy)
+                .branching_strategy(branching_policy)
+                .node_exposed_data(NodeDataType::ClassesSupport)
+                .build()?;
 
-            statistics = learner.statistics;
-            tree = learner.tree.clone();
+
+
+            learner.fit(&mut cover)?;
+
+            statistics = *learner.statistics();
+            tree = learner.tree().clone();
+
+
+            if print_config {
+                println!("{:#?}", learner.config())
+            }
+
         }
+
     }
+
 
     if app.print_stats {
         println!("{:#?}", statistics);
@@ -134,4 +150,7 @@ fn main() {
     if app.print_tree {
         tree.print();
     }
+
+
+    Ok(())
 }

@@ -14,7 +14,7 @@ where
 
 impl<D> Default for LGDTBuilder<D>
 where
-    D: OptimalDepth2Tree,
+    D: OptimalDepth2Tree + ?Sized,
 {
     fn default() -> Self {
         Self {
@@ -26,7 +26,7 @@ where
 
 impl<D> LGDTBuilder<D>
 where
-    D: OptimalDepth2Tree,
+    D: OptimalDepth2Tree + ?Sized,
 {
     pub fn new() -> Self {
         Self::default()

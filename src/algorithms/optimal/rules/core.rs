@@ -200,7 +200,7 @@ impl RuleContext {
 }
 
 /// A rule that can be applied during tree search
-pub trait Rule: std::any::Any {
+pub trait Rule: std::any::Any + Send + Sync{
     fn evaluate(&self, context: &RuleContext) -> RuleResult;
 
     fn priority(&self) -> u8;

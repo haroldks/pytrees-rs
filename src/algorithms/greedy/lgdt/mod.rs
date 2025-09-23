@@ -12,7 +12,7 @@ pub mod factories;
 
 pub struct LGDT<D>
 where
-    D: OptimalDepth2Tree,
+    D: OptimalDepth2Tree + ?Sized,
 {
     search: Box<D>,
     config: BaseSearchConfig,
@@ -21,7 +21,7 @@ where
 
 impl<D> TreeSearchAlgorithm for LGDT<D>
 where
-    D: OptimalDepth2Tree,
+    D: OptimalDepth2Tree + ?Sized,
 {
     fn fit(&mut self, cover: &mut Cover) -> Result<(), FitError> {
         if self.config.max_depth <= 2 {
@@ -48,6 +48,7 @@ where
             root_index,
             root_attribute,
         )?;
+        solution_tree.clean_orphaned_nodes();
         self.tree = solution_tree;
         Ok(())
     }
@@ -59,7 +60,7 @@ where
 
 impl<D> LGDT<D>
 where
-    D: OptimalDepth2Tree,
+    D: OptimalDepth2Tree + ?Sized,
 {
     fn recursion(
         &self,
@@ -173,7 +174,7 @@ mod test_lgdt {
 
         let mut lgdt = with_error_minimizer()
             .min_support(1)
-            .max_depth(12)
+            .max_depth(8)
             .build()
             .unwrap();
         let x = lgdt.fit(&mut cover).unwrap();

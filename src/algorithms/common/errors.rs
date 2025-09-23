@@ -1,4 +1,4 @@
-pub trait ErrorWrapper {
+pub trait ErrorWrapper : Send + Sync {
     fn compute(&self, data: &[usize]) -> (f64, f64);
 }
 

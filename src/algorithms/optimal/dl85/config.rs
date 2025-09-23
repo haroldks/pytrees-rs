@@ -3,6 +3,7 @@ use crate::algorithms::common::types::{
     BranchingPolicy, CacheInitStrategy, LowerBoundPolicy, NodeDataType, OptimalDepth2Policy,
 };
 
+#[derive(Copy, Clone, Debug)]
 pub struct DL85Config {
     pub(crate) base: BaseSearchConfig,
     pub(crate) always_sort: bool,

@@ -7,7 +7,7 @@ use crate::algorithms::common::utils::deduce_sibling_error_with_buffer;
 use crate::cover::Cover;
 use crate::globals::item;
 
-pub trait Heuristic {
+pub trait Heuristic: Send +Sync {
     fn compute(&self, cover: &mut Cover, candidates: &mut Vec<usize>) -> Vec<f64>;
 
     fn compute_with_scorer(

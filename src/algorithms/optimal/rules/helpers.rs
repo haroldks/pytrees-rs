@@ -1,4 +1,4 @@
-pub trait StepStrategy {
+pub trait StepStrategy: Send + Sync {
     fn next(&mut self) -> usize;
 }
 
@@ -23,6 +23,8 @@ impl StepStrategy for Monotonic {
         value
     }
 }
+
+
 
 impl Monotonic {
     pub fn new(increment: usize) -> Self {
