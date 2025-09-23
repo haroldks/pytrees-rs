@@ -3,7 +3,6 @@ use dtrees_rs::algorithms::common::types::{SearchStatistics, SearchStrategy};
 use dtrees_rs::algorithms::optimal::rules::{DiscrepancyRule, Exponential, GainRule, Luby, Monotonic, PurityRule, StepStrategy, TopkRule};
 use dtrees_rs::tree::Tree;
 use crate::common::enums::ExposedStepStrategy;
-use pyo3::prelude::*;
 use dtrees_rs::algorithms::optimal::rules::common::TimeLimitRule;
 
 #[pyclass(name = "output")]

@@ -12,7 +12,7 @@ use crate::algorithms::optimal::rules::common::{
 use crate::algorithms::optimal::rules::{Rule, RuleManager};
 use crate::caching::Caching;
 
-pub struct DL85Builder<C, D, E, H   >
+pub struct DL85Builder<C, D, E, H>
 where
     C: Caching + ?Sized,
     D: OptimalDepth2Tree + ?Sized,

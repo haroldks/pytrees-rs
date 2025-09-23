@@ -81,7 +81,7 @@ impl Caching for Trie {
     fn node(&self, key: &CacheKey) -> Option<&CacheEntry> {
         match key {
             CacheKey::Index(index) => self.get_node(*index).map(|node| &node.entry),
-            CacheKey::Path(path) => self.find(&path),
+            CacheKey::Path(path) => self.find(path),
         }
     }
 
@@ -99,7 +99,7 @@ impl Caching for Trie {
             CacheKey::Index(index) => self
                 .get_node_mut(*index)
                 .map(|node| CacheEntryUpdater::new(&mut node.entry)),
-            CacheKey::Path(path) => self.find_mut(&path).map(CacheEntryUpdater::new),
+            CacheKey::Path(path) => self.find_mut(path).map(CacheEntryUpdater::new),
         }
     }
 

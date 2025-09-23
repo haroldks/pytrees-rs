@@ -1,5 +1,4 @@
 use crate::algorithms::optimal::rules::core::{Rule, RuleContext, RuleResult, RuleState};
-use std::fmt::Debug;
 
 pub struct AndRule {
     rules: Vec<Box<dyn Rule>>,
@@ -95,7 +94,7 @@ impl Rule for AndRule {
     fn description(&self) -> String {
         let mut description = "And Rule of".to_string();
         for rule in &self.rules {
-            description.push_str(" ");
+            description.push(' ');
             description.push_str(&rule.description())
         }
         description

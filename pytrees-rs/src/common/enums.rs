@@ -1,7 +1,6 @@
-use pyo3::pyclass;
 use dtrees_rs::algorithms::common::heuristics::{GiniIndex, Heuristic, InformationGain, NoHeuristic, WeightedEntropy};
 use dtrees_rs::algorithms::common::types::{BranchingPolicy, LowerBoundPolicy, NodeDataType, OptimalDepth2Policy};
-use dtrees_rs::algorithms::optimal::rules::StepStrategy;
+use pyo3::pyclass;
 
 #[pyclass]
 #[derive(Copy, Clone)]
@@ -25,10 +24,10 @@ pub(crate) enum ExposedHeuristic {
 impl From<ExposedHeuristic> for Box<dyn Heuristic> {
     fn from(value: ExposedHeuristic) -> Self {
         match value {
-            ExposedHeuristic::InformationGain => Box::new(InformationGain::default()),
-            ExposedHeuristic::WeightedEntropy => Box::new(WeightedEntropy::default()),
-            ExposedHeuristic::GiniIndex => Box::new(GiniIndex::default()),
-            ExposedHeuristic::Disabled => Box::new(NoHeuristic::default()),
+            ExposedHeuristic::InformationGain => Box::<InformationGain>::default(),
+            ExposedHeuristic::WeightedEntropy => Box::new(WeightedEntropy),
+            ExposedHeuristic::GiniIndex => Box::new(GiniIndex),
+            ExposedHeuristic::Disabled => Box::new(NoHeuristic),
         }
     }
 }

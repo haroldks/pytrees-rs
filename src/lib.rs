@@ -4,6 +4,6 @@ pub mod caching;
 pub mod cover;
 pub mod example_parser;
 pub mod globals;
+pub mod parsers;
 pub mod reader;
 pub mod tree;
-pub mod parsers;

@@ -1,18 +1,20 @@
+use crate::algorithms::common::heuristics::{
+    GiniIndex, Heuristic, InformationGain, NoHeuristic, WeightedEntropy,
+};
 use crate::algorithms::optimal::Reason;
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::Formatter;
-use crate::algorithms::common::heuristics::{GiniIndex, Heuristic, InformationGain, NoHeuristic, WeightedEntropy};
 
-#[derive(Debug, Clone, Copy, Default,  Serialize, Deserialize, ValueEnum, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, ValueEnum, Eq, PartialEq)]
 pub enum SearchStrategy {
     Depth2ErrorMinimizer,
     Depth2InfoGainMaximizer,
     LGDTErrorMinimizer,
     LGDTInfoGainMaximizer,
     #[default]
-    DL85
+    DL85,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -115,12 +117,10 @@ pub enum NodeDataType {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum, Eq, PartialEq)]
-pub enum CacheType{
+pub enum CacheType {
     Trie,
     Hashmap,
 }
-
-
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum, Eq, PartialEq)]
 pub enum CacheInitStrategy {
@@ -131,31 +131,28 @@ pub enum CacheInitStrategy {
 
 pub type BranchingChoice = (usize, f64, f64);
 
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum, Eq, PartialEq)]
-pub enum SearchHeuristic{
+pub enum SearchHeuristic {
     NoHeuristic,
     GiniIndex,
     InformationGain,
     WeightedEntropy,
 }
 
-
 impl From<SearchHeuristic> for Box<dyn Heuristic> {
     fn from(value: SearchHeuristic) -> Self {
         match value {
-            SearchHeuristic::InformationGain => Box::new(InformationGain::default()),
-            SearchHeuristic::WeightedEntropy => Box::new(WeightedEntropy::default()),
-            SearchHeuristic::GiniIndex => Box::new(GiniIndex::default()),
-            SearchHeuristic::NoHeuristic => Box::new(NoHeuristic::default()),
+            SearchHeuristic::InformationGain => Box::<InformationGain>::default(),
+            SearchHeuristic::WeightedEntropy => Box::<WeightedEntropy>::default(),
+            SearchHeuristic::GiniIndex => Box::<GiniIndex>::default(),
+            SearchHeuristic::NoHeuristic => Box::<NoHeuristic>::default(),
         }
     }
 }
-
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum, Eq, PartialEq)]
 pub enum SearchStepStrategy {
     Monotonic,
     Exponential,
-    Luby
+    Luby,
 }

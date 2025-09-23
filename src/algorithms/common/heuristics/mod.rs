@@ -7,7 +7,9 @@ use crate::algorithms::common::utils::deduce_sibling_error_with_buffer;
 use crate::cover::Cover;
 use crate::globals::item;
 
-pub trait Heuristic: Send +Sync {
+type ScoreFn = Box<dyn Fn(&[usize], &[usize], &[usize], f64) -> f64>;
+
+pub trait Heuristic: Send + Sync {
     fn compute(&self, cover: &mut Cover, candidates: &mut Vec<usize>) -> Vec<f64>;
 
     fn compute_with_scorer(
@@ -15,7 +17,7 @@ pub trait Heuristic: Send +Sync {
         parent_entropy: f64,
         cover: &mut Cover,
         candidates: &mut Vec<usize>,
-        scorer: Box<dyn Fn(&[usize], &[usize], &[usize], f64) -> f64>,
+        scorer: ScoreFn,
         lower_is_better: bool,
     ) -> Vec<f64> {
         if candidates.is_empty() {

@@ -44,7 +44,7 @@ impl SimilarityCover {
                 sim_cover
                     .as_ref()
                     .map(|c| cover - c)
-                    .unwrap_or(Difference::default())
+                    .unwrap_or_default()
             })
             .collect();
 

@@ -18,7 +18,7 @@ impl ExposedSearchStrategy {
                     LGDTBuilder::<InfoGainMaximizer<NativeError>>::with_default_info_gain_maximizer()
                         .min_support(min_sup)
                         .max_depth(max_depth)
-                        .build().map_err(|x| PyValueError::new_err(x))?
+                        .build().map_err(PyValueError::new_err)?
                 ))
             },
             ExposedSearchStrategy::LGDTErrorMinimizer => {
@@ -26,7 +26,7 @@ impl ExposedSearchStrategy {
                     LGDTBuilder::<ErrorMinimizer<NativeError>>::with_default_error_minimizer()
                         .min_support(min_sup)
                         .max_depth(max_depth)
-                        .build().map_err(|x| PyValueError::new_err(x))?
+                        .build().map_err(PyValueError::new_err)?
                 ))
             },
             _ => {

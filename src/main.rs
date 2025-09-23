@@ -1,27 +1,26 @@
-
-use crate::tree::Tree;
-use clap::Parser;
-use crate::algorithms::common::heuristics::Heuristic;
-use crate::algorithms::greedy::{LGDTBuilder, LGDT};
-use crate::algorithms::TreeSearchAlgorithm;
 use crate::algorithms::common::errors::NativeError;
+use crate::algorithms::common::heuristics::Heuristic;
 use crate::algorithms::common::types::{CacheType, NodeDataType, SearchStatistics, SearchStrategy};
+use crate::algorithms::greedy::{LGDTBuilder, LGDT};
 use crate::algorithms::optimal::depth2::{ErrorMinimizer, InfoGainMaximizer, OptimalDepth2Tree};
 use crate::algorithms::optimal::dl85::DL85Builder;
+use crate::algorithms::TreeSearchAlgorithm;
 use crate::caching::{Caching, Trie};
-use crate::parsers::{MainApp, ArgCommand};
+use crate::parsers::{ArgCommand, MainApp};
 use crate::reader::data_reader::DataReader;
+use crate::tree::Tree;
+use clap::Parser;
 
+mod algorithms;
+mod bitsets;
 mod caching;
 mod cover;
-mod bitsets;
-mod reader;
 mod globals;
 mod parsers;
-mod algorithms;
+mod reader;
 mod tree;
 
-fn main() -> Result<(), Box<dyn std::error::Error>>{
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = MainApp::parse();
     if !app.input.exists() {
         panic!("File does not exist");
@@ -44,8 +43,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>>{
             }
 
             let learner: Box<dyn OptimalDepth2Tree> = match objective {
-                SearchStrategy::Depth2ErrorMinimizer => Box::new(ErrorMinimizer::default()),
-                SearchStrategy::Depth2InfoGainMaximizer => {Box::new(InfoGainMaximizer::default())}
+                SearchStrategy::Depth2ErrorMinimizer => Box::<ErrorMinimizer<NativeError>>::default(),
+                SearchStrategy::Depth2InfoGainMaximizer => Box::<InfoGainMaximizer<NativeError>>::default(),
                 _ => {
                     panic!("Error wrong algorithm")
                 }
@@ -54,17 +53,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>>{
             tree = learner.fit(support, depth, &mut cover, None)?;
         }
 
-        ArgCommand::LGDT {
+        ArgCommand::Lgdt {
             support,
             depth,
             objective,
-            print_config
+            print_config,
         } => {
-
-
             let obejective_fn: Box<dyn OptimalDepth2Tree> = match objective {
-                SearchStrategy::Depth2ErrorMinimizer => Box::new(ErrorMinimizer::default()),
-                SearchStrategy::Depth2InfoGainMaximizer => {Box::new(InfoGainMaximizer::default())}
+                SearchStrategy::Depth2ErrorMinimizer => Box::<ErrorMinimizer<NativeError>>::default(),
+                SearchStrategy::Depth2InfoGainMaximizer => Box::<InfoGainMaximizer<NativeError>>::default(),
                 _ => {
                     panic!("Error wrong objective method")
                 }
@@ -97,7 +94,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>>{
             timeout,
             print_config,
         } => {
-            let timeout = timeout.unwrap_or_else(|| f64::INFINITY);
+            let timeout = timeout.unwrap_or(f64::INFINITY);
 
             let heuristic_fn: Box<dyn Heuristic> = heuristic.into();
             let cache: Box<dyn Caching> = match cache_type {
@@ -107,7 +104,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>>{
                 }
             };
 
-            let depth2_search = Box::new(ErrorMinimizer::default());
+            let depth2_search = Box::<ErrorMinimizer<NativeError>>::default();
             let error_fn = Box::<NativeError>::default();
 
             let mut learner = DL85Builder::default()
@@ -126,22 +123,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>>{
                 .node_exposed_data(NodeDataType::ClassesSupport)
                 .build()?;
 
-
-
             learner.fit(&mut cover)?;
 
             statistics = *learner.statistics();
             tree = learner.tree().clone();
 
-
             if print_config {
                 println!("{:#?}", learner.config())
             }
-
         }
-
     }
-
 
     if app.print_stats {
         println!("{:#?}", statistics);
@@ -150,7 +141,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>>{
     if app.print_tree {
         tree.print();
     }
-
 
     Ok(())
 }

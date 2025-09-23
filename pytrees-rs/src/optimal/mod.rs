@@ -1,22 +1,20 @@
 use crate::common::create_cover_from_numpy;
 
+use crate::common::enums::{ExposedBranchingPolicy, ExposedDepth2Policy, ExposedHeuristic, ExposedLowerBoundPolicy, ExposedNodeDataType, };
+use crate::common::errors::PythonError;
+use crate::common::types::{ExposedDiscrepancyRule, ExposedGainRule, ExposedPurityRule, ExposedRestartRule, ExposedTopKRule, SearchOutput};
 use dtrees_rs::algorithms::common::errors::{ErrorWrapper, NativeError};
-use dtrees_rs::algorithms::common::heuristics::{GiniIndex, Heuristic, InformationGain, NoHeuristic, WeightedEntropy};
+use dtrees_rs::algorithms::common::heuristics::Heuristic;
 use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
+use dtrees_rs::algorithms::optimal::dl85::config::DL85Config;
 use dtrees_rs::algorithms::optimal::dl85::{DL85Builder, DL85};
-use dtrees_rs::algorithms::optimal::rules::{DiscrepancyRule, GainRule, PurityRule, TopkRule, RuleManager, common::TimeLimitRule, Rule};
+use dtrees_rs::algorithms::optimal::rules::{common::TimeLimitRule, DiscrepancyRule, GainRule, PurityRule, Rule, TopkRule};
 use dtrees_rs::algorithms::TreeSearchAlgorithm;
 use dtrees_rs::caching::Trie;
+use dtrees_rs::cover::Cover;
 use numpy::PyReadonlyArrayDyn;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use dtrees_rs::algorithms::optimal::dl85::config::DL85Config;
-use dtrees_rs::cover::Cover;
-use log::error;
-use crate::common::enums::{ExposedBranchingPolicy, ExposedDepth2Policy, ExposedHeuristic, ExposedLowerBoundPolicy, ExposedNodeDataType,};
-use crate::common::errors::PythonError;
-use crate::common::types::{ExposedDiscrepancyRule, ExposedGainRule, ExposedPurityRule, ExposedRestartRule, ExposedTopKRule, SearchOutput};
-
 
 
 #[pyclass]
@@ -79,7 +77,7 @@ impl PyDL85 {
         // let error_fn_copy = error_function.
 
         let error_fn: Box<dyn ErrorWrapper> = match &error_function {
-            None => Box::new(NativeError::default()),
+            None => Box::<NativeError>::default(),
             Some(function) => {
                 let mut error: Box<dyn ErrorWrapper> = Box::<NativeError>::default();
                 Python::attach(|py| {
@@ -88,9 +86,6 @@ impl PyDL85 {
                 error
             } ,
         };
-
-
-
 
         let depth2_search: Box<ErrorMinimizer<dyn ErrorWrapper>> = match &error_function {
             None => Box::new(ErrorMinimizer::new(Box::<NativeError>::default())),
@@ -103,10 +98,8 @@ impl PyDL85 {
             } ,
         };
 
-            Box::new(ErrorMinimizer::new(Box::<NativeError>::default()));
-
         // Configure cache
-        let cache = Box::new(Trie::default());
+        let cache = Box::<Trie>::default();
 
         // Configure rules
         let mut node_rules: Vec<Box<dyn Rule>> = vec![];
@@ -194,7 +187,7 @@ impl PyDL85 {
 
 
     pub fn fit(&mut self, input: PyReadonlyArrayDyn<f64>, target: Option<PyReadonlyArrayDyn<f64>>) -> PyResult<()>{
-        self.load_data(input, target);
+        self.load_data(input, target).expect("Failed to load data");
         self.learner.fit(&mut self.cover).map_err(|x| PyValueError::new_err(format!("Failed to fit due to {:?}", x)))?;
         self.update_stats();
         Ok(())

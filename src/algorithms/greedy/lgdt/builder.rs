@@ -28,10 +28,6 @@ impl<D> LGDTBuilder<D>
 where
     D: OptimalDepth2Tree + ?Sized,
 {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     pub fn with_default_info_gain_maximizer() -> LGDTBuilder<InfoGainMaximizer<NativeError>> {
         LGDTBuilder::default().search(Box::<InfoGainMaximizer<NativeError>>::default())
     }
@@ -77,6 +73,4 @@ where
     }
 }
 
-pub mod default_builders {
-    use super::*;
-}
+pub mod default_builders {}

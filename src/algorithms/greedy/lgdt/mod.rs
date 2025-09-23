@@ -85,7 +85,7 @@ where
                 let child_tree_result =
                     self.search.fit(self.config.min_support, depth, cover, None);
                 parent_error += match child_tree_result {
-                    Err(FitError::EmptyTree) | Err(FitError::EmptyCandidates)  => {
+                    Err(FitError::EmptyTree) | Err(FitError::EmptyCandidates) => {
                         self.create_leaf_node_in_tree(tree, parent, branch_value == 0, cover)
                     }
                     Ok(child_tree) => {
@@ -152,7 +152,6 @@ where
     pub fn config(&self) -> &BaseSearchConfig {
         &self.config
     }
-
 }
 
 mod test_lgdt {

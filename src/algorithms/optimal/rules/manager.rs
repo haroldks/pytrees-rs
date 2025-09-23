@@ -4,6 +4,12 @@ pub struct RuleManager {
     rules: Vec<Box<dyn Rule>>,
 }
 
+impl Default for RuleManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RuleManager {
     pub fn new() -> Self {
         Self { rules: Vec::new() }

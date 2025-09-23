@@ -50,9 +50,4 @@ pub trait OptimalDepth2Tree {
     ) -> Vec<usize> {
         find_valid_split_attributes(cover, min_sup, provided_candidates, None)
     }
-
-
-
-
-
 }

@@ -24,8 +24,6 @@ impl StepStrategy for Monotonic {
     }
 }
 
-
-
 impl Monotonic {
     pub fn new(increment: usize) -> Self {
         Self {

@@ -213,13 +213,13 @@ impl Tree {
     pub fn root_details(&self) -> NodeInfos {
         self.get_node(self.get_root_index())
             .map(|node| node.value)
-            .unwrap_or(NodeInfos::default())
+            .unwrap_or_default()
     }
 
     pub fn node_details(&self, index: usize) -> NodeInfos {
         self.get_node(index)
             .map(|node| node.value)
-            .unwrap_or(NodeInfos::default())
+            .unwrap_or_default()
     }
 
     pub fn root_error(&self) -> f64 {
@@ -306,7 +306,6 @@ impl Tree {
             return;
         }
         self.cleanup_leaves(self.get_root_index())
-
     }
 
     fn cleanup_leaves(&mut self, index: usize) {
@@ -320,21 +319,20 @@ impl Tree {
 
         let has_children = left != 0 || right != 0;
         if has_children && self.can_be_leaf(index) {
-            self.update_node(index)
-                .map(|updater| updater.leaf());
+            self.update_node(index).map(|updater| updater.leaf());
             return;
         }
 
-        if has_children && self.is_leaf(left) && self.is_leaf(right) && self.node_output(left).eq(&self.node_output(right)) {
+        if has_children
+            && self.is_leaf(left)
+            && self.is_leaf(right)
+            && self.node_output(left).eq(&self.node_output(right))
+        {
             let output = self.node_output(right).unwrap();
             self.update_node(index)
-                .map(|updater| updater.output(output)
-                    .clean_test()
-                    .leaf());
+                .map(|updater| updater.output(output).clean_test().leaf());
         }
     }
-
-
 
     fn is_leaf(&self, index: usize) -> bool {
         let (left, right) = self.node_children(index);
@@ -344,8 +342,6 @@ impl Tree {
     fn can_be_leaf(&self, index: usize) -> bool {
         self.node_test(index).is_none() && self.node_output(index).is_some()
     }
-
-
 
     pub fn print(&self) {
         let mut stack: Vec<(usize, Option<&TreeNode>)> = Vec::new();
@@ -427,8 +423,6 @@ impl<'a> NodeUpdater<'a> {
     pub fn get_children(&self) -> (usize, usize) {
         (self.node.left, self.node.right)
     }
-
-
 }
 
 #[cfg(test)]

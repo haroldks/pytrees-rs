@@ -1,9 +1,11 @@
 pub mod examples;
 
-use crate::algorithms::common::types::{BranchingPolicy, OptimalDepth2Policy, LowerBoundPolicy, SearchStrategy, CacheType, SearchHeuristic};
+use crate::algorithms::common::types::{
+    BranchingPolicy, CacheType, LowerBoundPolicy, OptimalDepth2Policy, SearchHeuristic,
+    SearchStrategy,
+};
 use clap::{arg, Parser, Subcommand};
 use std::path::PathBuf;
-
 
 #[derive(Debug, Parser)]
 #[clap(name = "dt-trees", version, author, about)]
@@ -22,7 +24,6 @@ pub struct MainApp {
     /// Printing Tree
     #[arg(long, default_value_t = false)]
     pub print_tree: bool,
-
 }
 
 #[derive(Debug, Subcommand)]
@@ -48,7 +49,7 @@ pub enum ArgCommand {
 
         /// Lower bound heuristic strategy
         #[arg(long="lb", value_enum, default_value_t = LowerBoundPolicy::Disabled)]
-        lower_bound_policy: LowerBoundPolicy ,
+        lower_bound_policy: LowerBoundPolicy,
 
         /// Branching type
         #[arg(short, long, value_enum, default_value_t = BranchingPolicy::Default)]
@@ -56,7 +57,6 @@ pub enum ArgCommand {
 
         #[arg(long="cache", value_enum, default_value_t = CacheType::Trie)]
         cache_type: CacheType,
-
 
         /// Sorting heuristic
         #[arg(long, value_enum, default_value_t = SearchHeuristic::NoHeuristic)]
@@ -92,7 +92,7 @@ pub enum ArgCommand {
     },
 
     /// Less greedy decision tree approach using misclassification or information gain tree as sliding window
-    LGDT {
+    Lgdt {
         /// Minimum support
         #[arg(short, long, default_value_t = 1)]
         support: usize,

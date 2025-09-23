@@ -1,4 +1,4 @@
-use crate::algorithms::common::types::{SearchHeuristic, SearchStepStrategy, OptimalDepth2Policy};
+use crate::algorithms::common::types::{OptimalDepth2Policy, SearchHeuristic, SearchStepStrategy};
 use crate::tree::Tree;
 use clap::Parser;
 use serde::{Deserialize, Serialize};

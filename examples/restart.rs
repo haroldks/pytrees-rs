@@ -3,6 +3,7 @@ use dtrees_rs::algorithms::common::errors::NativeError;
 use dtrees_rs::algorithms::common::heuristics::{
     GiniIndex, Heuristic, InformationGain, NoHeuristic,
 };
+use dtrees_rs::algorithms::common::types::{SearchHeuristic, SearchStepStrategy};
 use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
 use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
 use dtrees_rs::algorithms::optimal::rules::common::TimeLimitRule;
@@ -14,7 +15,6 @@ use dtrees_rs::reader::data_reader::DataReader;
 use std::fs;
 use std::fs::remove_file;
 use std::path::Path;
-use dtrees_rs::algorithms::common::types::{SearchHeuristic, SearchStepStrategy};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = ExampleParser::parse();

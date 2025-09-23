@@ -4,7 +4,7 @@ use crate::algorithms::common::types::{
     BranchingChoice, BranchingPolicy, FitError, LowerBoundPolicy, NodeDataType, RuleType,
     SearchResult, SearchStatistics,
 };
-use crate::algorithms::optimal::depth2::{ErrorMinimizer, OptimalDepth2Tree};
+use crate::algorithms::optimal::depth2::{OptimalDepth2Tree};
 use crate::algorithms::optimal::dl85::config::DL85Config;
 use crate::algorithms::optimal::rules::common::{SimilarityLowerBoundRule, TimeLimitRule};
 use crate::algorithms::optimal::rules::{
@@ -22,6 +22,7 @@ mod builder;
 pub mod config;
 
 pub use builder::DL85Builder;
+
 pub struct DL85<C, D, E, H>
 where
     C: Caching + ?Sized,
@@ -53,8 +54,12 @@ where
     H: Heuristic + ?Sized,
 {
     fn fit(&mut self, cover: &mut Cover) -> Result<(), FitError> {
-        let mut result = SearchResult::default();
-        result.reason = Reason::RuleReason;
+
+        let mut result = SearchResult {
+            reason: Reason::RuleReason,
+            ..Default::default()
+        };
+
         while result.reason == Reason::RuleReason && !self.time_rule.exhausted() {
             result = self.partial_fit(cover);
         }
@@ -301,11 +306,8 @@ where
 
             if scores.len() > 1 {
                 branch_context.gain(parent_context.gain + (scores[0] - scores[position]));
-                if self.statistics.restarts() <= 1 || self.gain_gap <= 0.0 {
-                    if self.gain_gap <= 0f64 || branch_context.gain < self.gain_gap {
-                        // println!("Path {:? } child {} Gap : {:?}", cover.path(), child, branch_context.gain);
-                        self.gain_gap = branch_context.gain;
-                    }
+                if (self.statistics.restarts() <= 1 || self.gain_gap <= 0.0) && (self.gain_gap <= 0f64 || branch_context.gain < self.gain_gap) {
+                    self.gain_gap = branch_context.gain;
                 }
             }
 
@@ -320,7 +322,7 @@ where
             }
 
             let (first_branch, first_lb, second_lb) =
-                self.determine_branch_strategy(child, path, cover, &mut subtree_similarity_data);
+                self.determine_branch_strategy(child, path, cover, &subtree_similarity_data);
             branch_context.depth(depth + 1);
             let branch_item = item(child, first_branch);
             branch_context.item(branch_item);
@@ -473,7 +475,7 @@ where
         let first_result = self.recursive_search(
             cover,
             path,
-            &candidates,
+            candidates,
             current_depth + 1,
             branch_context.item,
             branch_index,
@@ -645,7 +647,7 @@ where
         {
             let key = index.to_cache_key(path);
             if let Some(node) = self.cache.node(&key) {
-                similarity.update(&cover.sparse(), node.error())
+                similarity.update(cover.sparse(), node.error())
             }
         }
         cover.backtrack();
@@ -655,7 +657,7 @@ where
     fn apply_specialized_depth2_search(
         &mut self,
         cover: &mut Cover,
-        candidates: &[usize],
+        _candidates: &[usize],
         parent_index: Index,
         upper_bound: f64,
         path: &mut SearchPath,

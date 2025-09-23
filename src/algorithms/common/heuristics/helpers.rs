@@ -98,8 +98,8 @@ pub fn weighted_entropy(
     }
 
     // Calculate entropy for each branch
-    let left_entropy = entropy(&left_distribution);
-    let right_entropy = entropy(&right_distribution);
+    let left_entropy = entropy(left_distribution);
+    let right_entropy = entropy(right_distribution);
 
     left_weight * left_entropy + right_weight * right_entropy
 }
