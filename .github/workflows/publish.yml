@@ -79,7 +79,13 @@ jobs:
     steps:
       - uses: actions/download-artifact@v5
         with:
-          path: dist/
+          pattern: artifact-*
+          merge-multiple: true
+          path: dist
+
+      - name: Print out packages
+        run: ls dist
+
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
@@ -100,11 +106,19 @@ jobs:
     steps:
       - uses: actions/download-artifact@v5
         with:
-          path: dist/
+          pattern: artifact-*
+          merge-multiple: true
+          path: dist
+
+      - name: Print out packages
+        run: ls dist
+
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           skip-existing: true
           verify-metadata: false
+
+
 
 
 
