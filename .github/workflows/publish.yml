@@ -54,7 +54,7 @@ jobs:
     name: Build source distribution
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
 
       - name: Build sdist
         run: cd pytrees-rs && pipx run build --sdist
