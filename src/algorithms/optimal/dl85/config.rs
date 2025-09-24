@@ -1,9 +1,10 @@
+use serde::{Deserialize, Serialize};
 use crate::algorithms::common::config::BaseSearchConfig;
 use crate::algorithms::common::types::{
     BranchingPolicy, CacheInitStrategy, LowerBoundPolicy, NodeDataType, OptimalDepth2Policy,
 };
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct DL85Config {
     pub(crate) base: BaseSearchConfig,
     pub(crate) always_sort: bool,

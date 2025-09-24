@@ -1,4 +1,5 @@
-from .rs import *
+import common
 from .base import DecisionTree
-from .supervised import LGDTCLassifier, DL85Classifier
+from .exceptions import *
+from .supervised import LGDTClassifier, DL85Classifier
 from .unsupervised import DL85Cluster

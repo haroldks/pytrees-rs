@@ -24,6 +24,11 @@ impl SearchOutput {
     // Could be done with paste!
 
     #[getter]
+    pub fn error(&self) -> PyResult<f64> {
+        Ok(self.error)
+    }
+
+    #[getter]
     pub fn statistics(&self) -> PyResult<String> {
         let json = serde_json::to_string_pretty(&self.statistics).unwrap();
         Ok(json)

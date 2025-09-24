@@ -18,6 +18,7 @@
 # #
 # #
 # graphviz.Source(clf.export_to_graphviz_dot()).view()
+import graphviz
 
 
 def error(tids):
@@ -25,21 +26,27 @@ def error(tids):
     return 1.0, 1.0
 
 
+#
 import numpy as np
-from pytreesrs.enums import ExposedNodeDataType
-from pytreesrs.odt import PyDL85
+from pytrees import LGDTClassifier, DL85Classifier
+from pytrees.common import (
+    ExposedSearchStrategy,
+    ExposedDiscrepancyRule,
+    ExposedStepStrategy,
+    ExposedLowerBoundPolicy,
+    ExposedBranchingPolicy,
+)
 
 dataset = np.genfromtxt("../test_data/anneal.txt", delimiter=" ")
 X, y = dataset[:, 1:], dataset[:, 0]
 
-classifier = PyDL85(data_type=ExposedNodeDataType.ClassSupportso, error_function=error)
+discrepancy = ExposedDiscrepancyRule(
+    step_strategy=ExposedStepStrategy.Exponential, base=2
+)
+
+classifier = DL85Classifier(min_sup=1, max_depth=4, discrepancy=discrepancy)
 classifier.fit(X, y)
-stats = classifier.stats
 
-print(stats.error)
-
-
-# print(X.dtype)
-# X = X.astype(int, copy=False)
-# print(X.dtype)
-# rapid(X)
+print(classifier.statistics)
+graphviz.Source(classifier.export_to_graphviz_dot()).view()
+print(help(ExposedDiscrepancyRule))

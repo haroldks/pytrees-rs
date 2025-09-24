@@ -34,6 +34,7 @@ impl PyDL85 {
     #[pyo3(signature = (
         min_sup=1,
         max_depth=2,
+        max_error=f64::INFINITY,
         time_limit=600.0,
         always_sort=true,
         heuristic=ExposedHeuristic::Disabled,
@@ -51,6 +52,7 @@ impl PyDL85 {
     pub fn new(
         min_sup: usize,
         max_depth: usize,
+        max_error: f64,
         time_limit: f64,
         always_sort: bool,
         heuristic: ExposedHeuristic,
@@ -139,6 +141,7 @@ impl PyDL85 {
         let mut learner = DL85Builder::default()
             .max_depth(max_depth)
             .min_support(min_sup)
+            .max_error(max_error)
             .max_time(time_limit)
             .specialization(depth2_policy)
             .always_sort(always_sort)
@@ -198,6 +201,12 @@ impl PyDL85 {
     #[getter]
     pub fn stats(&self) -> PyResult<SearchOutput> {
         Ok(self.statistics.clone())
+    }
+
+    #[getter]
+    pub fn config(&self) -> PyResult<String> {
+        let json = serde_json::to_string_pretty(&self.config).unwrap();
+        Ok(json)
     }
 
     fn update_stats(&mut self) {

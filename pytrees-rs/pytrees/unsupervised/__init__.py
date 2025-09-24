@@ -1,1 +1,1 @@
-from .dl85_clustering import DL85Cluster
+from .clustering import DL85Cluster
