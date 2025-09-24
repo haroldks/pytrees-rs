@@ -79,7 +79,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v5
         with:
-          name: artifact
+          name: artifact-dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
@@ -101,7 +101,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v5
         with:
-          name: artifact
+          name: artifact-dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
