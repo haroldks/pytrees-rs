@@ -18,7 +18,7 @@ pub(crate) enum ExposedHeuristic {
     InformationGain,
     WeightedEntropy,
     GiniIndex,
-    Disabled,
+    NoHeuristic,
 }
 
 impl From<ExposedHeuristic> for Box<dyn Heuristic> {
@@ -27,7 +27,7 @@ impl From<ExposedHeuristic> for Box<dyn Heuristic> {
             ExposedHeuristic::InformationGain => Box::<InformationGain>::default(),
             ExposedHeuristic::WeightedEntropy => Box::new(WeightedEntropy),
             ExposedHeuristic::GiniIndex => Box::new(GiniIndex),
-            ExposedHeuristic::Disabled => Box::new(NoHeuristic),
+            ExposedHeuristic::NoHeuristic => Box::new(NoHeuristic),
         }
     }
 }
