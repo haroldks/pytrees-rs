@@ -46,8 +46,8 @@ jobs:
           package-dir: ./pytrees-rs
 
       - uses: actions/upload-artifact@v4
-        name: artifact-${{ matrix.os }}
         with:
+          name: artifact-${{ matrix.os }}
           path: ./wheelhouse/*.whl
 
 
@@ -61,8 +61,8 @@ jobs:
         run: cd pytrees-rs && pipx run build --sdist
 
       - uses: actions/upload-artifact@v4
-        name: artifact-dist
         with:
+          name: artifact-dist
           path: pytrees-rs/dist/*.tar.gz
 
 
