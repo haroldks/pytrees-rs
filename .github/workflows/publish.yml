@@ -5,10 +5,6 @@ on:
     tags:
       - 'v*'
 
-#on:
-#  push:
-#    branches: [ "actions" ]
-
 
 jobs:
   build_wheels:
@@ -16,19 +12,17 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
-      - uses: actions/checkout@v3
-
+      - uses: actions/checkout@v5
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.16.2
+        uses: pypa/cibuildwheel@v3.2.0
         env:
-
           CIBW_ARCHS_MACOS: 'universal2'
           CIBW_ARCHS_LINUX: 'x86_64'
-
-          CIBW_BUILD: 'cp3{9,10}-*'
+          MACOSX_DEPLOYMENT_TARGET: "10.12"
+          CIBW_BUILD: 'cp3{10,11,12,13}-*'
           CIBW_BEFORE_BUILD_LINUX: >
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y &&
             echo "Enabling rustup" &&
@@ -39,15 +33,17 @@ jobs:
             echo "Enabling rustup" &&
             source "$HOME/.cargo/env" &&
             cargo --version &&
-            rustup target add aarch64-apple-darwin
+            rustup target add aarch64-apple-darwin &&
+            rustup target add x86_64-apple-darwin
 
           CIBW_ENVIRONMENT: 'PATH="$PATH:$HOME/.cargo/bin"'
-          CIBW_SKIP: "cp36-* cp37-* pp* *-win32 *-musllinux*"
+          CIBW_SKIP: "cp38-* cp39-* *-win32 *-musllinux*"
         with:
           package-dir: ./pytrees-rs
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
+          name: artifact-${{ matrix.os }}
           path: ./wheelhouse/*.whl
 
 
@@ -55,38 +51,94 @@ jobs:
     name: Build source distribution
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
 
       - name: Build sdist
         run: cd pytrees-rs && pipx run build --sdist
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
+          name: artifact-dist
           path: pytrees-rs/dist/*.tar.gz
 
 
-  upload_pypi:
-    needs: [ build_wheels, build_sdist ]
-    name: Upload to PyPI
+  publish-to-testpypi:
+    needs: [build_wheels, build_sdist]
+    name: Upload on test environment
+    runs-on: ubuntu-latest
     environment:
       name: testpypi
-    runs-on: ubuntu-latest
-    # upload to PyPI on every tag starting with 'v'
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    # alternatively, to publish when a GitHub Release is created, use the following rule:
-    # if: github.event_name == 'release' && github.event.action == 'published'
+      url: https://test.pypi.org/p/pytrees-rs
+    permissions:
+      id-token: write
+
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v5
         with:
-          # unpacks default artifact into dist/
-          # if `name: artifact` is omitted, the action will create extra parent dir
-          name: artifact
+          pattern: artifact-*
+          merge-multiple: true
           path: dist
 
-      - uses: pypa/gh-action-pypi-publish@v1.8.6
+      - name: Print out packages
+        run: ls dist
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
         with:
+          repository-url: https://test.pypi.org/legacy/
           verify-metadata: false
           skip-existing: true
-#          repository_url: https://test.pypi.org/legacy/
-          user: __token__
-          password: ${{ secrets.PYPI }}
+
+  publish-to-pypi:
+    needs: [build_wheels, build_sdist]
+    name: Upload on main pypi environment
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/pytrees-rs/
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: artifact-*
+          merge-multiple: true
+          path: dist
+
+      - name: Print out packages
+        run: ls dist
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
+          verify-metadata: false
+
+
+
+
+
+#    upload_pypi:
+#      name: Upload to PyPI
+#      environment:
+#        name: testpypi
+#      runs-on: ubuntu-latest
+#      # upload to PyPI on every tag starting with 'v'
+#      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+#      # alternatively, to publish when a GitHub Release is created, use the following rule:
+#      # if: github.event_name == 'release' && github.event.action == 'published'
+#      steps:
+#        - uses: actions/download-artifact@v3
+#          with:
+#            # unpacks default artifact into dist/
+#            # if `name: artifact` is omitted, the action will create extra parent dir
+#            name: artifact
+#            path: dist
+#
+#        - uses: pypa/gh-action-pypi-publish@v1.13.0
+#          with:
+#            verify-metadata: false
+#            skip-existing: true
+#  #          repository_url: https://test.pypi.org/legacy/
+#            user: __token__
+#            password: ${{ secrets.PYPI }}
