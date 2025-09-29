@@ -1,20 +1,20 @@
+use rustc_hash::FxHashMap;
 use crate::caching::entry::{CacheEntry, CacheEntryUpdater};
 use crate::caching::helpers::{CacheKey, Index};
 use crate::caching::Caching;
-use std::collections::HashMap;
 
 #[derive(Debug)]
 struct TrieNode {
     index: usize,
     entry: CacheEntry,
-    children: HashMap<usize, usize>,
+    children: FxHashMap<usize, usize>,
 }
 
 impl Default for TrieNode {
     fn default() -> Self {
         Self {
             index: usize::MAX,
-            children: HashMap::new(),
+            children: FxHashMap::default(),
             entry: CacheEntry::default(),
         }
     }
@@ -24,7 +24,7 @@ impl TrieNode {
     pub fn new(item: usize) -> Self {
         Self {
             index: usize::MAX,
-            children: HashMap::new(),
+            children: FxHashMap::default(),
             entry: CacheEntry::new(item),
         }
     }

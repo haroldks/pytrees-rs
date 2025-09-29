@@ -12,6 +12,7 @@ opt-level = 3
 
 [dependencies]
 search_trail = "0.1.3"
+rustc-hash = "2.1.1"
 float-cmp = "0.10.0"
 serde = { version = "1.0.197", features = ["derive"] }
 clap = { version = "4.5.1", features = ["derive"] }
