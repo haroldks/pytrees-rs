@@ -12,6 +12,8 @@ from sklearn.metrics import accuracy_score
 
 # Generate sample data
 X, y = make_classification(n_samples=1000, n_features=10, n_classes=2, random_state=42)
+X = (X > 0).astype(float)
+
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
 # Optimal decision tree (guaranteed best solution)
@@ -43,6 +45,8 @@ from sklearn.metrics import accuracy_score
 
 # Generate sample data
 X, y = make_classification(n_samples=1000, n_features=10, n_classes=2, random_state=42)
+X = (X > 0).astype(float)
+
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
 optimal_clf = DL85Classifier(max_depth=3, min_sup=10)
@@ -58,7 +62,7 @@ with open('tree.dot', 'w') as f:
 try:
     import graphviz
     graph = graphviz.Source(dot_string)
-    graph.render('tree', format='png')
+    graph.view()
     print("Tree visualization saved as tree.png")
 except ImportError:
     print("Install graphviz for automatic visualization: pip install graphviz")
@@ -82,28 +86,9 @@ advanced_clf = DL85Classifier(
     purity=ExposedPurityRule(min_purity=0.9)
 )
 advanced_clf.fit(X, y)
+print(advanced_clf.score(X, y))
 ```
 
-### Scikit-learn Integration
-```python
-from pytrees import DL85Classifier
-from sklearn.model_selection import cross_val_score
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
-from sklearn.datasets import make_classification
-
-# Use in pipelines
-pipeline = Pipeline([
-('scaler', StandardScaler()),
-('classifier', DL85Classifier(max_depth=3))
-])
-
-# Cross-validation
-X, y = make_classification(n_samples=1000, n_features=10, n_classes=2, random_state=42)
-X = (X > 0).astype(float)
-scores = cross_val_score(pipeline, X, y, cv=5)
-print(f"Cross-validation accuracy: {scores.mean():.3f} ± {scores.std():.3f}")
-```
 
 
 ## Next Steps
