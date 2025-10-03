@@ -7,7 +7,7 @@ This guide will help you install pytrees-rs on your system. We provide multiple 
 Before installing pytrees-rs, ensure you have the following:
 
 ### Python Requirements
-- **Python 3.8 or higher** (Python 3.9+ recommended)
+- **Python 3.10 or higher**
 - **pip** package manager
 - **NumPy** (automatically installed with pytrees-rs)
 
