@@ -113,6 +113,4 @@ Once installed successfully:
 2. **[Python Library](./python/README.md)**: Explore the API
 3. **[Examples](./examples/classification.md)**: See real applications
 
----
 
-**Installation successful?** 🎉 You're ready to use PyTrees-RS!
