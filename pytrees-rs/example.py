@@ -1,52 +1,15 @@
-# import graphviz
-# import numpy as np
-# from pytrees import DL85Classifier, LGDTCLassifier, ExposedSearchStrategy
-#
-# dataset = np.genfromtxt("../test_data/anneal.txt", delimiter=" ")
-# X, y = dataset[:, 1:], dataset[:, 0]
-#
-#
-# clf = LGDTCLassifier(1, 19, search_strategy=ExposedSearchStrategy.LGDTErrorMinimizer)
-#
-#
-# clf.fit(X, y)
-# print(clf.accuracy_)
-# print(clf.tree_error_)
-# print(clf.statistics)
-#
-# print(clf.score(X, y))
-# #
-# #
-# graphviz.Source(clf.export_to_graphviz_dot()).view()
-import graphviz
+from pytrees import DL85Classifier, ExposedHeuristic, ExposedGainRule, ExposedPurityRule
+from sklearn.datasets import make_classification
 
-
-def error(tids):
-    print(tids)
-    return 1.0, 1.0
-
-
-#
-import numpy as np
-from pytrees import LGDTClassifier, DL85Classifier
-from pytrees.common import (
-    ExposedSearchStrategy,
-    ExposedDiscrepancyRule,
-    ExposedStepStrategy,
-    ExposedLowerBoundPolicy,
-    ExposedBranchingPolicy,
+X, y = make_classification(n_samples=1000, n_features=10, n_classes=2, random_state=42)
+X = (X > 0).astype(float)
+# Advanced DL85 with rules and heuristics
+advanced_clf = DL85Classifier(
+    max_depth=4,
+    min_sup=5,
+    max_time=300.0,
+    heuristic=ExposedHeuristic.InformationGain,
+    gain=ExposedGainRule(min_gain=0.01, epsilon=1e-4),
+    purity=ExposedPurityRule(min_purity=0.9),
 )
-
-dataset = np.genfromtxt("../test_data/anneal.txt", delimiter=" ")
-X, y = dataset[:, 1:], dataset[:, 0]
-
-discrepancy = ExposedDiscrepancyRule(
-    step_strategy=ExposedStepStrategy.Exponential, base=2
-)
-
-classifier = DL85Classifier(min_sup=1, max_depth=4, discrepancy=discrepancy)
-classifier.fit(X, y)
-
-print(classifier.statistics)
-graphviz.Source(classifier.export_to_graphviz_dot()).view()
-print(help(ExposedDiscrepancyRule))
+advanced_clf.fit(X, y)

@@ -67,12 +67,11 @@ except ImportError:
 
 ### Advanced Configuration
 ```python
-from pytrees import DL85Classifier
-from pytrees.common import ExposedHeuristic, ExposedGainRule, ExposedPurityRule
+from pytrees import DL85Classifier, ExposedHeuristic, ExposedGainRule, ExposedPurityRule
 from sklearn.datasets import make_classification
 
 X, y = make_classification(n_samples=1000, n_features=10, n_classes=2, random_state=42)
-
+X = (X > 0).astype(float)
 # Advanced DL85 with rules and heuristics
 advanced_clf = DL85Classifier(
     max_depth=4,
@@ -101,6 +100,7 @@ pipeline = Pipeline([
 
 # Cross-validation
 X, y = make_classification(n_samples=1000, n_features=10, n_classes=2, random_state=42)
+X = (X > 0).astype(float)
 scores = cross_val_score(pipeline, X, y, cv=5)
 print(f"Cross-validation accuracy: {scores.mean():.3f} ± {scores.std():.3f}")
 ```

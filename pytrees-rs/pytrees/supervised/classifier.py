@@ -1,4 +1,5 @@
 import json
+import numpy as np
 from .. import DecisionTree, SearchFailedError
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils import check_array, check_X_y, assert_all_finite
@@ -117,7 +118,7 @@ class DL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
         depth2_policy=ExposedDepth2Policy.Enabled,
         lower_bound_policy=ExposedLowerBoundPolicy.Similarity,
         branching_policy=ExposedBranchingPolicy.Dynamic,
-        heuristic=ExposedHeuristic.Disabled,
+        heuristic=ExposedHeuristic.NoHeuristic,
         discrepancy=None,
         gain=None,
         topk=None,
@@ -233,7 +234,8 @@ class DL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
 
         if target_is_need:  # supervised learning
             # Check that X and y have correct shape and raise ValueError if not
-            X, y = check_X_y(X, y, dtype="float64", y_numeric=True)
+            y = y.astype(np.float64)
+            X, y = check_X_y(X, y, dtype=np.float64, y_numeric=True)
         else:  # unsupervised learning
             # Check that X has correct shape and raise ValueError if not
             assert_all_finite(X)

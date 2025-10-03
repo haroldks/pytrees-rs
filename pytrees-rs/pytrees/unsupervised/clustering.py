@@ -19,7 +19,7 @@ class DL85Cluster(BaseEstimator, ClusterMixin, DecisionTree):
         always_sort=True,
         lower_bound_policy=ExposedLowerBoundPolicy.Similarity,
         branching_policy=ExposedBranchingPolicy.Dynamic,
-        heuristic=ExposedHeuristic.Disabled,
+        heuristic=ExposedHeuristic.NoHeuristic,
         discrepancy=None,
         gain=None,
         topk=None,
@@ -83,7 +83,7 @@ class DL85Cluster(BaseEstimator, ClusterMixin, DecisionTree):
 
         if X_error is not None:
             assert_all_finite(X_error)
-            X_error = check_array(X_error, dtype="float64")
+            X_error = check_array(X_error, dtype=np.float64)
 
         if self.error_function is None:
             if X_error is None:

@@ -92,7 +92,7 @@ from pytrees import DL85Classifier, LGDTClassifier
 # Quick functionality test
 from sklearn.datasets import make_classification
 X, y = make_classification(n_samples=100, n_features=5, random_state=42)
-
+X = (X > 0).astype(float)
 clf = DL85Classifier(max_depth=2, min_sup=5)
 clf.fit(X, y)
 print(f"Accuracy: {clf.score(X, y):.3f}")
