@@ -1,3 +1,5 @@
+import numpy as np
+
 from .. import DecisionTree, SearchFailedError
 from pytreesrs.enums import ExposedSearchStrategy
 from pytreesrs.greedy import lgdt
@@ -125,7 +127,8 @@ class LGDTClassifier(BaseEstimator, ClassifierMixin, DecisionTree):
         >>> print(f"Training error: {clf.tree_error_}")
 
         """
-        X, y = check_X_y(X, y, dtype="float64", y_numeric=True)
+        y = y.astype(np.float64)
+        X, y = check_X_y(X, y, dtype=np.float64, y_numeric=True)
 
         try:
             self.results = lgdt(
