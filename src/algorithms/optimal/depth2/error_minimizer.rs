@@ -115,7 +115,6 @@ where
         let classes_distribution = cover.labels_count();
         let total_support = cover.count();
         let base_error = self.error_fn.compute(&classes_distribution);
-
         let mut left_distribution = vec![0; cover.num_labels];
 
         if base_error.0 < lambda * 2.0 {

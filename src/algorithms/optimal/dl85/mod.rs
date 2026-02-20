@@ -367,10 +367,6 @@ where
             let first_result_lambda = branch_context.lambda;
             let first_class = self.cache.node(&branch_key).map_or(0.0, |node| node.out());
 
-            // if cover.path().iter().eq([65, 93].iter()) {
-            //     println!("Child {} branch {} erorror {} lambda {} ub {}", child, first_branch, first_result_error, first_result_lambda, subtree_upper_bound);
-            // }
-
             if first_result_error + first_result_lambda >= subtree_upper_bound - second_lb {
                 min_lower_bound = self
                     .cache
@@ -417,12 +413,6 @@ where
             let subtree_error = first_result_error + first_result_lambda + second_result_error + second_result_lambda;
 
             let second_class = self.cache.node(&branch_key).map_or(0.0, |node| node.out());
-            // if cover.path().iter().eq([65, 93].iter()) {
-            //     println!("Child {} branch {} erorror {} lambda {} ub {}", child, 1 - first_branch, second_result_error, second_result_lambda, right_ub);
-            //     if child == 4 {
-            //         println!("{:?} {} {:?}", self.cache.node(&parent_key), parent_index.is_new(), parent_context);
-            //     }
-            // }
 
             if subtree_error < subtree_upper_bound {
                 subtree_upper_bound = subtree_error;
@@ -614,9 +604,7 @@ where
             }
 
             if result.leaf.unwrap_or(false) {
-                // println!("Error : {:?}", updater.get_error());
                 updater = updater.leaf();
-                // println!("Error : {:?}", updater.get_error());
             }
 
             if rule_type == RuleType::Similarity {
@@ -766,8 +754,20 @@ where
         match tree_result {
             Err(err) => Err(err),
             Ok(tree) => {
-                // println!("{:?}", parent_index);
-                let error = tree.root_error();
+
+                let global_error = tree.root_error() + tree.root_lambda();
+
+                let (cached_error, cached_lambda) = self.cache.node(&key).map_or((f64::INFINITY, self.config.lambda), |node| (node.error().min(node.leaf_error()), node.lambda()));
+
+                if global_error > upper_bound {
+                    return Ok(SearchResult {
+                        error: cached_error,
+                        lambda: cached_lambda,
+                        has_intersected: true,
+                        reason: Reason::LowerBoundConstrained,
+                    })
+                }
+
                 self.cache_specialized_depth2_tree_results(
                     path,
                     parent_index,
@@ -775,7 +775,7 @@ where
                     tree.get_root_index(),
                 );
                 Ok(SearchResult {
-                    error,
+                    error: tree.root_error(),
                     lambda: tree.root_lambda(),
                     has_intersected: true,
                     reason: Reason::FromSpecializedAlgorithm,
