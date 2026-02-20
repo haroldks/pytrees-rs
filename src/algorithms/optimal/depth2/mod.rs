@@ -15,12 +15,13 @@ pub trait OptimalDepth2Tree {
         &self,
         min_sup: usize,
         depth: usize,
+        lambda: f64,
         cover: &mut Cover,
         provided_candidates: Option<&[usize]>,
     ) -> Result<Tree, FitError> {
         match depth {
-            1 => self.find_optimal_depth_one_tree(min_sup, cover, provided_candidates),
-            2 => self.find_optimal_depth_two_tree(min_sup, cover, provided_candidates),
+            1 => self.find_optimal_depth_one_tree(min_sup, lambda, cover, provided_candidates),
+            2 => self.find_optimal_depth_two_tree(min_sup, lambda, cover, provided_candidates),
             x => Err(FitError::InvalidDepth(x)),
         }
     }
@@ -28,6 +29,7 @@ pub trait OptimalDepth2Tree {
     fn find_optimal_depth_one_tree(
         &self,
         min_sup: usize,
+        lambda: f64,
         cover: &mut Cover,
         provided_candidates: Option<&[usize]>,
     ) -> Result<Tree, FitError>;
@@ -35,6 +37,7 @@ pub trait OptimalDepth2Tree {
     fn find_optimal_depth_two_tree(
         &self,
         min_sup: usize,
+        lambda: f64,
         cover: &mut Cover,
         provided_candidates: Option<&[usize]>,
     ) -> Result<Tree, FitError>;

@@ -100,6 +100,8 @@ pub struct RuleContext {
     pub upper_bound: f64,
     pub node_lower_bound: f64,
     pub node_upper_bound: f64,
+    pub lambda: f64,
+    pub base_lambda: f64,
     pub item: usize,
     pub support: usize,
     pub position: usize,
@@ -116,6 +118,8 @@ impl Default for RuleContext {
             upper_bound: 0.0,
             node_lower_bound: 0.0,
             node_upper_bound: f64::INFINITY,
+            lambda: 0.0,
+            base_lambda: 0.0,
             item: 0,
             support: 0,
             position: 0,
@@ -139,12 +143,15 @@ impl RuleContext {
         position: usize,
         gain: f64,
         error: f64,
+        lambda: f64
     ) -> Self {
         Self {
             depth,
             upper_bound,
             node_lower_bound,
             node_upper_bound,
+            lambda,
+            base_lambda: 0.0,
             item,
             support,
             position,
@@ -196,6 +203,10 @@ impl RuleContext {
 
     pub fn discrepancy(&mut self, discrepancy: usize) {
         self.discrepancy = discrepancy;
+    }
+
+    pub fn lambda(&mut self, lambda: f64) {
+        self.lambda = lambda
     }
 }
 

@@ -66,6 +66,10 @@ pub enum ArgCommand {
         #[arg(long, default_value_t = <f64>::INFINITY)]
         max_error: f64,
 
+        /// Tree regularization value
+        #[arg(long, default_value_t = 0.0)]
+        lambda: f64,
+
         /// Maximum time allowed to the search
         #[clap(long, short)]
         timeout: Option<f64>,
@@ -89,6 +93,10 @@ pub enum ArgCommand {
         /// Objective to optimise. Error or Information Gain
         #[arg(short, long, value_enum, default_value_t = SearchStrategy::Depth2ErrorMinimizer)]
         objective: SearchStrategy,
+
+        /// Tree regularization value
+        #[arg(long, default_value_t = 0.0)]
+        lambda: f64,
     },
 
     /// Less greedy decision tree approach using misclassification or information gain tree as sliding window

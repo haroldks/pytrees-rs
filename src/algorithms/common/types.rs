@@ -80,6 +80,7 @@ impl SearchStatistics {
 #[derive(Copy, Clone, Default, Debug)]
 pub struct SearchResult {
     pub error: f64,
+    pub lambda: f64,
     pub has_intersected: bool,
     pub reason: Reason,
 }

@@ -58,7 +58,6 @@ impl RuleManager {
     pub fn evaluate(&self, context: &RuleContext) -> RuleResult {
         for rule in &self.rules {
             let result = rule.evaluate(context);
-            // println!("Context : {:?} Rule : {:?} result {:?}", context, rule.description(), result);
             if !result.continue_search {
                 return result;
             }

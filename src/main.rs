@@ -36,6 +36,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ArgCommand::D2 {
             support,
             depth,
+            lambda,
             objective,
         } => {
             if depth == 0 || depth > 2 {
@@ -50,7 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
 
-            tree = learner.fit(support, depth, &mut cover, None)?;
+            tree = learner.fit(support, depth, lambda, &mut cover, None)?;
         }
 
         ArgCommand::Lgdt {
@@ -93,8 +94,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             max_error,
             timeout,
             print_config,
+            lambda,
         } => {
-            let timeout = timeout.unwrap_or(f64::INFINITY);
+            let timeout = timeout.unwrap_or(600.0);
 
             let heuristic_fn: Box<dyn Heuristic> = heuristic.into();
             let cache: Box<dyn Caching> = match cache_type {
@@ -112,6 +114,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .max_depth(depth)
                 .max_time(timeout)
                 .max_error(max_error)
+                .regularization(lambda)
                 .always_sort(always_sort)
                 .cache(cache)
                 .specialization(depth2_policy)

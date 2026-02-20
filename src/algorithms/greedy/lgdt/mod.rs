@@ -27,7 +27,7 @@ where
         if self.config.max_depth <= 2 {
             self.tree =
                 self.search
-                    .fit(self.config.min_support, self.config.max_depth, cover, None)?;
+                    .fit(self.config.min_support, self.config.max_depth, 0.0,  cover, None)?;
             self.tree.print();
             return Ok(());
         }
@@ -35,7 +35,7 @@ where
         let mut solution_tree = Tree::new();
         let root_index = solution_tree.add_default_root();
 
-        let root_tree = self.search.fit(self.config.min_support, 2, cover, None)?;
+        let root_tree = self.search.fit(self.config.min_support, 2, 0.0, cover, None)?;
 
         let root_attribute = root_tree.root_test().ok_or(FitError::EmptyTree)?;
         solution_tree
@@ -83,7 +83,7 @@ where
 
             if depth <= 1 {
                 let child_tree_result =
-                    self.search.fit(self.config.min_support, depth, cover, None);
+                    self.search.fit(self.config.min_support, depth,0.0, cover, None);
                 parent_error += match child_tree_result {
                     Err(FitError::EmptyTree) | Err(FitError::EmptyCandidates) => {
                         self.create_leaf_node_in_tree(tree, parent, branch_value == 0, cover)
@@ -96,7 +96,7 @@ where
                     Err(err) => return Err(err),
                 };
             } else {
-                let child_tree_result = self.search.fit(self.config.min_support, 2, cover, None);
+                let child_tree_result = self.search.fit(self.config.min_support, 2, 0.0, cover, None);
                 let child_error_result = match child_tree_result {
                     Err(FitError::EmptyTree) | Err(FitError::EmptyCandidates) => {
                         Ok(self.create_leaf_node_in_tree(tree, parent, branch_value == 0, cover))
@@ -145,7 +145,7 @@ where
     ) -> f64 {
         let child_index = tree.create_child(parent, left);
         let error = self.search.error(&cover.labels_count());
-        tree.update_leaf_node(child_index, error);
+        tree.update_leaf_node(child_index, error, 0.0);
         error.0
     }
 

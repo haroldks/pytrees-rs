@@ -7,6 +7,7 @@ pub struct NodeInfos {
     pub error: f64,
     pub metric: Option<f64>,
     pub out: Option<f64>,
+    pub lambda: f64,
 }
 
 impl Default for NodeInfos {
@@ -22,6 +23,7 @@ impl NodeInfos {
             error: <f64>::INFINITY,
             metric: None,
             out: None,
+            lambda: 0.0,
         }
     }
 }
@@ -234,6 +236,18 @@ impl Tree {
             .unwrap_or(f64::MAX)
     }
 
+    pub fn node_lambda(&self, index: usize) -> f64 {
+        self.get_node(index)
+            .map(|node| node.value.lambda)
+            .unwrap_or(0.0)
+    }
+
+    pub fn root_lambda(&self) -> f64 {
+        self.get_node(self.get_root_index())
+            .map(|node| node.value.lambda)
+            .unwrap_or(0.0)
+    }
+
     pub fn node_metric(&self, index: usize) -> Option<f64> {
         self.get_node(index)
             .map(|node| node.value.metric)
@@ -271,9 +285,9 @@ impl Tree {
             .map_or((0, 0), |node| (node.left, node.right))
     }
 
-    pub fn update_leaf_node(&mut self, index: usize, error: (f64, f64)) -> &mut Self {
+    pub fn update_leaf_node(&mut self, index: usize, error: (f64, f64), lambda : f64) -> &mut Self {
         if let Some(updater) = self.update_node(index) {
-            updater.error(error.0).output(error.1); // Maybe not the leaf
+            updater.error(error.0).output(error.1).lambda(lambda); // Maybe not the leaf
         }
         self
     }
@@ -420,6 +434,11 @@ impl<'a> NodeUpdater<'a> {
         self
     }
 
+    pub fn lambda(self, value: f64) -> Self {
+        self.node.value.lambda = value;
+        self
+    }
+
     pub fn get_children(&self) -> (usize, usize) {
         (self.node.left, self.node.right)
     }
@@ -495,6 +514,7 @@ mod binary_tree_test {
             error: 0.0,
             metric: None,
             out: None,
+            lambda: 0.0,
         };
         let left_node = TreeNode::new(node_infos);
         let _ = tree.add_left_node(root_index, left_node);
@@ -513,6 +533,7 @@ mod binary_tree_test {
             error: 0.0,
             metric: None,
             out: None,
+            lambda: 0.0,
         };
         let right_node = TreeNode::new(node_infos);
         let _ = tree.add_right_node(root_index, right_node);
@@ -529,6 +550,7 @@ mod binary_tree_test {
             error: 0.0,
             metric: None,
             out: None,
+            lambda: 0.0,
         };
         let root = TreeNode::new(node_infos);
         let _ = tree.add_root(root);
@@ -545,6 +567,7 @@ mod binary_tree_test {
             error: 0.0,
             metric: None,
             out: None,
+            lambda: 0.0,
         };
         let root = TreeNode::new(node_infos);
         let _ = tree.add_root(root);
@@ -562,6 +585,7 @@ mod binary_tree_test {
             error: 0.0,
             metric: None,
             out: None,
+            lambda: 0.0,
         };
         let root = TreeNode::new(node_infos);
         let root_index = tree.add_root(root);
@@ -570,6 +594,7 @@ mod binary_tree_test {
             error: 0.0,
             metric: None,
             out: None,
+            lambda: 0.0,
         };
         let left_node = TreeNode::new(node_infos);
         let _ = tree.add_left_node(root_index, left_node);
@@ -586,6 +611,7 @@ mod binary_tree_test {
             error: 0.0,
             metric: None,
             out: None,
+            lambda: 0.0,
         };
         let root = TreeNode::new(node_infos);
         let root_index = tree.add_root(root);
@@ -594,6 +620,7 @@ mod binary_tree_test {
             error: 0.0,
             metric: None,
             out: None,
+            lambda: 0.0,
         };
         let right_node = TreeNode::new(node_infos);
         let _ = tree.add_right_node(root_index, right_node);

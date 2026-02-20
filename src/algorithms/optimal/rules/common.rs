@@ -337,7 +337,7 @@ impl PureNodeRule {
 
 impl Rule for PureNodeRule {
     fn evaluate(&self, context: &RuleContext) -> RuleResult {
-        if float_is_null(context.error) {
+        if context.error < 2.0 * context.base_lambda{
             RuleResult::stop_with_bound(context.upper_bound, Reason::PureNode)
                 .optimal()
                 .leaf()

@@ -69,6 +69,11 @@ where
         self
     }
 
+    pub fn regularization(mut self, value: f64) -> Self {
+        self.config.lambda = value;
+        self
+    }
+
     pub fn max_depth(mut self, value: usize) -> Self {
         self.config.base.max_depth = value;
         self.nodes_rules

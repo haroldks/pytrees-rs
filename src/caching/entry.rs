@@ -8,9 +8,12 @@ pub struct CacheEntry {
     metric: f64,
     size: usize,
     leaf_error: f64,
+    lambda: f64,
     out: f64,
     is_optimal: bool,
+
     is_leaf: bool,
+
 }
 impl CacheEntry {
     pub fn new(item: usize) -> Self {
@@ -25,6 +28,7 @@ impl CacheEntry {
             leaf_error: f64::INFINITY,
             out: 0.0,
             is_optimal: false,
+            lambda: 0.0,
             is_leaf: false,
         }
     }
@@ -88,6 +92,8 @@ impl CacheEntry {
     pub fn has_finite_leaf_error(&self) -> bool {
         self.leaf_error.is_finite()
     }
+
+    pub fn lambda(&self) -> f64 {self.lambda}
 }
 
 impl Default for CacheEntry {
@@ -102,6 +108,7 @@ impl Default for CacheEntry {
             size: 0,
             leaf_error: f64::INFINITY,
             out: 0.0,
+            lambda: 0.0,
             is_optimal: false,
             is_leaf: false,
         }
@@ -166,6 +173,11 @@ impl<'a> CacheEntryUpdater<'a> {
         self
     }
 
+    pub fn lambda(self, lambda: f64) -> Self {
+        self.node.lambda = lambda;
+        self
+    }
+
     pub fn leaf(self) -> Self {
         self.node.is_leaf = true;
         self.node.error = self.node.leaf_error;
@@ -174,6 +186,10 @@ impl<'a> CacheEntryUpdater<'a> {
 
     pub fn get_error(&self) -> f64 {
         self.node.error
+    }
+
+    pub fn get_lambda(&self) -> f64 {
+        self.node.lambda
     }
 
     pub fn get_leaf_error(&self) -> f64 {

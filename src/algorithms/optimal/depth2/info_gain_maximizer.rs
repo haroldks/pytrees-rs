@@ -34,6 +34,7 @@ where
     fn find_optimal_depth_one_tree(
         &self,
         min_sup: usize,
+        _lambda: f64,
         cover: &mut Cover,
         provided_candidates: Option<&[usize]>,
     ) -> Result<Tree, FitError> {
@@ -56,8 +57,8 @@ where
 
             let (left, right) = tree.node_children(tree.get_root_index());
 
-            tree.update_leaf_node(left, left_error);
-            tree.update_leaf_node(right, right_error);
+            tree.update_leaf_node(left, left_error, 0.0);
+            tree.update_leaf_node(right, right_error, 0.0);
 
             tree.update_root()
                 .map(|updater| updater.test(best_attr).error(left_error.0 + right_error.0));
@@ -74,6 +75,7 @@ where
     fn find_optimal_depth_two_tree(
         &self,
         min_sup: usize,
+        _lambda: f64,
         cover: &mut Cover,
         provided_candidates: Option<&[usize]>,
     ) -> Result<Tree, FitError> {
@@ -82,7 +84,7 @@ where
             return Err(FitError::EmptyCandidates);
         }
         if candidates.len() < 2 {
-            return self.find_optimal_depth_one_tree(min_sup, cover, provided_candidates);
+            return self.find_optimal_depth_one_tree(min_sup, _lambda, cover, provided_candidates);
         }
 
         let matrix = build_labels_count_distribution_matrix(cover, &candidates);
@@ -92,7 +94,7 @@ where
         let parent_entropy = entropy(&root_distribution);
 
         if float_is_null(parent_entropy) {
-            return self.find_optimal_depth_one_tree(min_sup, cover, provided_candidates);
+            return self.find_optimal_depth_one_tree(min_sup, _lambda, cover, provided_candidates);
         }
 
         let mut best_tree = Tree::empty_tree(2);
@@ -155,8 +157,8 @@ where
                                     .get_children()
                             });
 
-                        candidate_tree.update_leaf_node(left_leaf, left_leaf_error);
-                        candidate_tree.update_leaf_node(righ_leaf, right_leaf_error);
+                        candidate_tree.update_leaf_node(left_leaf, left_leaf_error, 0.0);
+                        candidate_tree.update_leaf_node(righ_leaf, right_leaf_error, 0.0);
                     }
 
                     root_error += candidate_tree.node_error(branch_index);
@@ -258,7 +260,7 @@ mod info_gain_maximizer {
         };
 
         let info_gain_maximizer = InfoGainMaximizer::default();
-        let tree = info_gain_maximizer.fit(1, 2, &mut cover, None);
+        let tree = info_gain_maximizer.fit(1, 2, 0.0, &mut cover, None);
 
         if let Ok(t) = tree {
             println!("Error {}", t.root_error());
