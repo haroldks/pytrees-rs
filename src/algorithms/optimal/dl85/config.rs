@@ -1,8 +1,8 @@
-use serde::{Deserialize, Serialize};
 use crate::algorithms::common::config::BaseSearchConfig;
 use crate::algorithms::common::types::{
     BranchingPolicy, CacheInitStrategy, LowerBoundPolicy, NodeDataType, OptimalDepth2Policy,
 };
+use serde::{Deserialize, Serialize};
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct DL85Config {
@@ -10,6 +10,7 @@ pub struct DL85Config {
     pub(crate) always_sort: bool,
     pub(crate) cache_init_size: usize,
     pub(crate) lambda: f64,
+    pub(crate) lookahead_depth: usize,
     pub(crate) cache_init_strategy: CacheInitStrategy,
     pub(crate) optimal_depth2policy: OptimalDepth2Policy,
     pub(crate) lower_bound_policy: LowerBoundPolicy,
@@ -24,6 +25,7 @@ impl Default for DL85Config {
             always_sort: false,
             cache_init_size: 0,
             lambda: 0.0,
+            lookahead_depth: 0,
             cache_init_strategy: CacheInitStrategy::Disabled,
             optimal_depth2policy: OptimalDepth2Policy::Disabled,
             lower_bound_policy: LowerBoundPolicy::Disabled,

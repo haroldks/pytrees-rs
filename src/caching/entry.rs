@@ -13,7 +13,6 @@ pub struct CacheEntry {
     is_optimal: bool,
 
     is_leaf: bool,
-
 }
 impl CacheEntry {
     pub fn new(item: usize) -> Self {
@@ -93,7 +92,9 @@ impl CacheEntry {
         self.leaf_error.is_finite()
     }
 
-    pub fn lambda(&self) -> f64 {self.lambda}
+    pub fn lambda(&self) -> f64 {
+        self.lambda
+    }
 }
 
 impl Default for CacheEntry {

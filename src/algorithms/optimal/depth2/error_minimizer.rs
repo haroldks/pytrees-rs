@@ -65,24 +65,36 @@ where
             if float_is_null(left_error.1 - right_error.1) {
                 if total_error + lambda > best_error + tree.root_lambda() {
                     best_error = total_error;
-                    tree.update_root()
-                        .map(|updater| updater
+                    tree.update_root().map(|updater| {
+                        updater
                             .error(total_error)
                             .output(left_error.1)
-                            .lambda(lambda));
+                            .lambda(lambda)
+                    });
                 }
             } else {
                 if total_error + 2.0 * lambda < best_error + tree.root_lambda() {
                     best_error = total_error;
-                    tree.update_root()
-                        .map(|updater| updater.test(candidate).error(total_error).lambda(2.0*lambda));
-                    tree.update_node(left_index)
-                        .map(|updater| updater.error(left_error.0).output(left_error.1).lambda(lambda));
-                    tree.update_node(right_index)
-                        .map(|updater| updater.error(right_error.0).output(right_error.1).lambda(lambda));
+                    tree.update_root().map(|updater| {
+                        updater
+                            .test(candidate)
+                            .error(total_error)
+                            .lambda(2.0 * lambda)
+                    });
+                    tree.update_node(left_index).map(|updater| {
+                        updater
+                            .error(left_error.0)
+                            .output(left_error.1)
+                            .lambda(lambda)
+                    });
+                    tree.update_node(right_index).map(|updater| {
+                        updater
+                            .error(right_error.0)
+                            .output(right_error.1)
+                            .lambda(lambda)
+                    });
                 }
             }
-
         }
 
         if tree.root_error().is_infinite() {
@@ -110,7 +122,9 @@ where
         let matrix = build_labels_count_distribution_matrix(cover, &candidates);
 
         let mut best_tree = Tree::empty_tree(2);
-        best_tree.update_root().map(|updater| updater.lambda(lambda));
+        best_tree
+            .update_root()
+            .map(|updater| updater.lambda(lambda));
 
         let classes_distribution = cover.labels_count();
         let total_support = cover.count();
@@ -118,10 +132,12 @@ where
         let mut left_distribution = vec![0; cover.num_labels];
 
         if base_error.0 < lambda * 2.0 {
-            best_tree.update_root().map(|updater| updater
-                .error(base_error.0)
-                .output(base_error.1)
-                .lambda(lambda));
+            best_tree.update_root().map(|updater| {
+                updater
+                    .error(base_error.0)
+                    .output(base_error.1)
+                    .lambda(lambda)
+            });
             return Ok(best_tree);
         }
 
@@ -155,14 +171,13 @@ where
 
             // The left does not have enough support to be split further
             if left_support < 2 * min_sup || left_error.0 < lambda * 2.0 {
-                candidate_tree
-                    .update_node(left_index)
-                    .map(|updater| updater
+                candidate_tree.update_node(left_index).map(|updater| {
+                    updater
                         .error(left_error.0)
                         .output(left_error.1)
                         .lambda(lambda)
-                        .leaf());
-
+                        .leaf()
+                });
 
                 if best_tree.root_error() + best_tree.root_lambda() < left_error.0 + lambda {
                     continue;
@@ -224,22 +239,22 @@ where
 
                     // Nodes has same output. Parent can be put as leaf
                     let branch_error = left_leaf_error.0 + right_leaf_error.0;
-                    if float_is_null(left_leaf_error.1 -  right_leaf_error.1) && branch_error + lambda < feature_error {
-
-                        candidate_tree
-                            .update_node(left_index)
-                            .map(|updater| updater
+                    if float_is_null(left_leaf_error.1 - right_leaf_error.1)
+                        && branch_error + lambda < feature_error
+                    {
+                        candidate_tree.update_node(left_index).map(|updater| {
+                            updater
                                 .error(left_leaf_error.0 + right_leaf_error.0)
                                 .lambda(lambda)
-                                .output(right_leaf_error.1));
+                                .output(right_leaf_error.1)
+                        });
 
                         feature_error = branch_error + lambda;
-
                     } else {
-                        if branch_error  + (2.0 *   lambda) >= feature_error {
+                        if branch_error + (2.0 * lambda) >= feature_error {
                             continue;
                         }
-                        feature_error = branch_error + (2.0 *   lambda);
+                        feature_error = branch_error + (2.0 * lambda);
                         let (left_leaf_index, right_leaf_index) = candidate_tree
                             .update_node(left_index)
                             .map_or((0, 0), |updater| {
@@ -260,18 +275,22 @@ where
                     }
 
                     // TODO Upper bound control here
-
                 }
             }
 
             let right_error = self.error_fn.compute(right_distribution);
             if right_support < 2 * min_sup || right_error.0 < 2.0 * lambda {
-                candidate_tree
-                    .update_node(right_index)
-                    .map(|updater| updater.error(right_error.0).output(right_error.1).lambda(lambda).leaf());
+                candidate_tree.update_node(right_index).map(|updater| {
+                    updater
+                        .error(right_error.0)
+                        .output(right_error.1)
+                        .lambda(lambda)
+                        .leaf()
+                });
 
                 let best_error = best_tree.root_error() + best_tree.root_lambda();
-                let current_left_error = candidate_tree.node_error(left_index) + candidate_tree.node_lambda(left_index);
+                let current_left_error =
+                    candidate_tree.node_error(left_index) + candidate_tree.node_lambda(left_index);
                 if current_left_error > best_error
                     || right_error.0 + lambda >= best_error - current_left_error
                 {
@@ -280,15 +299,19 @@ where
                 }
             } else {
                 let mut feature_error = best_tree.root_error() + best_tree.root_lambda();
-                let current_left_error = candidate_tree.node_error(left_index) + candidate_tree.node_lambda(left_index);
+                let current_left_error =
+                    candidate_tree.node_error(left_index) + candidate_tree.node_lambda(left_index);
 
                 if current_left_error > feature_error
                     || right_error.0 + 2.0 * lambda < feature_error - current_left_error
                 {
                     // TODO : Not clear
-                    candidate_tree
-                        .update_node(right_index)
-                        .map(|updater| updater.error(right_error.0).output(right_error.1).lambda(lambda));
+                    candidate_tree.update_node(right_index).map(|updater| {
+                        updater
+                            .error(right_error.0)
+                            .output(right_error.1)
+                            .lambda(lambda)
+                    });
                     //println!("Root lambda : {root_lambda}");
                 }
 
@@ -324,17 +347,17 @@ where
 
                     let branch_error = left_leaf_error.0 + right_leaf_error.0;
 
-                    if float_is_null(left_leaf_error.1 -  right_leaf_error.1) && branch_error + lambda < feature_error {
-
-                        candidate_tree
-                            .update_node(right_index)
-                            .map(|updater| updater
+                    if float_is_null(left_leaf_error.1 - right_leaf_error.1)
+                        && branch_error + lambda < feature_error
+                    {
+                        candidate_tree.update_node(right_index).map(|updater| {
+                            updater
                                 .error(left_leaf_error.0 + right_leaf_error.0)
                                 .lambda(lambda)
-                                .output(right_leaf_error.1));
+                                .output(right_leaf_error.1)
+                        });
 
                         feature_error = branch_error + lambda;
-
                     } else {
                         // TODO Upper bound control here
                         if branch_error + 2.0 * lambda >= feature_error {
@@ -355,7 +378,6 @@ where
                         candidate_tree
                             .update_leaf_node(left_leaf_index, left_leaf_error, lambda)
                             .update_leaf_node(right_leaf_index, right_leaf_error, lambda);
-
                     }
 
                     if 2.0 * lambda > feature_error {
@@ -363,20 +385,18 @@ where
                     }
                 }
 
-
                 let feature_error =
                     candidate_tree.node_error(left_index) + candidate_tree.node_error(right_index);
 
-                let root_lambda = candidate_tree.node_lambda(left_index) + candidate_tree.node_lambda(right_index);
+                let root_lambda = candidate_tree.node_lambda(left_index)
+                    + candidate_tree.node_lambda(right_index);
 
                 candidate_tree
                     .update_root()
                     .map(|updater| updater.error(feature_error).lambda(root_lambda));
 
                 if best_tree.root_error() + best_tree.root_lambda() > feature_error + root_lambda {
-
                     best_tree = candidate_tree;
-
                 }
                 if 2.0 * lambda > feature_error {
                     break;
@@ -408,11 +428,11 @@ where
 
 #[cfg(test)]
 mod error_minimizer {
+    use crate::algorithms::common::errors::ErrorWrapper;
     use crate::algorithms::optimal::depth2::error_minimizer::ErrorMinimizer;
     use crate::algorithms::optimal::depth2::OptimalDepth2Tree;
     use crate::reader::data_reader::DataReader;
     use std::path::Path;
-    use crate::algorithms::common::errors::ErrorWrapper;
 
     #[test]
     fn run_small_data() {
@@ -426,7 +446,7 @@ mod error_minimizer {
         };
 
         let mut error_minimizer = ErrorMinimizer::default();
-        let tree = error_minimizer.fit(1, 2, 3.0,  &mut cover, None);
+        let tree = error_minimizer.fit(1, 2, 3.0, &mut cover, None);
 
         cover.branch_on(64);
         let error = error_minimizer.error_fn.compute(&cover.labels_count());
@@ -443,7 +463,6 @@ mod error_minimizer {
         cover.branch_on(93);
         let error = error_minimizer.error_fn.compute(&cover.labels_count());
         println!("{:?}", error);
-
 
         if let Ok(t) = tree {
             println!("Error {}", t.root_error());

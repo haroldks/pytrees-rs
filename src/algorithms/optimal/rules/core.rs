@@ -143,7 +143,7 @@ impl RuleContext {
         position: usize,
         gain: f64,
         error: f64,
-        lambda: f64
+        lambda: f64,
     ) -> Self {
         Self {
             depth,

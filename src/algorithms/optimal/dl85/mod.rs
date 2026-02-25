@@ -1,10 +1,10 @@
 use crate::algorithms::common::errors::ErrorWrapper;
-use crate::algorithms::common::heuristics::Heuristic;
+use crate::algorithms::common::heuristics::{Heuristic, InformationGain};
 use crate::algorithms::common::types::{
     BranchingChoice, BranchingPolicy, FitError, LowerBoundPolicy, NodeDataType, RuleType,
     SearchResult, SearchStatistics,
 };
-use crate::algorithms::optimal::depth2::{OptimalDepth2Tree};
+use crate::algorithms::optimal::depth2::OptimalDepth2Tree;
 use crate::algorithms::optimal::dl85::config::DL85Config;
 use crate::algorithms::optimal::rules::common::{SimilarityLowerBoundRule, TimeLimitRule};
 use crate::algorithms::optimal::rules::{
@@ -21,6 +21,7 @@ use crate::tree::{NodeInfos, Tree, TreeNode};
 mod builder;
 pub mod config;
 
+use crate::algorithms::greedy::{Greedy, GreedyBuilder};
 pub use builder::DL85Builder;
 
 pub struct DL85<C, D, E, H>
@@ -54,7 +55,6 @@ where
     H: Heuristic + ?Sized,
 {
     fn fit(&mut self, cover: &mut Cover) -> Result<(), FitError> {
-
         let mut result = SearchResult {
             reason: Reason::RuleReason,
             ..Default::default()
@@ -153,7 +153,6 @@ where
             root_context.base_lambda = self.config.lambda;
             root_context.node_lower_bound(self.config.lambda * 2.0);
 
-
             self.time_rule.activate();
             self.node_rules.activate_all();
             self.search_rules.activate_all();
@@ -161,7 +160,10 @@ where
                 self.similarity_rule.activate();
             }
         } else {
-            let root_lambda = self.cache.root().map_or(self.config.lambda, |node| node.lambda());
+            let root_lambda = self
+                .cache
+                .root()
+                .map_or(self.config.lambda, |node| node.lambda());
             root_context.upper_bound(self.statistics.tree_error + root_lambda);
             root_context.error(self.statistics.tree_error);
             root_context.lambda(root_lambda);
@@ -230,11 +232,17 @@ where
     ) -> SearchResult {
         self.statistics.increment_search_space();
 
-        let mut subtree_upper_bound = parent_context.upper_bound.min(parent_context.leaf_error + parent_context.lambda);
+        let mut subtree_upper_bound = parent_context
+            .upper_bound
+            .min(parent_context.leaf_error.min(parent_context.error) + parent_context.lambda);
         let parent_key = parent_index.to_cache_key(path);
         let result = self.evaluate(parent_context, &parent_key, RuleType::Node);
-
-
+        //println!("Used Cover : {:?} and result {:?} error {:?}", cover.path(), result, parent_context.error);
+        // if cover.path().iter().eq([10].iter())
+        //     && parent_context.item == 8
+        // {
+        //     println!("Used Cover : {:?} and result {:?} error {:?}", cover.path(), result, parent_context.error);
+        // }
 
         if !result.0 {
             // println!("Parent context: {:?} Result ? : {:?}", parent_context.gain, result);
@@ -285,7 +293,6 @@ where
         }
 
         if self.config.use_depth2_optimization() && self.config.base.max_depth - depth <= 2 {
-
             let result = self.apply_specialized_depth2_search(
                 cover,
                 &node_candidates,
@@ -294,19 +301,17 @@ where
                 path,
                 self.config.base.max_depth - depth,
             );
-           // println!("Ub : {:?} context {:?} res {:?}", subtree_upper_bound, parent_context, result);
+            // println!("Ub : {:?} context {:?} res {:?}", subtree_upper_bound, parent_context, result);
             //println!("COver {:?}, result : {:?} depth = {} ub {}", cover.path(), result, parent_context.depth, subtree_upper_bound);
             // println!("Size : {}", self.cache.size());
             // self.cache.print();
-
-
 
             match result {
                 Err(_) => {}
                 Ok(search_result) => {
                     parent_context.lambda = search_result.lambda;
-                    return search_result
-                },
+                    return search_result;
+                }
             }
         }
 
@@ -326,7 +331,9 @@ where
 
             if scores.len() > 1 {
                 branch_context.gain(parent_context.gain + (scores[0] - scores[position]));
-                if (self.statistics.restarts() <= 1 || self.gain_gap <= 0.0) && (self.gain_gap <= 0f64 || branch_context.gain < self.gain_gap) {
+                if (self.statistics.restarts() <= 1 || self.gain_gap <= 0.0)
+                    && (self.gain_gap <= 0f64 || branch_context.gain < self.gain_gap)
+                {
                     self.gain_gap = branch_context.gain;
                 }
             }
@@ -360,11 +367,13 @@ where
                 depth,
             );
 
-
-
+            // if cover.path().iter().eq([10].iter()) && child == 4 {
+            //     println!("From search Cover : {:?} and result {:?} error {:?}", cover.path(), first_result, branch_context);
+            // }
 
             let first_result_error = first_result.error;
             let first_result_lambda = branch_context.lambda;
+
             let first_class = self.cache.node(&branch_key).map_or(0.0, |node| node.out());
 
             if first_result_error + first_result_lambda >= subtree_upper_bound - second_lb {
@@ -381,8 +390,6 @@ where
                 self.statistics.increment_sibling_pruning();
                 continue;
             }
-
-
 
             let mut branch_context = RuleContext::default();
             let right_ub = subtree_upper_bound - (first_result.error + first_result_lambda);
@@ -404,24 +411,31 @@ where
                 depth,
             );
 
-
             rule_pruned |= first_result.reason == Reason::RuleReason
                 || second_result.reason == Reason::RuleReason;
 
             let second_result_error = second_result.error;
             let second_result_lambda = branch_context.lambda;
-            let subtree_error = first_result_error + first_result_lambda + second_result_error + second_result_lambda;
+            let subtree_error = first_result_error
+                + first_result_lambda
+                + second_result_error
+                + second_result_lambda;
 
             let second_class = self.cache.node(&branch_key).map_or(0.0, |node| node.out());
 
             if subtree_error < subtree_upper_bound {
                 subtree_upper_bound = subtree_error;
                 let mut optimal = false;
-                if parent_context.depth == self.config.base.max_depth - 1 && float_is_null(first_class - second_class){
-                    optimal = self.cache
+                if self.config.lookahead_depth == 0
+                    && parent_context.depth == self.config.base.max_depth - 1
+                    && float_is_null(first_class - second_class)
+                {
+                    optimal = self
+                        .cache
                         .update_node(&parent_key)
                         .map_or(false, |mut updater| {
-                            updater =updater.error(first_result_error + second_result_error)
+                            updater = updater
+                                .error(first_result_error + second_result_error)
                                 .lambda(self.config.lambda)
                                 .leaf();
                             parent_context.lambda(self.config.lambda);
@@ -430,15 +444,16 @@ where
                                 return true;
                             }
                             false
-
                         });
-
                 } else {
                     optimal = self
                         .cache
                         .update_node(&parent_key)
                         .map_or(false, |mut updater| {
-                            updater = updater.error(first_result_error + second_result_error).test(child).lambda(first_result_lambda + second_result_lambda);
+                            updater = updater
+                                .error(first_result_error + second_result_error)
+                                .test(child)
+                                .lambda(first_result_lambda + second_result_lambda);
                             parent_context.lambda(first_result_lambda + second_result_lambda);
 
                             if float_is_null(updater.get_lower_bound() - subtree_error) {
@@ -448,7 +463,6 @@ where
                             false
                         });
                 }
-
 
                 if optimal {
                     return SearchResult {
@@ -463,10 +477,9 @@ where
             }
         }
 
-        let (error, lambda) = self
-            .cache
-            .update_node(&parent_key)
-            .map_or((f64::INFINITY, self.config.lambda), |mut updater| {
+        let (error, lambda) = self.cache.update_node(&parent_key).map_or(
+            (f64::INFINITY, self.config.lambda),
+            |mut updater| {
                 if rule_pruned {
                     updater = updater.upper_bound(f64::INFINITY);
                 } else {
@@ -483,8 +496,9 @@ where
                     error = leaf_error;
                 }
 
-                return (error, lambda)
-            });
+                return (error, lambda);
+            },
+        );
 
         SearchResult {
             error,
@@ -516,22 +530,47 @@ where
             let size = cover.branch_on(branch_context.item);
             branch_context.support(size);
             let error = self.compute_leaf_error(cover);
-            // branch_context.error(error.0);
             branch_context.leaf_error(error.0);
-            branch_context.error(error.0);
-            branch_context.node_upper_bound(f64::INFINITY);
-            branch_context.lambda(self.config.lambda);
+
+            if self.config.lookahead_depth > 0
+                && branch_context.depth == self.config.lookahead_depth
+            {
+                self.get_greedy_bounds(cover, branch_context);
+            } else {
+                branch_context.error(error.0);
+                branch_context.node_upper_bound(f64::INFINITY);
+                branch_context.lambda(self.config.lambda);
+            }
+
             //branch_context.node_lower_bound(self.config.lambda * 2.0);
 
-            self.cache.update_node(&branch_key).map(|updater| {
-                updater
+            self.cache.update_node(&branch_key).map(|mut updater| {
+                updater = updater
                     .leaf_error(error.0)
-                    .error(error.0)// TODO : Watch out
+                    .error(error.0) // TODO : Watch out
                     .output(error.1)
                     .lower_bound(branch_context.node_lower_bound) // TODO
                     .size(size)
-                    .lambda(self.config.lambda)
+                    .lambda(self.config.lambda);
+                if self.config.lookahead_depth > 0
+                    && branch_context.depth == self.config.lookahead_depth
+                {
+                    updater = updater
+                        .error(branch_context.error)
+                        .lambda(branch_context.lambda)
+                        .optimal();
+                }
             });
+
+            // if self.config.lookahead_depth > 0 && branch_context.depth == self.config.lookahead_depth {
+            //
+            //     return (SearchResult {
+            //         error: branch_context.error,
+            //         lambda: branch_context.lambda,
+            //         has_intersected: true,
+            //         reason: Reason::LowerBoundConstrained,
+            //     }, branch_key);
+            // }
         } else {
             self.statistics.increment_cache_hits();
             if let Some(node) = self.cache.node(&branch_key) {
@@ -554,6 +593,10 @@ where
             similarity_cover,
             branch_context,
         );
+
+        // if cover.path().iter().eq([10].iter()) && branch_context.item == 8 {
+        //     println!("process branch Cover : {:?} and context {:?} res {:?}", cover.path(), branch_context, first_result);
+        // }
 
         self.backtrack(
             cover,
@@ -610,6 +653,14 @@ where
             if rule_type == RuleType::Similarity {
                 updater = updater.lower_bound(context.node_lower_bound)
             }
+
+            if result.reason == Reason::LowerBoundConstrained
+                && self.config.lookahead_depth > 0
+                && self.config.lookahead_depth == context.depth
+            {
+                updater = updater.upper_bound(context.upper_bound);
+            }
+
             // println!("Error : {:?}", updater.get_error());
             error = updater.get_error().min(updater.get_leaf_error());
             // println!("Error : {:?}", updater.get_error());
@@ -699,6 +750,26 @@ where
         }
     }
 
+    fn get_greedy_bounds(&mut self, cover: &mut Cover, context: &mut RuleContext) {
+        if context.depth == self.config.lookahead_depth {
+            let mut greedy = GreedyBuilder::default()
+                .max_depth(self.config.base.max_depth - self.config.lookahead_depth)
+                .min_support(self.config.base.min_support)
+                .regularization(self.config.lambda)
+                .heuristic(Box::<InformationGain>::default())
+                .build()
+                .unwrap();
+
+            greedy.fit(cover);
+
+            context.upper_bound = greedy.tree().root_error() + greedy.tree().root_lambda();
+            context.node_lower_bound = context.upper_bound;
+            //context.node_upper_bound(context.node_lower_bound);
+            context.error(greedy.tree().root_error());
+            context.lambda(greedy.tree().root_lambda());
+        }
+    }
+
     fn backtrack(
         &mut self,
         cover: &mut Cover,
@@ -736,7 +807,7 @@ where
         let key = parent_index.to_cache_key(path);
         if let Some(node) = self.cache.node(&key) {
             if upper_bound < node.lower_bound()
-                //|| self.config.lambda > 0.0 && node.leaf_error().min(node.error()) + 2.0 * node.lambda() > upper_bound
+            //|| self.config.lambda > 0.0 && node.leaf_error().min(node.error()) + 2.0 * node.lambda() > upper_bound
             {
                 return Ok(SearchResult {
                     error: node.error().min(node.leaf_error()),
@@ -746,18 +817,25 @@ where
                 });
             }
         }
-        let tree_result = self
-            .depth2_search
-            .fit(self.config.base.min_support, depth, self.config.lambda,  cover, None);
-
+        let tree_result = self.depth2_search.fit(
+            self.config.base.min_support,
+            depth,
+            self.config.lambda,
+            cover,
+            None,
+        );
 
         match tree_result {
             Err(err) => Err(err),
             Ok(tree) => {
-
                 let global_error = tree.root_error() + tree.root_lambda();
 
-                let (cached_error, cached_lambda) = self.cache.node(&key).map_or((f64::INFINITY, self.config.lambda), |node| (node.error().min(node.leaf_error()), node.lambda()));
+                let (cached_error, cached_lambda) = self
+                    .cache
+                    .node(&key)
+                    .map_or((f64::INFINITY, self.config.lambda), |node| {
+                        (node.error().min(node.leaf_error()), node.lambda())
+                    });
 
                 if global_error > upper_bound {
                     return Ok(SearchResult {
@@ -765,7 +843,7 @@ where
                         lambda: cached_lambda,
                         has_intersected: true,
                         reason: Reason::LowerBoundConstrained,
-                    })
+                    });
                 }
 
                 self.cache_specialized_depth2_tree_results(
@@ -834,7 +912,7 @@ where
     pub fn cache_entry_to_tree_entry(&self, cache_entry: &CacheEntry) -> NodeInfos {
         NodeInfos {
             error: cache_entry.error(),
-            out: if cache_entry.is_leaf() || !cache_entry.has_valid_test(){
+            out: if cache_entry.is_leaf() || !cache_entry.has_valid_test() {
                 Some(cache_entry.out())
             } else {
                 None
@@ -890,7 +968,7 @@ where
 #[cfg(test)]
 mod dl85_test {
     use crate::algorithms::common::errors::NativeError;
-    use crate::algorithms::common::heuristics::NoHeuristic;
+    use crate::algorithms::common::heuristics::{InformationGain, NoHeuristic};
     use crate::algorithms::common::types::OptimalDepth2Policy;
     use crate::algorithms::optimal::depth2::ErrorMinimizer;
     use crate::algorithms::optimal::dl85::{DL85Builder, DL85};
@@ -910,11 +988,12 @@ mod dl85_test {
         let depth2 = Box::new(ErrorMinimizer::new(error_fn.clone()));
 
         let mut algo = DL85Builder::default()
-            .max_depth(4)
+            .max_depth(5)
             .min_support(1)
             .max_time(600.0)
             .regularization(0.0)
-            .specialization(OptimalDepth2Policy::Enabled)
+            .lookahead_depth(2)
+            .specialization(OptimalDepth2Policy::Disabled)
             .cache(Box::<Trie>::default())
             .heuristic(Box::<NoHeuristic>::default())
             .depth2_search(depth2)

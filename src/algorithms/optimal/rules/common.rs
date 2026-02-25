@@ -231,7 +231,9 @@ impl Rule for LowerBoundRule {
             return RuleResult::continue_search();
         }
 
-        if context.upper_bound <= context.node_lower_bound || float_is_null(context.upper_bound) {
+        if context.upper_bound <= context.node_lower_bound
+            || float_is_null(context.upper_bound - context.base_lambda)
+        {
             RuleResult::stop_search(Reason::LowerBoundConstrained)
         } else {
             RuleResult::continue_search()
@@ -337,7 +339,7 @@ impl PureNodeRule {
 
 impl Rule for PureNodeRule {
     fn evaluate(&self, context: &RuleContext) -> RuleResult {
-        if context.error < 2.0 * context.base_lambda{
+        if context.error < 2.0 * context.base_lambda {
             RuleResult::stop_with_bound(context.upper_bound, Reason::PureNode)
                 .optimal()
                 .leaf()

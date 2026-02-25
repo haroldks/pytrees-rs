@@ -44,8 +44,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             let learner: Box<dyn OptimalDepth2Tree> = match objective {
-                SearchStrategy::Depth2ErrorMinimizer => Box::<ErrorMinimizer<NativeError>>::default(),
-                SearchStrategy::Depth2InfoGainMaximizer => Box::<InfoGainMaximizer<NativeError>>::default(),
+                SearchStrategy::Depth2ErrorMinimizer => {
+                    Box::<ErrorMinimizer<NativeError>>::default()
+                }
+                SearchStrategy::Depth2InfoGainMaximizer => {
+                    Box::<InfoGainMaximizer<NativeError>>::default()
+                }
                 _ => {
                     panic!("Error wrong algorithm")
                 }
@@ -61,8 +65,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             print_config,
         } => {
             let obejective_fn: Box<dyn OptimalDepth2Tree> = match objective {
-                SearchStrategy::Depth2ErrorMinimizer => Box::<ErrorMinimizer<NativeError>>::default(),
-                SearchStrategy::Depth2InfoGainMaximizer => Box::<InfoGainMaximizer<NativeError>>::default(),
+                SearchStrategy::Depth2ErrorMinimizer => {
+                    Box::<ErrorMinimizer<NativeError>>::default()
+                }
+                SearchStrategy::Depth2InfoGainMaximizer => {
+                    Box::<InfoGainMaximizer<NativeError>>::default()
+                }
                 _ => {
                     panic!("Error wrong objective method")
                 }
@@ -95,6 +103,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             timeout,
             print_config,
             lambda,
+            lookahead_depth,
         } => {
             let timeout = timeout.unwrap_or(600.0);
 
@@ -124,6 +133,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .lower_bound_strategy(lower_bound_policy)
                 .branching_strategy(branching_policy)
                 .node_exposed_data(NodeDataType::ClassesSupport)
+                .lookahead_depth(lookahead_depth)
                 .build()?;
 
             learner.fit(&mut cover)?;

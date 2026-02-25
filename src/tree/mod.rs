@@ -285,7 +285,7 @@ impl Tree {
             .map_or((0, 0), |node| (node.left, node.right))
     }
 
-    pub fn update_leaf_node(&mut self, index: usize, error: (f64, f64), lambda : f64) -> &mut Self {
+    pub fn update_leaf_node(&mut self, index: usize, error: (f64, f64), lambda: f64) -> &mut Self {
         if let Some(updater) = self.update_node(index) {
             updater.error(error.0).output(error.1).lambda(lambda); // Maybe not the leaf
         }

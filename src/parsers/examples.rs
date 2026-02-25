@@ -62,6 +62,14 @@ pub struct ExampleParser {
     #[arg(long, default_value_t = false)]
     pub print_tree: bool,
 
+    /// Regularization parameter
+    #[arg(long, default_value_t = 0.0)]
+    pub lambda: f64,
+
+    /// Regularization parameter
+    #[arg(long, default_value_t = 0)]
+    pub lookahead_depth: usize,
+
     /// Overwriting file
     #[arg(long, default_value_t = false)]
     pub overwrite: bool,
@@ -83,6 +91,25 @@ pub struct Res {
     pub tree: Tree,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ResSplit {
+    pub name: String,
+    pub method: String,
+    pub depth: usize,
+    pub lookahead_depth: usize,
+    pub regularization: f64,
+    pub support: usize,
+    pub completed: bool,
+    pub one_time_sort: bool,
+    pub fast_d2: bool,
+    pub metric: Vec<f64>,
+    pub runtimes: Vec<f64>,
+    pub errors: Vec<f64>,
+    pub lambdas: Vec<f64>,
+    pub cache: Vec<usize>,
+    pub tree: Tree,
+}
+
 pub fn save_results(result: &Res, result_path: &PathBuf) -> std::io::Result<()> {
     // Create parent directories if they don't exist
     if let Some(parent) = result_path.parent() {
@@ -95,7 +122,30 @@ pub fn save_results(result: &Res, result_path: &PathBuf) -> std::io::Result<()> 
     writer.flush()
 }
 
+pub fn save_split_results(result: &ResSplit, result_path: &PathBuf) -> std::io::Result<()> {
+    // Create parent directories if they don't exist
+    if let Some(parent) = result_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    let file = File::create(result_path)?;
+    let mut writer = BufWriter::new(file);
+    serde_json::to_writer_pretty(&mut writer, result)?;
+    writer.flush()
+}
+
 pub fn load_results(result_path: &PathBuf) -> Option<Res> {
+    if !result_path.exists() {
+        return None;
+    }
+
+    File::open(result_path).ok().and_then(|file| {
+        let reader = BufReader::new(file);
+        serde_json::from_reader(reader).ok()
+    })
+}
+
+pub fn load_split_results(result_path: &PathBuf) -> Option<ResSplit> {
     if !result_path.exists() {
         return None;
     }

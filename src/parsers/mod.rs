@@ -70,6 +70,10 @@ pub enum ArgCommand {
         #[arg(long, default_value_t = 0.0)]
         lambda: f64,
 
+        /// For Split lookahead value
+        #[arg(long, default_value_t = 0)]
+        lookahead_depth: usize,
+
         /// Maximum time allowed to the search
         #[clap(long, short)]
         timeout: Option<f64>,
