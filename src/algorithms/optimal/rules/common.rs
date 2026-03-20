@@ -64,7 +64,7 @@ impl MinSupportRule {
     pub fn new(min_support: usize) -> Self {
         Self {
             min_support,
-            priority: 97,
+            priority: 96,
         }
     }
 }
@@ -294,8 +294,11 @@ impl Rule for UsableNodeRule {
             return RuleResult::continue_search();
         }
 
-        if context.error.is_finite() && context.node_upper_bound.is_finite() {
-            RuleResult::stop_search(Reason::Done)
+        if context.error.is_finite()
+            && context.node_upper_bound.is_finite()
+            && context.node_upper_bound >= context.upper_bound
+        {
+            RuleResult::stop_search(Reason::UsableNode)
         } else {
             RuleResult::continue_search()
         }

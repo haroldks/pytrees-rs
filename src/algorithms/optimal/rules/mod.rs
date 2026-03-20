@@ -15,11 +15,13 @@ pub mod common;
 mod discrepancy;
 mod gain;
 mod helpers;
+mod lookahead;
 mod purity;
 mod topk;
 
 pub use discrepancy::DiscrepancyRule;
 pub use gain::GainRule;
 pub use helpers::*;
+pub use lookahead::LookaheadRule;
 pub use purity::PurityRule;
 pub use topk::{DecreasingTopkRule, TopkRule};

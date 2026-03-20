@@ -181,7 +181,7 @@ impl<'a> CacheEntryUpdater<'a> {
 
     pub fn leaf(self) -> Self {
         self.node.is_leaf = true;
-        self.node.error = self.node.leaf_error;
+        self.node.error = self.node.leaf_error.min(self.node.error);
         self
     }
 

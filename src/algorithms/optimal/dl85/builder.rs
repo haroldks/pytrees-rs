@@ -10,7 +10,7 @@ use crate::algorithms::optimal::dl85::DL85;
 use crate::algorithms::optimal::rules::common::{
     LowerBoundRule, MaxDepthRule, MinSupportRule, PureNodeRule, TimeLimitRule, UsableNodeRule,
 };
-use crate::algorithms::optimal::rules::{Rule, RuleManager};
+use crate::algorithms::optimal::rules::{LookaheadRule, Rule, RuleManager};
 use crate::caching::Caching;
 
 pub struct DL85Builder<C, D, E, H>
@@ -165,6 +165,10 @@ where
     }
 
     pub fn lookahead_depth(mut self, value: usize) -> Self {
+        if value > 0 {
+            self.nodes_rules
+                .add_rule(Box::new(LookaheadRule::new(value)));
+        }
         self.config.lookahead_depth = value;
         self
     }

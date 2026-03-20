@@ -4,9 +4,11 @@ use std::fmt::{Debug, Display};
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, Eq, PartialEq)]
 pub enum Reason {
     Done,
+    UsableNode,
     TimeLimitReached,
     LowerBoundConstrained,
     MaxDepthReached,
+    LookaheadDepthReached,
     NotEnoughSupport,
     NoCandidates,
     PureNode,
@@ -109,6 +111,7 @@ pub struct RuleContext {
     pub gain: f64,
     pub error: f64,
     pub leaf_error: f64,
+    pub is_new: bool,
 }
 
 impl Default for RuleContext {
@@ -127,6 +130,7 @@ impl Default for RuleContext {
             gain: 0.0,
             error: f64::INFINITY,
             leaf_error: f64::INFINITY,
+            is_new: false,
         }
     }
 }
@@ -159,6 +163,7 @@ impl RuleContext {
             gain,
             error,
             leaf_error: f64::INFINITY,
+            is_new: false,
         }
     }
 
