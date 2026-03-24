@@ -131,9 +131,11 @@ where
             self.cache.update_root().map(|updater| {
                 updater
                     .leaf_error(error)
+                    .error(error)
                     .output(label)
                     .size(self.statistics.num_samples)
-                    .lambda(self.config.lambda * 2.0)
+                    .lower_bound(self.config.lambda)
+                    .lambda(self.config.lambda)
             });
 
             let mut candidates =
@@ -326,7 +328,7 @@ where
 
         let mut rule_pruned = false;
         for (position, &child) in node_candidates.iter().enumerate() {
-            // if cover.path().iter().eq([11, 124].iter()) {
+            // if cover.path().is_empty() {
             //      println!("For Child : {:?}, ", child);
             //  }
 
@@ -373,7 +375,7 @@ where
                 depth,
             );
 
-            // if cover.path().iter().eq([11, 124].iter()) {
+            // if cover.path().is_empty() {
             //      println!("\tBranch {} and result {:?}  with ub {}", first_branch, first_result, subtree_upper_bound);
             //      println!("\t\t {:?}", branch_context)
             //  }
@@ -384,6 +386,20 @@ where
             let first_class = self.cache.node(&branch_key).map_or(0.0, |node| node.out());
 
             if first_result_error + first_result_lambda >= subtree_upper_bound - second_lb {
+                if cover.path().is_empty() && child == 22 {
+                    cover.branch_on(item(child, 1));
+                    let mut greedy = GreedyBuilder::default()
+                        .max_depth(self.config.base.max_depth - self.config.lookahead_depth)
+                        .min_support(self.config.base.min_support)
+                        .regularization(self.config.lambda)
+                        .heuristic(Box::<InformationGain>::default())
+                        .build()
+                        .unwrap();
+
+                    greedy.fit(cover);
+                    greedy.tree().print();
+                    cover.backtrack();
+                }
                 min_lower_bound = self
                     .cache
                     .node(&branch_key)
@@ -427,7 +443,7 @@ where
                 + first_result_lambda
                 + second_result_error
                 + second_result_lambda;
-            // if cover.path().iter().eq([11, 124].iter()) {
+            // if cover.path().is_empty() {
             //     println!("\tBranch {} and result {:?}  with ub {}", 1 - first_branch, second_result, right_ub);
             //     println!("\t\t {:?}", branch_context);
             //     println!("\tSubtree error {} against upper bound {}", subtree_error, subtree_upper_bound);
@@ -488,6 +504,11 @@ where
                 min_lower_bound = min_lower_bound.min(subtree_error);
             }
         }
+
+        // if cover.path().is_empty() {
+        //     println!("parent context : {:?}", parent_context);
+        //     println!("parent Cache : {:?}", self.cache.root());
+        // }
 
         let (error, lambda) = self.cache.update_node(&parent_key).map_or(
             (f64::INFINITY, self.config.lambda),
@@ -729,7 +750,7 @@ where
         similarity: &SimilarityCover,
     ) -> BranchingChoice {
         let mut branch_first = 0;
-        let mut bounds = [self.config.lambda * 2.0; 2];
+        let mut bounds = [self.config.lambda; 2];
 
         match self.config.branching_policy {
             BranchingPolicy::Default => {}
@@ -749,7 +770,7 @@ where
     }
 
     fn get_cached_branch_bounds(&self, attribute: usize, path: &mut SearchPath) -> [f64; 2] {
-        let mut bounds = [self.config.lambda * 2.0; 2];
+        let mut bounds = [self.config.lambda; 2];
         for (branch, lb) in bounds.iter_mut().enumerate() {
             let branch_item = item(attribute, branch);
             path.push(branch_item);
