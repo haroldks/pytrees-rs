@@ -32,7 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let one_time_sort = !app.always_sort;
     let heuristic_strategy = app.heuristic;
     let lds_strategy = app.step;
-
+    let lambda = app.lambda;
     let checkpoint_interval = 10;
 
     let path = Path::new(file);
@@ -53,7 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         SearchStepStrategy::Luby => "luby",
     };
 
-    let result_path = result_file.join(format!("{depth}_{method}-{sub}.json"));
+    let result_path = result_file.join(format!("{depth}_{method}-{sub}_{lambda}.json"));
 
     // Try to load previous results
     let mut result = match load_results(&result_path) {
@@ -66,11 +66,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Res {
                 name: file.to_string(),
                 method: method.clone(),
+                regularization: 0.0,
                 depth,
                 support,
                 metric: Vec::with_capacity(100),
                 runtimes: Vec::with_capacity(100),
                 errors: Vec::with_capacity(100),
+                lambdas: vec![],
                 cache: Vec::with_capacity(100),
                 completed: false,
                 one_time_sort,
@@ -82,11 +84,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => Res {
             name: file.to_string(),
             method: method.clone(),
+            regularization: lambda,
             depth,
             support,
             metric: Vec::with_capacity(100),
             runtimes: Vec::with_capacity(100),
             errors: Vec::with_capacity(100),
+            lambdas: vec![],
             cache: Vec::with_capacity(100),
             completed: false,
             one_time_sort,
@@ -123,6 +127,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .min_support(support)
         .max_time(time_limit)
         .always_sort(true)
+        .regularization(lambda)
         .add_search_rule(Box::new(discrepancy))
         .specialization(fast_d2)
         .cache(Box::<Trie>::default())

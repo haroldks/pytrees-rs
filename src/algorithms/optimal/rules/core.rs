@@ -9,6 +9,7 @@ pub enum Reason {
     LowerBoundConstrained,
     MaxDepthReached,
     LookaheadDepthReached,
+    LookaheadDepthReachedDone,
     NotEnoughSupport,
     NoCandidates,
     PureNode,
@@ -112,6 +113,8 @@ pub struct RuleContext {
     pub error: f64,
     pub leaf_error: f64,
     pub is_new: bool,
+    pub current_age: usize,
+    pub node_age: usize,
 }
 
 impl Default for RuleContext {
@@ -131,6 +134,8 @@ impl Default for RuleContext {
             error: f64::INFINITY,
             leaf_error: f64::INFINITY,
             is_new: false,
+            current_age: 0,
+            node_age: 0,
         }
     }
 }
@@ -164,6 +169,8 @@ impl RuleContext {
             error,
             leaf_error: f64::INFINITY,
             is_new: false,
+            current_age: 0,
+            node_age: 0,
         }
     }
 
@@ -212,6 +219,14 @@ impl RuleContext {
 
     pub fn lambda(&mut self, lambda: f64) {
         self.lambda = lambda
+    }
+
+    pub fn node_age(&mut self, age: usize) {
+        self.node_age = age
+    }
+
+    pub fn current_age(&mut self, age: usize) {
+        self.current_age = age
     }
 }
 

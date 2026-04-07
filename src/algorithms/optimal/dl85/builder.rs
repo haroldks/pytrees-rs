@@ -164,10 +164,21 @@ where
         self
     }
 
-    pub fn lookahead_depth(mut self, value: usize) -> Self {
+    pub fn lookahead_depth(mut self, value: usize, limit: Option<usize>, delay: u8) -> Self {
         if value > 0 {
-            self.nodes_rules
-                .add_rule(Box::new(LookaheadRule::new(value)));
+            if let Some(lim) = limit {
+                assert!(
+                    lim >= value,
+                    "Limit should atleast be equal to the base depth."
+                );
+                self.nodes_rules.add_rule(Box::new(
+                    LookaheadRule::new(value, lim, true).with_delay(delay),
+                ));
+            } else {
+                self.nodes_rules.add_rule(Box::new(
+                    LookaheadRule::new(value, value, false).with_delay(delay),
+                ));
+            }
         }
         self.config.lookahead_depth = value;
         self

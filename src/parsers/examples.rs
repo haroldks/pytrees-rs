@@ -79,6 +79,7 @@ pub struct ExampleParser {
 pub struct Res {
     pub name: String,
     pub method: String,
+    pub regularization: f64,
     pub depth: usize,
     pub support: usize,
     pub completed: bool,
@@ -87,6 +88,7 @@ pub struct Res {
     pub metric: Vec<f64>,
     pub runtimes: Vec<f64>,
     pub errors: Vec<f64>,
+    pub lambdas: Vec<f64>,
     pub cache: Vec<usize>,
     pub tree: Tree,
 }

@@ -30,6 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let one_time_sort = !app.always_sort;
     let heuristic_strategy = app.heuristic;
     let lds_strategy = app.step;
+    let lambda = app.lambda;
 
     let checkpoint_interval = 10;
 
@@ -64,11 +65,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Res {
                 name: file.to_string(),
                 method: method.clone(),
+                regularization: lambda,
                 depth,
                 support,
                 metric: Vec::with_capacity(100),
                 runtimes: Vec::with_capacity(100),
                 errors: Vec::with_capacity(100),
+                lambdas: vec![],
                 cache: Vec::with_capacity(100),
                 completed: false,
                 one_time_sort,
@@ -80,11 +83,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => Res {
             name: file.to_string(),
             method: method.clone(),
+            regularization: lambda,
             depth,
             support,
             metric: Vec::with_capacity(100),
             runtimes: Vec::with_capacity(100),
             errors: Vec::with_capacity(100),
+            lambdas: vec![],
             cache: Vec::with_capacity(100),
             completed: false,
             one_time_sort,
@@ -137,6 +142,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .max_depth(depth)
         .min_support(support)
         .max_time(time_limit)
+        .regularization(lambda)
         .always_sort(true)
         .add_search_rule(Box::new(gain))
         .add_search_rule(Box::new(topk_rule))

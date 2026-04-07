@@ -7,7 +7,7 @@ use dtrees_rs::algorithms::common::types::{SearchHeuristic, SearchStepStrategy};
 use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
 use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
 use dtrees_rs::algorithms::optimal::rules::{
-    DiscrepancyRule, Exponential, GainRule, Luby, Monotonic,
+    DiscrepancyRule, Exponential, Luby, Monotonic, StepStrategy,
 };
 use dtrees_rs::algorithms::optimal::Reason;
 use dtrees_rs::algorithms::TreeSearchAlgorithm;
@@ -20,7 +20,7 @@ use std::path::Path;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = ExampleParser::parse();
-    let method = "gainlds".to_string();
+    let method = "split_lds".to_string();
 
     assert!(app.input.exists(), "File does not exist");
 
@@ -33,7 +33,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let heuristic_strategy = app.heuristic;
     let lds_strategy = app.step;
     let lambda = app.lambda;
-
     let checkpoint_interval = 10;
 
     let path = Path::new(file);
@@ -54,7 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         SearchStepStrategy::Luby => "luby",
     };
 
-    let result_path = result_file.join(format!("{depth}_{method}-{sub}.json"));
+    let result_path = result_file.join(format!("{depth}_{method}-{sub}_{lambda}.json"));
 
     // Try to load previous results
     let mut result = match load_results(&result_path) {
@@ -67,13 +66,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Res {
                 name: file.to_string(),
                 method: method.clone(),
-                regularization: lambda,
+                regularization: 0.0,
                 depth,
                 support,
                 metric: Vec::with_capacity(100),
                 runtimes: Vec::with_capacity(100),
                 errors: Vec::with_capacity(100),
-                lambdas: vec![],
+                lambdas: Vec::with_capacity(100),
                 cache: Vec::with_capacity(100),
                 completed: false,
                 one_time_sort,
@@ -91,7 +90,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             metric: Vec::with_capacity(100),
             runtimes: Vec::with_capacity(100),
             errors: Vec::with_capacity(100),
-            lambdas: vec![],
+            lambdas: Vec::with_capacity(100),
             cache: Vec::with_capacity(100),
             completed: false,
             one_time_sort,
@@ -103,9 +102,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let reader = DataReader::default();
     let path = Path::new(file);
     let mut cover = reader.read_file(path)?;
-
     let error_fn = Box::<NativeError>::default();
-
     let depth2 = Box::new(ErrorMinimizer::new(error_fn.clone()));
 
     let heuristics: Box<dyn Heuristic> = match heuristic_strategy {
@@ -113,21 +110,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         SearchHeuristic::GiniIndex => Box::<GiniIndex>::default(),
         SearchHeuristic::NoHeuristic => Box::<NoHeuristic>::default(),
         _ => Box::<NoHeuristic>::default(),
-    };
-
-    let gain: GainRule = match lds_strategy {
-        SearchStepStrategy::Monotonic => {
-            GainRule::new(0.0, app.epsilon, depth as f64, Box::<Monotonic>::default())
-        }
-        SearchStepStrategy::Exponential => GainRule::new(
-            0.0,
-            app.epsilon,
-            depth as f64,
-            Box::<Exponential>::default(),
-        ),
-        SearchStepStrategy::Luby => {
-            GainRule::new(0.0, app.epsilon, depth as f64, Box::<Luby>::default())
-        }
     };
 
     let discrepancy: DiscrepancyRule = match lds_strategy {
@@ -144,10 +126,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .max_depth(depth)
         .min_support(support)
         .max_time(time_limit)
-        .regularization(lambda)
         .always_sort(true)
-        .add_search_rule(Box::new(gain))
+        .regularization(lambda)
         .add_search_rule(Box::new(discrepancy))
+        .lookahead_depth(1, Some(depth), 0)
         .specialization(fast_d2)
         .cache(Box::<Trie>::default())
         .heuristic(heuristics)
@@ -162,6 +144,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         result.errors.push(stats.tree_error);
         result.cache.push(stats.cache_size);
         result.runtimes.push(stats.duration);
+        result.lambdas.push(algo.tree().root_lambda());
         result.tree = algo.tree().clone();
         if counter > 0 && counter % checkpoint_interval == 0 {
             let _ = save_results(&result, &result_path);

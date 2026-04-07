@@ -8,7 +8,8 @@ use crate::algorithms::optimal::depth2::OptimalDepth2Tree;
 use crate::algorithms::optimal::dl85::config::DL85Config;
 use crate::algorithms::optimal::rules::common::{SimilarityLowerBoundRule, TimeLimitRule};
 use crate::algorithms::optimal::rules::{
-    DiscrepancyRule, GainRule, Rule, RuleContext, RuleManager,
+    DecreasingTopkRule, DiscrepancyRule, GainRule, LookaheadRule, Rule, RuleContext, RuleManager,
+    TopkRule,
 };
 use crate::algorithms::optimal::Reason;
 use crate::algorithms::TreeSearchAlgorithm;
@@ -62,6 +63,7 @@ where
 
         while result.reason == Reason::RuleReason && !self.time_rule.exhausted() {
             result = self.partial_fit(cover);
+            println!("Result : {:?}", result)
         }
         Ok(())
     }
@@ -119,12 +121,36 @@ where
             self.cache.init();
             self.statistics.num_attributes = cover.num_attributes;
             self.statistics.num_samples = cover.count();
+            let mut max_sync_steps = self
+                .search_rules
+                .get_rule_mut::<DiscrepancyRule>()
+                .map(|rule| {
+                    rule.update_to_true_limit(
+                        self.statistics.num_attributes,
+                        self.config.base.max_depth,
+                    );
+                    rule.get_sync_delay()
+                })
+                .unwrap_or(0);
 
-            if let Some(discrepancy_rule) = self.search_rules.get_rule_mut::<DiscrepancyRule>() {
-                discrepancy_rule.update_to_true_limit(
-                    self.statistics.num_attributes,
-                    self.config.base.max_depth,
-                );
+            if let Some(rule) = self.search_rules.get_rule_mut::<TopkRule>() {
+                max_sync_steps = max_sync_steps.max(rule.get_sync_delay());
+            }
+
+            if let Some(rule) = self.search_rules.get_rule_mut::<DecreasingTopkRule>() {
+                max_sync_steps = max_sync_steps.max(rule.get_sync_delay());
+            }
+            let calculated_delay = max_sync_steps / self.config.base.max_depth.max(1) as u8;
+
+            if calculated_delay > 0 {
+                println!("Must be delayed as {calculated_delay}");
+
+                // 4. Apply to LookaheadRule
+                if let Some(lookahead) = self.search_rules.get_rule_mut::<LookaheadRule>() {
+                    if lookahead.depth() > 0 {
+                        lookahead.update_delay(calculated_delay);
+                    }
+                }
             }
 
             let (error, label) = self.compute_leaf_error(cover);
@@ -136,6 +162,7 @@ where
                     .size(self.statistics.num_samples)
                     .lower_bound(self.config.lambda)
                     .lambda(self.config.lambda)
+                    .age(self.statistics.restarts())
             });
 
             let mut candidates =
@@ -145,15 +172,16 @@ where
 
             let bound = <f64>::min(error + 2.0 * self.config.lambda, self.config.base.max_error);
 
-            let branch_item = usize::MAX;
-            root_context.item(branch_item);
+            root_context.item(usize::MAX);
             root_context.position(0);
             root_context.discrepancy(0);
             root_context.upper_bound(bound);
             root_context.error(error);
             root_context.lambda(self.config.lambda);
             root_context.base_lambda = self.config.lambda;
-            root_context.node_lower_bound(self.config.lambda * 2.0);
+            root_context.node_lower_bound(self.config.lambda); // FIXME : In case of error. This was changed
+            root_context.node_age(self.statistics.restarts());
+            root_context.current_age(self.statistics.restarts());
 
             self.time_rule.activate();
             self.node_rules.activate_all();
@@ -162,14 +190,27 @@ where
                 self.similarity_rule.activate();
             }
         } else {
+            root_context.item(usize::MAX);
             let root_lambda = self
                 .cache
                 .root()
                 .map_or(self.config.lambda, |node| node.lambda());
+
             root_context.upper_bound(self.statistics.tree_error + root_lambda);
             root_context.error(self.statistics.tree_error);
             root_context.lambda(root_lambda);
             // TODO  : Add root lower bound
+            root_context.node_lower_bound(
+                self.cache
+                    .root()
+                    .map_or(self.config.lambda, |node| node.lower_bound()),
+            );
+            root_context.node_age(
+                self.cache
+                    .root()
+                    .map_or(self.statistics.restarts, |node| node.age()),
+            );
+            root_context.current_age(self.statistics.restarts());
         }
         // println!("Cache size : {}", self.cache.size());
         let root_index = self.cache.root_index();
@@ -208,6 +249,9 @@ where
         if result.reason == Reason::RuleReason {
             self.node_rules.relax_all();
             self.search_rules.relax_all();
+            if self.config.lookahead_depth > 0 {
+                self.config.lookahead_depth += 1;
+            }
         }
 
         if !self.node_rules.is_active() && !self.search_rules.is_active() {
@@ -240,10 +284,9 @@ where
         let parent_key = parent_index.to_cache_key(path);
         let result = self.evaluate(parent_context, cover, &parent_key, RuleType::Node);
         //println!("Used Cover : {:?} and result {:?} error {:?}", cover.path(), result, parent_context.error);
-        // if cover.path().iter().eq([10].iter())
-        //     && parent_context.item == 8
+        // if cover.path().is_empty() && parent_item == 184
         // {
-        //     println!("Used Cover : {:?} and result {:?} error {:?}", cover.path(), result, parent_context.error);
+        //     println!("Used Cover : {:?} and result {:?} error {:?}", cover.path(), result, parent_context);
         // }
 
         if !result.0 {
@@ -364,6 +407,7 @@ where
             branch_context.item(branch_item);
             branch_context.node_lower_bound(first_lb);
             branch_context.upper_bound(subtree_upper_bound);
+            branch_context.current_age(self.statistics.restarts());
             branch_context.base_lambda = self.config.lambda;
 
             let (first_result, branch_key) = self.process_branch(
@@ -375,8 +419,8 @@ where
                 depth,
             );
 
-            // if cover.path().is_empty() {
-            //      println!("\tBranch {} and result {:?}  with ub {}", first_branch, first_result, subtree_upper_bound);
+            // if cover.path().is_empty() && child == 5{
+            //      println!("\tBranch {} and result {:?}  with ub {} age is  {}", first_branch, first_result, subtree_upper_bound, self.statistics.restarts());
             //      println!("\t\t {:?}", branch_context)
             //  }
 
@@ -386,20 +430,6 @@ where
             let first_class = self.cache.node(&branch_key).map_or(0.0, |node| node.out());
 
             if first_result_error + first_result_lambda >= subtree_upper_bound - second_lb {
-                if cover.path().is_empty() && child == 22 {
-                    cover.branch_on(item(child, 1));
-                    let mut greedy = GreedyBuilder::default()
-                        .max_depth(self.config.base.max_depth - self.config.lookahead_depth)
-                        .min_support(self.config.base.min_support)
-                        .regularization(self.config.lambda)
-                        .heuristic(Box::<InformationGain>::default())
-                        .build()
-                        .unwrap();
-
-                    greedy.fit(cover);
-                    greedy.tree().print();
-                    cover.backtrack();
-                }
                 min_lower_bound = self
                     .cache
                     .node(&branch_key)
@@ -423,6 +453,7 @@ where
             branch_context.discrepancy(parent_context.discrepancy + position);
             branch_context.node_lower_bound(second_lb);
             branch_context.upper_bound(right_ub);
+            branch_context.current_age(self.statistics.restarts());
             branch_context.base_lambda = self.config.lambda;
 
             let (second_result, branch_key) = self.process_branch(
@@ -443,8 +474,8 @@ where
                 + first_result_lambda
                 + second_result_error
                 + second_result_lambda;
-            // if cover.path().is_empty() {
-            //     println!("\tBranch {} and result {:?}  with ub {}", 1 - first_branch, second_result, right_ub);
+            // if cover.path().is_empty() && child == 5 {
+            //     println!("\tBranch {} and result {:?}  with ub {} age : {}", 1 - first_branch, second_result, right_ub, self.statistics.restarts());
             //     println!("\t\t {:?}", branch_context);
             //     println!("\tSubtree error {} against upper bound {}", subtree_error, subtree_upper_bound);
             // }
@@ -465,6 +496,7 @@ where
                             updater = updater
                                 .error(first_result_error + second_result_error)
                                 .lambda(self.config.lambda)
+                                .age(self.statistics.restarts())
                                 .leaf();
                             parent_context.lambda(self.config.lambda);
                             if float_is_null(updater.get_lower_bound() - subtree_error) {
@@ -481,6 +513,7 @@ where
                             updater = updater
                                 .error(first_result_error + second_result_error)
                                 .test(child)
+                                .age(self.statistics.restarts())
                                 .lambda(first_result_lambda + second_result_lambda);
                             parent_context.lambda(first_result_lambda + second_result_lambda);
 
@@ -568,6 +601,8 @@ where
             branch_context.error(error.0);
             branch_context.node_upper_bound(f64::INFINITY);
             branch_context.lambda(self.config.lambda);
+            branch_context.node_age(self.statistics.restarts());
+
             branch_context.is_new = true;
 
             // if self.config.lookahead_depth > 0
@@ -589,7 +624,8 @@ where
                     .output(error.1)
                     .lower_bound(branch_context.node_lower_bound) // TODO
                     .size(size)
-                    .lambda(self.config.lambda);
+                    .lambda(self.config.lambda)
+                    .age(branch_context.node_age);
             });
 
             // if self.config.lookahead_depth > 0 && branch_context.depth == self.config.lookahead_depth {
@@ -611,6 +647,7 @@ where
                 branch_context.leaf_error(node.leaf_error());
                 branch_context.lambda(node.lambda());
                 branch_context.node_lower_bound(node.lower_bound());
+                branch_context.node_age(node.age());
                 branch_context.is_new = false;
             }
         }
@@ -669,8 +706,9 @@ where
             RuleType::Similarity => self.similarity_rule.evaluate(context),
         };
 
-        if result.reason == Reason::LookaheadDepthReached {
-            //println!("Cover : {:?} c {:?}", cover.path(), context);
+        if result.reason == Reason::LookaheadDepthReached
+            || result.reason == Reason::LookaheadDepthReachedDone
+        {
             if context.is_new {
                 self.get_greedy_bounds(cover, context);
                 self.cache.update_node(key).map(|mut updater| {
@@ -681,13 +719,20 @@ where
                         .lower_bound(context.node_lower_bound)
                         .optimal();
                 });
+                // println!("After greedy Cover : {:?} c {:?}", cover.path(), context);
             }
+
             // else {
             //     if cover.path().iter().eq([125, 8].iter()) {
             //         println!("Context : {:?}", context);
             //     }
             // }
-            return (false, result.reason, context.error);
+            let reason = if result.reason == Reason::LookaheadDepthReachedDone {
+                Reason::Done
+            } else {
+                Reason::RuleReason
+            };
+            return (false, reason, context.error);
         }
 
         let mut error = f64::INFINITY;
@@ -805,23 +850,21 @@ where
     }
 
     fn get_greedy_bounds(&mut self, cover: &mut Cover, context: &mut RuleContext) {
-        if context.depth == self.config.lookahead_depth {
-            let mut greedy = GreedyBuilder::default()
-                .max_depth(self.config.base.max_depth - self.config.lookahead_depth)
-                .min_support(self.config.base.min_support)
-                .regularization(self.config.lambda)
-                .heuristic(Box::<InformationGain>::default())
-                .build()
-                .unwrap();
+        let mut greedy = GreedyBuilder::default()
+            .max_depth(self.config.base.max_depth - context.depth)
+            .min_support(self.config.base.min_support)
+            .regularization(self.config.lambda)
+            .heuristic(Box::<InformationGain>::default())
+            .build()
+            .unwrap();
 
-            greedy.fit(cover);
+        greedy.fit(cover);
 
-            context.upper_bound = greedy.tree().root_error() + greedy.tree().root_lambda();
-            context.node_lower_bound = context.upper_bound;
-            context.node_upper_bound(context.node_lower_bound);
-            context.error(greedy.tree().root_error());
-            context.lambda(greedy.tree().root_lambda());
-        }
+        context.upper_bound = greedy.tree().root_error() + greedy.tree().root_lambda();
+        context.node_lower_bound = context.upper_bound;
+        context.node_upper_bound(context.node_lower_bound);
+        context.error(greedy.tree().root_error());
+        context.lambda(greedy.tree().root_lambda());
     }
 
     fn backtrack(
@@ -1076,7 +1119,6 @@ where
             if let Some(node) = self.cache.node(&key) {
                 let branch_entry = self.cache_entry_to_tree_entry(node);
                 let child_index = tree.add_node(index, branch == 0, TreeNode::new(branch_entry));
-                println!("{:?}", node);
                 if !node.is_leaf() {
                     self.build_tree_branches(node.test(), path, tree, child_index);
                 }
@@ -1113,7 +1155,7 @@ mod dl85_test {
             .min_support(1)
             .max_time(600.0)
             .regularization(0.0)
-            .lookahead_depth(2)
+            .lookahead_depth(2, Some(2), 0)
             .specialization(OptimalDepth2Policy::Disabled)
             .cache(Box::<Trie>::default())
             .heuristic(Box::<NoHeuristic>::default())

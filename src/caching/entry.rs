@@ -11,8 +11,8 @@ pub struct CacheEntry {
     lambda: f64,
     out: f64,
     is_optimal: bool,
-
     is_leaf: bool,
+    age: usize,
 }
 impl CacheEntry {
     pub fn new(item: usize) -> Self {
@@ -29,6 +29,7 @@ impl CacheEntry {
             is_optimal: false,
             lambda: 0.0,
             is_leaf: false,
+            age: 0,
         }
     }
 
@@ -95,6 +96,10 @@ impl CacheEntry {
     pub fn lambda(&self) -> f64 {
         self.lambda
     }
+
+    pub fn age(&self) -> usize {
+        self.age
+    }
 }
 
 impl Default for CacheEntry {
@@ -112,6 +117,7 @@ impl Default for CacheEntry {
             lambda: 0.0,
             is_optimal: false,
             is_leaf: false,
+            age: 0,
         }
     }
 }
@@ -182,6 +188,11 @@ impl<'a> CacheEntryUpdater<'a> {
     pub fn leaf(self) -> Self {
         self.node.is_leaf = true;
         self.node.error = self.node.leaf_error.min(self.node.error);
+        self
+    }
+
+    pub fn age(self, age: usize) -> Self {
+        self.node.age = age;
         self
     }
 

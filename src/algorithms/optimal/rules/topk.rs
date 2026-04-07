@@ -34,6 +34,9 @@ impl TopkRule {
         self.budget = budget;
         self
     }
+    pub fn get_sync_delay(&self) -> u8 {
+        self.increment.estimate_steps(self.limit) as u8
+    }
 }
 
 impl Rule for TopkRule {
@@ -132,6 +135,10 @@ impl DecreasingTopkRule {
     pub fn with_budget(mut self, budget: usize) -> Self {
         self.budget = budget;
         self
+    }
+
+    pub fn get_sync_delay(&self) -> u8 {
+        self.increment.estimate_steps(self.limit) as u8
     }
 }
 

@@ -4,6 +4,7 @@ use crate::algorithms::common::types::{CacheType, NodeDataType, SearchStatistics
 use crate::algorithms::greedy::{LGDTBuilder, LGDT};
 use crate::algorithms::optimal::depth2::{ErrorMinimizer, InfoGainMaximizer, OptimalDepth2Tree};
 use crate::algorithms::optimal::dl85::DL85Builder;
+use crate::algorithms::optimal::rules::{DiscrepancyRule, Luby};
 use crate::algorithms::TreeSearchAlgorithm;
 use crate::caching::{Caching, Trie};
 use crate::parsers::{ArgCommand, MainApp};
@@ -117,6 +118,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let depth2_search = Box::<ErrorMinimizer<NativeError>>::default();
             let error_fn = Box::<NativeError>::default();
+            let disc = DiscrepancyRule::new(usize::MAX, Box::<Luby>::default());
 
             let mut learner = DL85Builder::default()
                 .min_support(support)
@@ -133,7 +135,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .lower_bound_strategy(lower_bound_policy)
                 .branching_strategy(branching_policy)
                 .node_exposed_data(NodeDataType::ClassesSupport)
-                .lookahead_depth(lookahead_depth)
+                .add_search_rule(Box::new(disc))
+                .lookahead_depth(lookahead_depth, Some(lookahead_depth + 2), 0)
                 .build()?;
 
             learner.fit(&mut cover)?;

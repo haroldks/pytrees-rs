@@ -231,8 +231,9 @@ impl Rule for LowerBoundRule {
             return RuleResult::continue_search();
         }
 
-        if context.upper_bound <= context.node_lower_bound
-            || float_is_null(context.upper_bound - context.base_lambda)
+        if context.node_age == context.current_age
+            && (context.upper_bound <= context.node_lower_bound
+                || float_is_null(context.upper_bound - context.base_lambda))
         {
             RuleResult::stop_search(Reason::LowerBoundConstrained)
         } else {
@@ -297,6 +298,7 @@ impl Rule for UsableNodeRule {
         if context.error.is_finite()
             && context.node_upper_bound.is_finite()
             && context.node_upper_bound >= context.upper_bound
+            && context.current_age == context.node_age
         {
             RuleResult::stop_search(Reason::UsableNode)
         } else {

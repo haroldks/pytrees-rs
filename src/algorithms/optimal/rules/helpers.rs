@@ -1,5 +1,6 @@
 pub trait StepStrategy: Send + Sync {
     fn next(&mut self) -> usize;
+    fn estimate_steps(&self, limit: usize) -> usize;
 }
 
 pub struct Monotonic {
@@ -21,6 +22,13 @@ impl StepStrategy for Monotonic {
         let value = self.current;
         self.current += self.increment;
         value
+    }
+
+    fn estimate_steps(&self, limit: usize) -> usize {
+        if self.increment == 0 {
+            return usize::MAX;
+        }
+        limit.saturating_add(self.increment - 1) / self.increment
     }
 }
 
@@ -58,6 +66,16 @@ impl StepStrategy for Exponential {
         let value = self.current;
         self.current *= self.base;
         value
+    }
+
+    fn estimate_steps(&self, limit: usize) -> usize {
+        if limit <= 1 {
+            return 1;
+        }
+        if self.base <= 1 {
+            return usize::MAX;
+        }
+        (limit as f64).log(self.base as f64).ceil() as usize
     }
 }
 
@@ -104,5 +122,18 @@ impl StepStrategy for Luby {
         self.steps.push(increment);
         self.current += increment * self.multiplier;
         value
+    }
+
+    fn estimate_steps(&self, limit: usize) -> usize {
+        let normalized_limit = limit / self.multiplier;
+        if normalized_limit == 0 {
+            return 1;
+        }
+        let log_l = (normalized_limit as f64).log2();
+        if log_l < 1.0 {
+            return 1;
+        }
+
+        (2.0 * normalized_limit as f64 / log_l).ceil() as usize
     }
 }

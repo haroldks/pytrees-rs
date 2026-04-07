@@ -62,6 +62,10 @@ impl DiscrepancyRule {
         self.limit = self.limit.min(max_discrepancy);
         // println!("Limit : {}", self.limit);
     }
+
+    pub fn get_sync_delay(&self) -> u8 {
+        self.increment.estimate_steps(self.limit) as u8
+    }
 }
 
 impl Rule for DiscrepancyRule {
