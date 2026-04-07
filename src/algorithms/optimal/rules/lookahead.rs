@@ -89,7 +89,6 @@ impl Rule for LookaheadRule {
             self.activation_count += 1;
             return;
         } else {
-            self.lookahead_depth += 1;
             self.activation_count = 0;
         }
 
@@ -97,6 +96,7 @@ impl Rule for LookaheadRule {
             self.deactivate();
             return;
         }
+        self.lookahead_depth += 1;
     }
 
     fn is_relaxable(&self) -> bool {
