@@ -30,6 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let one_time_sort = !app.always_sort;
     let heuristic_strategy = app.heuristic;
     let lds_strategy = app.step;
+    let lambda = app.lambda;
 
     let checkpoint_interval = 10;
 
@@ -51,7 +52,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         SearchStepStrategy::Luby => "luby",
     };
 
-    let result_path = result_file.join(format!("{depth}_{method}-{sub}.json"));
+    let result_path = result_file.join(format!("{depth}_{method}-{sub}_{lambda}.json"));
 
     // Try to load previous results
     let mut result = match load_results(&result_path) {
@@ -64,11 +65,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Res {
                 name: file.to_string(),
                 method: method.clone(),
+                regularization: lambda,
                 depth,
                 support,
                 metric: Vec::with_capacity(100),
                 runtimes: Vec::with_capacity(100),
                 errors: Vec::with_capacity(100),
+                lambdas: Vec::with_capacity(100),
                 cache: Vec::with_capacity(100),
                 completed: false,
                 one_time_sort,
@@ -80,11 +83,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => Res {
             name: file.to_string(),
             method: method.clone(),
+            regularization: lambda,
             depth,
             support,
             metric: Vec::with_capacity(100),
             runtimes: Vec::with_capacity(100),
             errors: Vec::with_capacity(100),
+            lambdas: Vec::with_capacity(100),
             cache: Vec::with_capacity(100),
             completed: false,
             one_time_sort,
@@ -119,6 +124,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut algo = DL85Builder::default()
         .max_depth(depth)
         .min_support(support)
+        .regularization(lambda)
         .max_time(time_limit)
         .always_sort(true)
         .add_search_rule(Box::new(topk_rule))
@@ -136,6 +142,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         result.errors.push(stats.tree_error);
         result.cache.push(stats.cache_size);
         result.runtimes.push(stats.duration);
+        result.lambdas.push(algo.tree().root_lambda());
         result.tree = algo.tree().clone();
         if counter > 0 && counter % checkpoint_interval == 0 {
             let _ = save_results(&result, &result_path);
