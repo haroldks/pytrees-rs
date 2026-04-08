@@ -135,8 +135,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .lower_bound_strategy(lower_bound_policy)
                 .branching_strategy(branching_policy)
                 .node_exposed_data(NodeDataType::ClassesSupport)
-                .add_search_rule(Box::new(disc))
-                .lookahead_depth(lookahead_depth, Some(lookahead_depth + 2), 0)
+                // .add_search_rule(Box::new(disc))
+                // .lookahead_depth(lookahead_depth, Some(lookahead_depth + 2), 0)
                 .build()?;
 
             learner.fit(&mut cover)?;

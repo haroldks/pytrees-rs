@@ -63,7 +63,6 @@ where
 
         while result.reason == Reason::RuleReason && !self.time_rule.exhausted() {
             result = self.partial_fit(cover);
-            println!("Result : {:?}", result)
         }
         Ok(())
     }
@@ -143,9 +142,6 @@ where
             let calculated_delay = max_sync_steps / self.config.base.max_depth.max(1) as u8;
 
             if calculated_delay > 0 {
-                println!("Must be delayed as {calculated_delay}");
-
-                // 4. Apply to LookaheadRule
                 if let Some(lookahead) = self.search_rules.get_rule_mut::<LookaheadRule>() {
                     if lookahead.depth() > 0 {
                         lookahead.update_delay(calculated_delay);
@@ -225,7 +221,6 @@ where
         let mut similarity = SimilarityCover::default();
         let mut search_path = SearchPath::new();
         let candidates = std::mem::take(&mut self.root_candidates);
-
         let mut result = self.recursive_search(
             cover,
             &mut search_path,
@@ -236,6 +231,7 @@ where
             &mut similarity,
             &mut root_context,
         );
+        println!("Res : {:?}", result);
 
         self.root_candidates = candidates;
 
@@ -261,7 +257,7 @@ where
         self.statistics.duration = self.time_rule.elapsed_seconds();
         self.statistics.tree_error = result.error;
         self.statistics.cache_size = self.cache.size();
-        self.build_solution_tree_with_greedy(cover);
+        self.build_solution_tree();
         result
     }
 

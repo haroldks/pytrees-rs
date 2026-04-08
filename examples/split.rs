@@ -118,7 +118,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .min_support(support)
         .max_time(time_limit)
         .regularization(lambda)
-        .lookahead_depth(lookahead_depth)
+        .lookahead_depth(lookahead_depth, Some(depth), 0)
         .always_sort(true)
         .specialization(OptimalDepth2Policy::Disabled)
         .cache(Box::<Trie>::default())
@@ -127,7 +127,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .error_function(error_fn)
         .build()?;
 
-    let r = algo.partial_fit(&mut cover);
+    let r = algo.fit(&mut cover);
     let stats = algo.statistics();
     result.errors.push(stats.tree_error);
     result.cache.push(stats.cache_size);
