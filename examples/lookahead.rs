@@ -28,7 +28,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let time_limit = app.timeout;
     let one_time_sort = !app.always_sort;
     let heuristic_strategy = app.heuristic;
-    let lds_strategy = app.step;
     let lambda = app.lambda;
 
     let checkpoint_interval = 1;

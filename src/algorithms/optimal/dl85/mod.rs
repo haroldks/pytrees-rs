@@ -279,8 +279,9 @@ where
             .min(parent_context.leaf_error.min(parent_context.error) + parent_context.lambda);
         let parent_key = parent_index.to_cache_key(path);
         let result = self.evaluate(parent_context, cover, &parent_key, RuleType::Node);
+        // println!("Cover {:?} res : {:?}", cover.path(), result);
         //println!("Used Cover : {:?} and result {:?} error {:?}", cover.path(), result, parent_context.error);
-        // if cover.path().is_empty() && parent_item == 184
+        // if cover.path().is_empty()
         // {
         //     println!("Used Cover : {:?} and result {:?} error {:?}", cover.path(), result, parent_context);
         // }

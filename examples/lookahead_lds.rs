@@ -20,7 +20,7 @@ use std::path::Path;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = ExampleParser::parse();
-    let method = "split_lds".to_string();
+    let method = "split-lds".to_string();
 
     assert!(app.input.exists(), "File does not exist");
 
