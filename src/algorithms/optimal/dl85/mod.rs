@@ -250,7 +250,9 @@ where
             }
         }
 
-        if !self.node_rules.is_active() && !self.search_rules.is_active() {
+        if (!self.node_rules.is_active() && !self.search_rules.is_active())
+            || result.reason == Reason::PureNode
+        {
             result.reason = Reason::Done;
         }
 
