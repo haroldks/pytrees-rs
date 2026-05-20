@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+#[derive(Debug)]
 pub enum CacheKey {
     Index(usize),
     Path(Vec<usize>),

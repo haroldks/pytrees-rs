@@ -1,0 +1,209 @@
+use crate::algorithms::common::errors::{ErrorWrapper, NativeError};
+use crate::algorithms::common::heuristics::{Heuristic, NoHeuristic};
+use crate::algorithms::common::types::{
+    BranchingPolicy, CacheInitStrategy, LowerBoundPolicy, NodeDataType, OptimalDepth2Policy,
+};
+use crate::algorithms::greedy::Greedy;
+use crate::algorithms::optimal::depth2::OptimalDepth2Tree;
+use crate::algorithms::optimal::dl85::config::DL85Config;
+use crate::algorithms::optimal::dl85::hash_version::HashDL85;
+use crate::algorithms::optimal::dl85::DL85;
+use crate::algorithms::optimal::rules::common::{
+    LowerBoundRule, MaxDepthRule, MinSupportRule, PureNodeRule, TimeLimitRule, UsableNodeRule,
+};
+use crate::algorithms::optimal::rules::{LookaheadRule, Rule, RuleManager};
+use crate::caching::{Caching, MapHash};
+
+pub struct HashDL85Builder<D, E, H>
+where
+    D: OptimalDepth2Tree + ?Sized,
+    E: ErrorWrapper + ?Sized,
+    H: Heuristic + ?Sized,
+{
+    config: DL85Config,
+    depth2_search: Option<Box<D>>,
+    error_fn: Option<Box<E>>,
+    heuristic_fn: Option<Box<H>>,
+    nodes_rules: RuleManager,
+    search_rules: RuleManager,
+    time_rule: TimeLimitRule,
+}
+
+impl<D, E, H> Default for HashDL85Builder<D, E, H>
+where
+    D: OptimalDepth2Tree + ?Sized,
+    E: ErrorWrapper + ?Sized,
+    H: Heuristic + ?Sized,
+{
+    fn default() -> Self {
+        let builder = Self {
+            config: DL85Config::default(),
+            depth2_search: None,
+            error_fn: None,
+            heuristic_fn: None,
+            nodes_rules: RuleManager::new(),
+            search_rules: RuleManager::new(),
+            time_rule: TimeLimitRule::new(0.0),
+        };
+        builder.default_rules()
+    }
+}
+
+impl<D, E, H> HashDL85Builder<D, E, H>
+where
+    D: OptimalDepth2Tree + ?Sized,
+    E: ErrorWrapper + ?Sized,
+    H: Heuristic + ?Sized,
+{
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn min_support(mut self, value: usize) -> Self {
+        self.config.base.min_support = value;
+        self.nodes_rules
+            .add_rule(Box::new(MinSupportRule::new(value)));
+        self
+    }
+
+    pub fn regularization(mut self, value: f64) -> Self {
+        self.config.lambda = value;
+        self
+    }
+
+    pub fn max_depth(mut self, value: usize) -> Self {
+        self.config.base.max_depth = value;
+        self.nodes_rules
+            .add_rule(Box::new(MaxDepthRule::new(value)));
+        self
+    }
+
+    pub fn max_error(mut self, value: f64) -> Self {
+        self.config.base.max_error = value;
+        self
+    }
+
+    pub fn max_time(mut self, value: f64) -> Self {
+        self.config.base.max_time = value;
+        self.time_rule = TimeLimitRule::new(value);
+        self
+    }
+
+    pub fn default_rules(mut self) -> Self {
+        self.nodes_rules.add_rule(Box::new(UsableNodeRule::new()));
+        self.nodes_rules.add_rule(Box::new(PureNodeRule::new()));
+        self.nodes_rules.add_rule(Box::new(LowerBoundRule::new()));
+        self
+    }
+
+    pub fn depth2_search(mut self, search: Box<D>) -> Self {
+        self.depth2_search = Some(search);
+        self
+    }
+
+    pub fn add_node_rule(mut self, rule: Box<dyn Rule>) -> Self {
+        self.nodes_rules.add_rule(rule);
+        self
+    }
+
+    pub fn add_node_rules(mut self, rules: Vec<Box<dyn Rule>>) -> Self {
+        for rule in rules {
+            self.nodes_rules.add_rule(rule)
+        }
+        self
+    }
+
+    pub fn add_search_rule(mut self, rule: Box<dyn Rule>) -> Self {
+        self.search_rules.add_rule(rule);
+        self
+    }
+
+    pub fn add_search_rules(mut self, rules: Vec<Box<dyn Rule>>) -> Self {
+        for rule in rules {
+            self.search_rules.add_rule(rule)
+        }
+        self
+    }
+
+    pub fn always_sort(mut self, value: bool) -> Self {
+        self.config.always_sort = value;
+        self
+    }
+
+    pub fn cache_init_size(mut self, value: usize) -> Self {
+        self.config.cache_init_size = value;
+        self
+    }
+
+    pub fn cache_init_strategy(mut self, value: CacheInitStrategy) -> Self {
+        self.config.cache_init_strategy = value;
+        self
+    }
+
+    pub fn specialization(mut self, value: OptimalDepth2Policy) -> Self {
+        self.config.optimal_depth2policy = value;
+        self
+    }
+
+    pub fn lower_bound_strategy(mut self, value: LowerBoundPolicy) -> Self {
+        self.config.lower_bound_policy = value;
+        self
+    }
+
+    pub fn branching_strategy(mut self, value: BranchingPolicy) -> Self {
+        self.config.branching_policy = value;
+        self
+    }
+
+    pub fn node_exposed_data(mut self, value: NodeDataType) -> Self {
+        self.config.data_type = value;
+        self
+    }
+
+    pub fn lookahead_depth(mut self, value: usize, limit: Option<usize>, delay: u8) -> Self {
+        if value > 0 {
+            if let Some(lim) = limit {
+                assert!(
+                    lim >= value,
+                    "Limit should atleast be equal to the base depth."
+                );
+                self.nodes_rules.add_rule(Box::new(
+                    LookaheadRule::new(value, lim, true).with_delay(delay),
+                ));
+            } else {
+                self.nodes_rules.add_rule(Box::new(
+                    LookaheadRule::new(value, value, false).with_delay(delay),
+                ));
+            }
+        }
+        self.config.lookahead_depth = value;
+        self
+    }
+
+    pub fn error_function(mut self, value: Box<E>) -> Self {
+        self.error_fn = Some(value);
+        self
+    }
+
+    pub fn heuristic(mut self, value: Box<H>) -> Self {
+        self.heuristic_fn = Some(value);
+        self
+    }
+
+    pub fn build(self) -> Result<HashDL85<D, E, H>, String> {
+        let cache = MapHash::default();
+        let depth2 = self.depth2_search.ok_or("Neee depth 2 algorithm")?;
+        let error_function = self.error_fn.ok_or("Error function is required")?;
+        let heuristic = self.heuristic_fn.ok_or("Heuristic is required")?;
+
+        Ok(HashDL85::new(
+            self.config,
+            depth2,
+            error_function,
+            heuristic,
+            self.nodes_rules,
+            self.search_rules,
+            self.time_rule,
+        ))
+    }
+}

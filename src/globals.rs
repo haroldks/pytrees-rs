@@ -55,3 +55,14 @@ pub fn get_tree_root_error(tree: &Tree) -> f64 {
     tree.get_node(tree.get_root_index())
         .map_or(<f64>::INFINITY, |node| node.value.error)
 }
+
+pub fn hasher(itemset: &[u64]) -> u64 {
+    let mut h = itemset.len() as u64;
+    for item in itemset.iter() {
+        h ^= item
+            .wrapping_add(0x9e3779b9)
+            .wrapping_add(h << 6)
+            .wrapping_add(h >> 2);
+    }
+    h
+}

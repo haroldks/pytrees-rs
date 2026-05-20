@@ -13,30 +13,22 @@ use crate::algorithms::optimal::rules::{
 };
 use crate::algorithms::optimal::Reason;
 use crate::algorithms::TreeSearchAlgorithm;
-use crate::caching::{CacheEntry, CacheKey, Caching, Index, SearchPath};
+use crate::caching::{CacheEntry, CacheKey, Caching, Index, MapHash, SearchPath};
 use crate::cover::similarities::SimilarityCover;
 use crate::cover::Cover;
 use crate::globals::{attribute, float_is_null, item};
 use crate::tree::{NodeInfos, Tree, TreeNode};
 
-mod builder;
-pub mod config;
-mod hash_version;
-mod hashdl85builder;
-
 use crate::algorithms::greedy::{Greedy, GreedyBuilder};
-pub use builder::DL85Builder;
-pub use hashdl85builder::HashDL85Builder;
 
-pub struct DL85<C, D, E, H>
+pub struct HashDL85<D, E, H>
 where
-    C: Caching + ?Sized,
     D: OptimalDepth2Tree + ?Sized,
     E: ErrorWrapper + ?Sized,
     H: Heuristic + ?Sized,
 {
     config: DL85Config,
-    cache: Box<C>,
+    cache: MapHash,
     error_fn: Box<E>,
     depth2_search: Box<D>,
     heuristic_fn: Box<H>,
@@ -51,9 +43,8 @@ where
     gain_limit: f64,
 }
 
-impl<C, D, E, H> TreeSearchAlgorithm for DL85<C, D, E, H>
+impl<D, E, H> TreeSearchAlgorithm for HashDL85<D, E, H>
 where
-    C: Caching + ?Sized,
     D: OptimalDepth2Tree + ?Sized,
     E: ErrorWrapper + ?Sized,
     H: Heuristic + ?Sized,
@@ -75,16 +66,14 @@ where
     }
 }
 
-impl<C, D, E, H> DL85<C, D, E, H>
+impl<D, E, H> HashDL85<D, E, H>
 where
-    C: Caching + ?Sized,
     D: OptimalDepth2Tree + ?Sized,
     E: ErrorWrapper + ?Sized,
     H: Heuristic + ?Sized,
 {
     pub fn new(
         config: DL85Config,
-        cache: Box<C>,
         depth2_search: Box<D>,
         error_fn: Box<E>,
         heuristic_fn: Box<H>,
@@ -94,7 +83,7 @@ where
     ) -> Self {
         Self {
             config,
-            cache,
+            cache: MapHash::default(),
             error_fn,
             depth2_search,
             heuristic_fn,
@@ -120,6 +109,7 @@ where
         let mut root_context = RuleContext::default();
 
         if self.statistics.restarts() <= 1 {
+            self.cache = MapHash::new(self.config.base.max_depth, cover.num_samples);
             self.cache.init();
             self.statistics.num_attributes = cover.num_attributes;
             self.statistics.num_samples = cover.count();
@@ -235,6 +225,8 @@ where
             &mut root_context,
         );
 
+        println!("Res {:?}", result);
+
         self.root_candidates = candidates;
 
         if self.statistics.restarts() <= 1 || self.gain_gap <= 0.0 {
@@ -261,7 +253,7 @@ where
         self.statistics.duration = self.time_rule.elapsed_seconds();
         self.statistics.tree_error = result.error;
         self.statistics.cache_size = self.cache.size();
-        self.build_solution_tree();
+        self.build_solution_tree(cover);
         result
     }
 
@@ -283,6 +275,7 @@ where
             .min(parent_context.leaf_error.min(parent_context.error) + parent_context.lambda);
         let parent_key = parent_index.to_cache_key(path);
         let result = self.evaluate(parent_context, cover, &parent_key, RuleType::Node);
+        // println!("parent key {:?} result {:?} patth : {:?} cover : {:?}", parent_key, result, cover.path(), cover.count());
         // println!("Cover {:?} res : {:?}", cover.path(), result);
         //println!("Used Cover : {:?} and result {:?} error {:?}", cover.path(), result, parent_context.error);
         // if cover.path().is_empty()
@@ -295,14 +288,15 @@ where
             return SearchResult {
                 error: result.2,
                 lambda: parent_context.lambda,
-                has_intersected: false,
+                has_intersected: true,
                 reason: result.1,
             };
         }
 
-        if !parent_index.is_new() {
-            cover.branch_on(parent_item);
-        }
+        // TODO
+        // if !parent_index.is_new() {
+        //     cover.branch_on(parent_item);
+        // }
 
         if self.config.use_similarity_lb() {
             let similarity = similarity.compute_similarity(cover.sparse());
@@ -347,6 +341,7 @@ where
                 subtree_upper_bound,
                 path,
                 self.config.base.max_depth - depth,
+                depth,
             );
             // println!("Ub : {:?} context {:?} res {:?}", subtree_upper_bound, parent_context, result);
             //println!("COver {:?}, result : {:?} depth = {} ub {}", cover.path(), result, parent_context.depth, subtree_upper_bound);
@@ -588,22 +583,21 @@ where
         candidates: &[usize],
         current_depth: usize,
     ) -> (SearchResult, CacheKey) {
+        let size = cover.branch_on(branch_context.item);
+        let bitset = cover.bitset();
         path.push(branch_context.item);
-        let branch_key_vec = path.to_sorted_vec();
-        let branch_index = self.cache.insert(&branch_key_vec);
+        // let branch_key_vec = path.to_sorted_vec();
+        let branch_index = self.cache.insert(&bitset, branch_context.depth);
         let branch_key = branch_index.to_cache_key(path);
 
         if branch_index.is_new() {
-            let size = cover.branch_on(branch_context.item);
             branch_context.support(size);
             let error = self.compute_leaf_error(cover);
             branch_context.leaf_error(error.0);
-
             branch_context.error(error.0);
             branch_context.node_upper_bound(f64::INFINITY);
             branch_context.lambda(self.config.lambda);
             branch_context.node_age(self.statistics.restarts());
-
             branch_context.is_new = true;
 
             // if self.config.lookahead_depth > 0
@@ -877,9 +871,9 @@ where
         search_result: &SearchResult,
         similarity: &mut SimilarityCover,
     ) {
-        if !(index.is_new() || search_result.has_intersected) {
-            cover.branch_on(*item);
-        }
+        // if !(index.is_new() || search_result.has_intersected) {
+        //     cover.branch_on(*item);
+        // }
 
         // Update similarity data if applicable
         if self.config.use_similarity_lb() && search_result.reason == Reason::LowerBoundConstrained
@@ -901,6 +895,7 @@ where
         upper_bound: f64,
         path: &mut SearchPath,
         depth: usize,
+        original_depth: usize,
     ) -> Result<SearchResult, FitError> {
         let key = parent_index.to_cache_key(path);
         if let Some(node) = self.cache.node(&key) {
@@ -946,9 +941,11 @@ where
 
                 self.cache_specialized_depth2_tree_results(
                     path,
+                    cover,
                     parent_index,
                     &tree,
                     tree.get_root_index(),
+                    original_depth,
                 );
                 Ok(SearchResult {
                     error: tree.root_error(),
@@ -963,9 +960,11 @@ where
     fn cache_specialized_depth2_tree_results(
         &mut self,
         path: &mut SearchPath,
+        cover: &mut Cover,
         parent_index: Index,
         tree: &Tree,
         tree_index: usize,
+        depth: usize,
     ) {
         let parent_key = parent_index.to_cache_key(path);
         let node_test = tree.node_test(tree_index);
@@ -994,15 +993,22 @@ where
             if tree_branch_index > 0 {
                 let branch_item = item(node_test, branch);
                 path.push(branch_item);
-                let branch_key_vec = path.to_sorted_vec();
-                let cache_branch_index = self.cache.insert(&branch_key_vec);
+                cover.branch_on(branch_item);
+                let bitset = cover.bitset();
+                let index = self.cache.insert(&bitset, depth + 1);
+
+                let key = index.to_cache_key(&path);
+
                 self.cache_specialized_depth2_tree_results(
                     path,
-                    cache_branch_index,
+                    cover,
+                    index,
                     tree,
                     tree_branch_index,
+                    depth + 1,
                 );
                 path.remove(&branch_item);
+                cover.backtrack();
             }
         }
     }
@@ -1025,13 +1031,13 @@ where
         }
     }
 
-    fn build_solution_tree(&mut self) {
+    fn build_solution_tree(&mut self, cover: &mut Cover) {
         let mut tree = Tree::default();
         let mut path = SearchPath::new();
         if let Some(cache_root) = self.cache.root() {
             let tree_entry = self.cache_entry_to_tree_entry(cache_root);
             let root = tree.add_root(TreeNode::new(tree_entry));
-            self.build_tree_branches(cache_root.test(), &mut path, &mut tree, root);
+            self.build_tree_branches(cache_root.test(), cover, &mut path, &mut tree, root, 1);
         }
         self.tree = tree;
     }
@@ -1105,9 +1111,11 @@ where
     fn build_tree_branches(
         &self,
         attribute: usize,
+        cover: &mut Cover,
         path: &mut SearchPath,
         tree: &mut Tree,
         index: usize,
+        depth: usize,
     ) {
         if attribute == usize::MAX {
             return;
@@ -1115,29 +1123,38 @@ where
 
         for branch in 0..2 {
             let branch_item = item(attribute, branch);
+            cover.branch_on(branch_item);
             path.push(branch_item);
-            let key = path.to_key();
-            if let Some(node) = self.cache.node(&key) {
+            if let Some(node) = self.cache.find(&cover.bitset(), depth) {
                 let branch_entry = self.cache_entry_to_tree_entry(node);
                 let child_index = tree.add_node(index, branch == 0, TreeNode::new(branch_entry));
                 if !node.is_leaf() {
-                    self.build_tree_branches(node.test(), path, tree, child_index);
+                    self.build_tree_branches(
+                        node.test(),
+                        cover,
+                        path,
+                        tree,
+                        child_index,
+                        depth + 1,
+                    );
                 }
             }
             path.remove(&branch_item);
+            cover.backtrack();
         }
     }
 }
 
 #[cfg(test)]
-mod dl85_test {
+mod hashdl85_test {
     use crate::algorithms::common::errors::NativeError;
     use crate::algorithms::common::heuristics::{InformationGain, NoHeuristic};
     use crate::algorithms::common::types::OptimalDepth2Policy;
     use crate::algorithms::optimal::depth2::ErrorMinimizer;
-    use crate::algorithms::optimal::dl85::{DL85Builder, DL85};
+    use crate::algorithms::optimal::dl85::hashdl85builder::HashDL85Builder;
     use crate::algorithms::TreeSearchAlgorithm;
-    use crate::caching::{Caching, Trie};
+    use crate::bitsets::BitCollection;
+    use crate::caching::{Caching, MapHash, Trie};
     use crate::reader::data_reader::DataReader;
     use std::path::Path;
 
@@ -1146,22 +1163,40 @@ mod dl85_test {
         let reader = DataReader::default();
         let path = Path::new("test_data/anneal.txt");
         let mut cover = reader.read_file(path)?;
+        //
+        // let mut cache = MapHash::new(2, cover.num_samples);
+        //
+        // cover.branch_on(8);
+        // cover.branch_on(10);
+        //
+        // let bs = cover.bitset();
+        // let index = cache.insert(&bs, 2);
+        // println!("Lol : {:?}", cover.count());
+        // println!("Lol c: {:?}", bs.count());
+        // println!("Lol i: {:?}", index);
+        // cover.backtrack();
+        // cover.branch_on(11);
+        // let bs = cover.bitset();
+        // let index = cache.insert(&bs, 2);
+        // println!("Lol : {:?}", cover.count());
+        // println!("Lol : {:?}", bs.count());
+        // println!("Lol i: {:?}", index);
 
         let error_fn = Box::<NativeError>::default();
 
         let depth2 = Box::new(ErrorMinimizer::new(error_fn.clone()));
 
-        let mut algo = DL85Builder::default()
+        let mut algo = HashDL85Builder::default()
             .max_depth(4)
             .min_support(1)
             .max_time(600.0)
             .regularization(0.0)
             .specialization(OptimalDepth2Policy::Enabled)
-            .cache(Box::<Trie>::default())
             .heuristic(Box::<NoHeuristic>::default())
             .depth2_search(depth2)
             .error_function(error_fn)
             .build()?;
+
         // Configure and build the DL85 algorithm using builder pattern
 
         // Execute the fitting process and handle any errors
@@ -1169,7 +1204,6 @@ mod dl85_test {
 
         // Report results
         println!("Execution time: {:.3}s", algo.time_rule.elapsed_seconds());
-
         println!("Cache size: {:.3} entries", algo.cache.size());
 
         // Print resulting tree

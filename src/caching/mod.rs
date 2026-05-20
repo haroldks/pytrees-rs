@@ -7,6 +7,7 @@ mod map;
 mod trie;
 pub use entry::CacheEntry;
 pub use helpers::{CacheKey, Index, SearchPath};
+pub use map::MapHash;
 pub use trie::Trie;
 
 pub trait Caching {

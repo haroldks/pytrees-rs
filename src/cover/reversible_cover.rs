@@ -1,4 +1,4 @@
-use crate::bitsets::Bitset;
+use crate::bitsets::{BitCollection, Bitset};
 use search_trail::{
     ReversibleU64, ReversibleUsize, SaveAndRestore, StateManager, U64Manager, UsizeManager,
 };
@@ -10,7 +10,7 @@ pub struct SparseBitset {
     words: Vec<ReversibleU64>,
     non_zero_words: Vec<usize>,
     nb_non_zero: ReversibleUsize,
-
+    n: usize,
     state_manager: StateManager,
     mask: u64,
 }
@@ -56,6 +56,7 @@ impl SparseBitset {
             words,
             non_zero_words,
             nb_non_zero,
+            n,
             state_manager,
             mask,
         }
@@ -244,6 +245,17 @@ impl PartialEq for Difference {
 }
 
 impl Eq for Difference {}
+
+// Converting into a Bitset
+impl Into<Bitset> for &SparseBitset {
+    fn into(self) -> Bitset {
+        let mut words = Vec::with_capacity(self.words.len());
+        for i in 0..self.words.len() {
+            words.push(self.state_manager.get_u64(self.words[i]));
+        }
+        Bitset::from_words(self.n, words)
+    }
+}
 
 #[cfg(test)]
 mod sparse_test {

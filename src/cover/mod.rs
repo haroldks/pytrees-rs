@@ -77,6 +77,10 @@ impl Cover {
         &self.cover
     }
 
+    pub fn bitset(&self) -> Bitset {
+        (&self.cover).into()
+    }
+
     pub fn path(&self) -> &[usize] {
         &self.branch
     }

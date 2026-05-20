@@ -1,3 +1,5 @@
+use crate::globals::hasher;
+use std::hash::{Hash, Hasher};
 use std::ops::Index;
 
 pub enum BitsetInit {
@@ -9,10 +11,13 @@ pub enum BitsetInit {
 pub struct Bitset {
     capacity: usize,
     words: Vec<u64>,
+    hash_value: u64,
 }
 
 pub trait BitCollection {
     fn new(init: BitsetInit) -> Self;
+
+    fn from_words(capacity: usize, words: Vec<u64>) -> Self;
 
     fn count(&self) -> usize;
 
@@ -47,6 +52,7 @@ impl BitCollection for Bitset {
                 Self {
                     capacity: n,
                     words: vec![0u64; word_count],
+                    hash_value: 0,
                 }
             }
             BitsetInit::Full(n) => {
@@ -57,8 +63,22 @@ impl BitCollection for Bitset {
                         *last = (1u64 << (n % 64)) - 1;
                     }
                 }
-                Self { capacity: n, words }
+                let hash_value = hasher(&words);
+                Self {
+                    capacity: n,
+                    words,
+                    hash_value,
+                }
             }
+        }
+    }
+
+    fn from_words(capacity: usize, words: Vec<u64>) -> Self {
+        let hash_value = hasher(&words);
+        Self {
+            capacity,
+            words,
+            hash_value,
         }
     }
 
@@ -163,3 +183,20 @@ impl Index<usize> for Bitset {
         &self.words[index]
     }
 }
+
+impl Hash for Bitset {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.hash_value.hash(state);
+    }
+}
+
+impl PartialEq for Bitset {
+    fn eq(&self, other: &Self) -> bool {
+        if self.hash_value != other.hash_value {
+            return false;
+        }
+        self.capacity == other.capacity && self.words == other.words
+    }
+}
+
+impl Eq for Bitset {}
