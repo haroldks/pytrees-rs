@@ -298,7 +298,7 @@ impl Rule for UsableNodeRule {
         if context.error.is_finite()
             && context.node_upper_bound.is_finite()
             && context.node_upper_bound >= context.upper_bound
-            && context.current_age == context.node_age
+            && (context.current_age == context.node_age || context.node_age == usize::MAX)
         {
             RuleResult::stop_search(Reason::UsableNode)
         } else {

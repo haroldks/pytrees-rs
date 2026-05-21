@@ -47,13 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     });
 
-    let sub = match app.step {
-        SearchStepStrategy::Monotonic => "monotonic",
-        SearchStepStrategy::Exponential => "exponential",
-        SearchStepStrategy::Luby => "luby",
-    };
-
-    let result_path = result_file.join(format!("{depth}_{method}-{sub}.json"));
+    let result_path = result_file.join(format!("{depth}_{method}.json"));
 
     // Try to load previous results
     let mut result = match load_results(&result_path) {

@@ -278,13 +278,16 @@ where
     ) -> SearchResult {
         self.statistics.increment_search_space();
 
-        let mut subtree_upper_bound = parent_context
-            .upper_bound
-            .min(parent_context.leaf_error.min(parent_context.error) + parent_context.lambda);
+        // TODO
+        let mut subtree_upper_bound = parent_context.upper_bound;
+        // let mut subtree_upper_bound = parent_context
+        //     .upper_bound
+        //     .min(parent_context.leaf_error.min(parent_context.error) + parent_context.lambda);
         let parent_key = parent_index.to_cache_key(path);
         let result = self.evaluate(parent_context, cover, &parent_key, RuleType::Node);
-        // println!("Cover {:?} res : {:?}", cover.path(), result);
+        // println!("Cover {:?} item : {} res : {:?} context : {:?}", cover.path(), parent_item, result, parent_context);
         //println!("Used Cover : {:?} and result {:?} error {:?}", cover.path(), result, parent_context.error);
+
         // if cover.path().is_empty()
         // {
         //     println!("Used Cover : {:?} and result {:?} error {:?}", cover.path(), result, parent_context);
@@ -501,7 +504,10 @@ where
                                 .leaf();
                             parent_context.lambda(self.config.lambda);
                             if float_is_null(updater.get_lower_bound() - subtree_error) {
-                                updater.upper_bound(parent_context.upper_bound).optimal();
+                                updater
+                                    .upper_bound(parent_context.upper_bound)
+                                    .age(usize::MAX)
+                                    .optimal();
                                 return true;
                             }
                             false
@@ -519,7 +525,10 @@ where
                             parent_context.lambda(first_result_lambda + second_result_lambda);
 
                             if float_is_null(updater.get_lower_bound() - subtree_error) {
-                                updater.upper_bound(parent_context.upper_bound).optimal();
+                                updater
+                                    .upper_bound(parent_context.upper_bound)
+                                    .optimal()
+                                    .age(usize::MAX);
                                 return true;
                             }
                             false
@@ -550,7 +559,10 @@ where
                 if rule_pruned {
                     updater = updater.upper_bound(f64::INFINITY);
                 } else {
-                    updater = updater.optimal().upper_bound(parent_context.upper_bound);
+                    updater = updater
+                        .optimal()
+                        .upper_bound(parent_context.upper_bound)
+                        .age(usize::MAX);
                 }
                 let mut error = updater.get_error();
                 let leaf_error = updater.get_leaf_error();
@@ -949,7 +961,9 @@ where
                     parent_index,
                     &tree,
                     tree.get_root_index(),
+                    upper_bound,
                 );
+
                 Ok(SearchResult {
                     error: tree.root_error(),
                     lambda: tree.root_lambda(),
@@ -966,6 +980,7 @@ where
         parent_index: Index,
         tree: &Tree,
         tree_index: usize,
+        upper_bound: f64,
     ) {
         let parent_key = parent_index.to_cache_key(path);
         let node_test = tree.node_test(tree_index);
@@ -974,7 +989,8 @@ where
                 .error(tree.node_error(tree_index))
                 .lambda(tree.node_lambda(tree_index))
                 .leaf_error(tree.node_error(tree_index))
-                .upper_bound(tree.node_error(tree_index))
+                .upper_bound(upper_bound)
+                .age(usize::MAX)
                 .optimal();
 
             if tree.node_test(tree_index).is_none() {
@@ -1001,6 +1017,7 @@ where
                     cache_branch_index,
                     tree,
                     tree_branch_index,
+                    upper_bound,
                 );
                 path.remove(&branch_item);
             }
