@@ -3,7 +3,9 @@ use dtrees_rs::algorithms::common::errors::NativeError;
 use dtrees_rs::algorithms::common::heuristics::{
     GiniIndex, Heuristic, InformationGain, NoHeuristic,
 };
-use dtrees_rs::algorithms::common::types::{SearchHeuristic, SearchStepStrategy};
+use dtrees_rs::algorithms::common::types::{
+    OptimalDepth2Policy, SearchHeuristic, SearchStepStrategy,
+};
 use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
 use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
 use dtrees_rs::algorithms::optimal::rules::common::TimeLimitRule;
@@ -29,6 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let time_limit = app.timeout;
     let one_time_sort = !app.always_sort;
     let heuristic_strategy = app.heuristic;
+    let lambda = app.lambda;
 
     let checkpoint_interval = 10;
 
@@ -63,32 +66,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Res {
                 name: file.to_string(),
                 method: method.clone(),
+                regularization: lambda,
                 depth,
                 support,
                 metric: Vec::with_capacity(100),
                 runtimes: Vec::with_capacity(100),
                 errors: Vec::with_capacity(100),
+                lambdas: vec![],
                 cache: Vec::with_capacity(100),
                 completed: false,
                 one_time_sort,
                 tree: Default::default(),
-                fast_d2: true,
+                fast_d2: OptimalDepth2Policy::Enabled == fast_d2,
             }
         }
         Some(res) => res,
         None => Res {
             name: file.to_string(),
             method: method.clone(),
+            regularization: lambda,
             depth,
             support,
             metric: Vec::with_capacity(100),
             runtimes: Vec::with_capacity(100),
             errors: Vec::with_capacity(100),
+            lambdas: vec![],
             cache: Vec::with_capacity(100),
             completed: false,
             one_time_sort,
             tree: Default::default(),
-            fast_d2: true,
+            fast_d2: OptimalDepth2Policy::Enabled == fast_d2,
         },
     };
 

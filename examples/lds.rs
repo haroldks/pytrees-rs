@@ -3,7 +3,9 @@ use dtrees_rs::algorithms::common::errors::NativeError;
 use dtrees_rs::algorithms::common::heuristics::{
     GiniIndex, Heuristic, InformationGain, NoHeuristic,
 };
-use dtrees_rs::algorithms::common::types::{SearchHeuristic, SearchStepStrategy};
+use dtrees_rs::algorithms::common::types::{
+    OptimalDepth2Policy, SearchHeuristic, SearchStepStrategy,
+};
 use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
 use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
 use dtrees_rs::algorithms::optimal::rules::{
@@ -66,7 +68,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Res {
                 name: file.to_string(),
                 method: method.clone(),
-                regularization: 0.0,
+                regularization: lambda,
                 depth,
                 support,
                 metric: Vec::with_capacity(100),
@@ -77,7 +79,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 completed: false,
                 one_time_sort,
                 tree: Default::default(),
-                fast_d2: true,
+                fast_d2: OptimalDepth2Policy::Enabled == fast_d2,
             }
         }
         Some(res) => res,
@@ -95,7 +97,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             completed: false,
             one_time_sort,
             tree: Default::default(),
-            fast_d2: true,
+            fast_d2: OptimalDepth2Policy::Enabled == fast_d2,
         },
     };
 
