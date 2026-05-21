@@ -249,9 +249,12 @@ impl Eq for Difference {}
 // Converting into a Bitset
 impl Into<Bitset> for &SparseBitset {
     fn into(self) -> Bitset {
-        let mut words = Vec::with_capacity(self.words.len());
-        for i in 0..self.words.len() {
-            words.push(self.state_manager.get_u64(self.words[i]));
+        let mut words = vec![0; self.words.len()];
+        let nb_non_zero = self.state_manager.get_usize(self.nb_non_zero);
+        for i in (0..nb_non_zero).rev() {
+            words[self.non_zero_words[i]] = self
+                .state_manager
+                .get_u64(self.words[self.non_zero_words[i]])
         }
         Bitset::from_words(self.n, words)
     }
