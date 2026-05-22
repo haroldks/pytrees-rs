@@ -7,7 +7,7 @@ use dtrees_rs::algorithms::common::types::{
     OptimalDepth2Policy, SearchHeuristic, SearchStepStrategy,
 };
 use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
-use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
+use dtrees_rs::algorithms::optimal::dl85::{DL85Builder, HashDL85Builder};
 use dtrees_rs::algorithms::optimal::rules::{
     DiscrepancyRule, Exponential, Luby, Monotonic, StepStrategy,
 };
@@ -113,15 +113,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ => Box::<NoHeuristic>::default(),
     };
 
-    let mut algo = DL85Builder::default()
+    let mut algo = HashDL85Builder::default()
         .max_depth(depth)
         .min_support(support)
         .max_time(time_limit)
         .regularization(lambda)
-        .lookahead_depth(lookahead_depth, Some(depth), 0)
+        .lookahead_depth(lookahead_depth, None, 0)
         .always_sort(true)
         .specialization(OptimalDepth2Policy::Disabled)
-        .cache(Box::<Trie>::default())
+        //.cache(Box::<Trie>::default())
         .heuristic(heuristics)
         .depth2_search(depth2)
         .error_function(error_fn)
