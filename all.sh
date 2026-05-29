@@ -16,8 +16,8 @@ error_exit() {
 
 # Default configuration
 BENCHMARK_SCRIPT="./benchmarks.sh"
-TIMEOUT_VALUES=(5 15 30 60 120 300 600)  # Default timeout values in seconds
-BASE_ARGS=""
+TIMEOUT_VALUES=(5 15 30 60 120 150)  # Default timeout values in seconds
+BASE_ARGS=""``
 
 # Argument parsing
 parse_arguments() {

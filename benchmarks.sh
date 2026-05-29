@@ -17,7 +17,7 @@ error_exit() {
 # Default configuration
 TIMEOUT=15  # seconds time limit
 SUPPORT=1
-DEPTHS=(4 5 6 7 8 9)  # Depths from 4 to 9
+DEPTHS=(3 4 5 6)  # Depths from 4 to 9
 NBTHREAD=20  # Default number of parallel jobs
 TEST_DATA_DIR="test_data"
 BASE_RESULT_DIR="results_new_imp"
@@ -44,7 +44,10 @@ parse_arguments() {
             --restart) scripts+=("restart") ;;
             --gainlds) scripts+=("gainlds") ;;
             --gaintopk) scripts+=("gaintopk") ;;
-            --all) scripts=("purity" "gain" "lds" "topk" "restart" "gainlds" "gaintopk") ;;
+            --lookahead) scripts+=("lookahead") ;;
+            --lookahead-lds) scripts+=("lookahead_lds") ;;
+            --lookahead-topk) scripts+=("lookahead_topk") ;;
+            --all) scripts=("purity" "gain" "lds" "topk" "restart" "gainlds" "gaintopk" "lookahead" "lookahead_lds" "lookahead_topk") ;;
             --input-dir)
                 custom_input_dir="$2"
                 shift ;;
@@ -74,7 +77,7 @@ parse_arguments() {
     INPUT_FILES=($(find "$TEST_DATA_DIR" -type f -name "*.txt"))
 
     # Validate script selection
-    [[ ${#scripts[@]} -eq 0 ]] && scripts=("purity" "gain" "lds" "topk" "restart" "gainlds" "gaintopk")
+    [[ ${#scripts[@]} -eq 0 ]] && scripts=("purity" "gain" "lds" "topk" "restart" "gainlds" "gaintopk" "lookahead" "lookahead_lds" "lookahead_topk")
 
     # Return global variables
     SELECTED_SCRIPTS=("${scripts[@]}")
@@ -116,6 +119,17 @@ run_benchmark() {
             log "Running $algo on $dataset_name with depth $depth, discrepancy=$extra_param"
             ;;
         "gainlds")
+            cmd="$cmd --step $extra_param"
+            log "Running $algo on $dataset_name with depth $depth, discrepancy=$extra_param"
+            ;;
+        "lookahead")
+            log "Running $algo on $dataset_name with depth $depth"
+            ;;
+        "lookahead_lds")
+            cmd="$cmd --step $extra_param"
+            log "Running $algo on $dataset_name with depth $depth, discrepancy=$extra_param"
+            ;;
+        "lookahead_topk")
             cmd="$cmd --step $extra_param"
             log "Running $algo on $dataset_name with depth $depth, discrepancy=$extra_param"
             ;;
@@ -179,25 +193,35 @@ run_benchmarks() {
                         echo "run_benchmark $script $input_file $depth $output_dir $discrepancy" >> "$CMDFILE"
                     done
                 elif [[ "$script" == "topk" ]]; then
-                    # For topk, run with each discrepancy type and topk limit
+                    # For topk, run with each discrepancy type
                     for discrepancy in "${LDS_DISCREPANCY_TYPES[@]}"; do
                         echo "run_benchmark $script $input_file $depth $output_dir $discrepancy" >> "$CMDFILE"
                     done
                 elif [[ "$script" == "gainlds" ]]; then
-                    # For topk, run with each discrepancy type and topk limit
+                    # For gainlds, run with each discrepancy type
                     for discrepancy in "${LDS_DISCREPANCY_TYPES[@]}"; do
                         echo "run_benchmark $script $input_file $depth $output_dir $discrepancy" >> "$CMDFILE"
                     done
-                elif [[ "$script" == "gainlds" ]]; then
-                    # For topk, run with each discrepancy type and topk limit
+                elif [[ "$script" == "gaintopk" ]]; then
+                    # For gaintopk, run with each discrepancy type
                     for discrepancy in "${LDS_DISCREPANCY_TYPES[@]}"; do
                         echo "run_benchmark $script $input_file $depth $output_dir $discrepancy" >> "$CMDFILE"
                     done
-                elif [[ "$script" == "restart" ]]; then
-                    # For restart algorithm
+                elif [[ "$script" == "lookahead_lds" ]]; then
+                    # For lookahead_lds, run with each discrepancy type
+                    for discrepancy in "${LDS_DISCREPANCY_TYPES[@]}"; do
+                        echo "run_benchmark $script $input_file $depth $output_dir $discrepancy" >> "$CMDFILE"
+                    done
+                elif [[ "$script" == "lookahead_topk" ]]; then
+                    # For lookahead_topk, run with each discrepancy type
+                    for discrepancy in "${LDS_DISCREPANCY_TYPES[@]}"; do
+                        echo "run_benchmark $script $input_file $depth $output_dir $discrepancy" >> "$CMDFILE"
+                    done
+                elif [[ "$script" == "lookahead" ]] || [[ "$script" == "purity" ]] || [[ "$script" == "restart" ]]; then
+                    # For lookahead, purity, and restart: no extra parameters needed
                     echo "run_benchmark $script $input_file $depth $output_dir ''" >> "$CMDFILE"
                 else
-                    # For other algorithms like purity
+                    # For other algorithms
                     echo "run_benchmark $script $input_file $depth $output_dir ''" >> "$CMDFILE"
                 fi
             done
