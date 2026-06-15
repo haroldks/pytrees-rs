@@ -3,20 +3,13 @@ use dtrees_rs::algorithms::common::errors::NativeError;
 use dtrees_rs::algorithms::common::heuristics::{
     GiniIndex, Heuristic, InformationGain, NoHeuristic,
 };
-use dtrees_rs::algorithms::common::types::{
-    OptimalDepth2Policy, SearchHeuristic, SearchStepStrategy,
-};
+use dtrees_rs::algorithms::common::types::{OptimalDepth2Policy, SearchHeuristic};
 use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
-use dtrees_rs::algorithms::optimal::dl85::{DL85Builder, HashDL85Builder};
-use dtrees_rs::algorithms::optimal::rules::{
-    DiscrepancyRule, Exponential, Luby, Monotonic, StepStrategy,
-};
-use dtrees_rs::algorithms::optimal::Reason;
+use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
 use dtrees_rs::algorithms::TreeSearchAlgorithm;
 use dtrees_rs::caching::Trie;
 use dtrees_rs::parsers::examples::{
-    load_results, load_split_results, save_results, save_split_results, ExampleParser, Res,
-    ResSplit,
+    load_split_results, save_split_results, ExampleParser, ResSplit,
 };
 use dtrees_rs::reader::data_reader::DataReader;
 use std::fs;
@@ -52,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     });
 
-    let result_path = depth_dir.join(format!("{lookahead_depth}_{lambda}.json"));
+    let result_path = depth_dir.join(format!("{method}_{lookahead_depth}_{lambda}.json"));
 
     // Try to load previous results
     let mut result = match load_split_results(&result_path) {
@@ -113,7 +106,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ => Box::<NoHeuristic>::default(),
     };
 
-    let mut algo = HashDL85Builder::default()
+    let mut algo = DL85Builder::default()
         .max_depth(depth)
         .min_support(support)
         .max_time(time_limit)
@@ -121,7 +114,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .lookahead_depth(lookahead_depth, None, 0)
         .always_sort(true)
         .specialization(OptimalDepth2Policy::Disabled)
-        //.cache(Box::<Trie>::default())
+        .cache(Box::<Trie>::default())
         .heuristic(heuristics)
         .depth2_search(depth2)
         .error_function(error_fn)
