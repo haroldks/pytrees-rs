@@ -3,7 +3,9 @@ use dtrees_rs::algorithms::common::errors::NativeError;
 use dtrees_rs::algorithms::common::heuristics::{
     GiniIndex, Heuristic, InformationGain, NoHeuristic,
 };
-use dtrees_rs::algorithms::common::types::{SearchHeuristic, SearchStepStrategy};
+use dtrees_rs::algorithms::common::types::{
+    OptimalDepth2Policy, SearchHeuristic, SearchStepStrategy,
+};
 use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
 use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
 use dtrees_rs::algorithms::optimal::rules::{Exponential, GainRule, Luby, Monotonic, TopkRule};
@@ -31,6 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let heuristic_strategy = app.heuristic;
     let lds_strategy = app.step;
     let lambda = app.lambda;
+    let use_fast_d2 = fast_d2 == OptimalDepth2Policy::Enabled;
 
     let checkpoint_interval = 10;
 
@@ -76,7 +79,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 completed: false,
                 one_time_sort,
                 tree: Default::default(),
-                fast_d2: true,
+                fast_d2: use_fast_d2,
+                ..Default::default()
             }
         }
         Some(res) => res,
@@ -94,7 +98,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             completed: false,
             one_time_sort,
             tree: Default::default(),
-            fast_d2: true,
+            fast_d2: use_fast_d2,
+            ..Default::default()
         },
     };
 
@@ -143,7 +148,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .min_support(support)
         .max_time(time_limit)
         .regularization(lambda)
-        .always_sort(true)
+        .always_sort(app.always_sort)
         .add_search_rule(Box::new(gain))
         .add_search_rule(Box::new(topk_rule))
         .specialization(fast_d2)
@@ -160,6 +165,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         result.errors.push(stats.tree_error);
         result.cache.push(stats.cache_size);
         result.runtimes.push(stats.duration);
+        result.lambdas.push(algo.tree().root_lambda());
         result.tree = algo.tree().clone();
         if counter > 0 && counter % checkpoint_interval == 0 {
             let _ = save_results(&result, &result_path);

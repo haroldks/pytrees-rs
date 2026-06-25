@@ -10,7 +10,7 @@ use crate::algorithms::greedy::classic::config::GreedyConfig;
 use crate::algorithms::TreeSearchAlgorithm;
 use crate::cover::Cover;
 use crate::globals::item;
-use crate::tree::{Tree, TreeNode};
+use crate::tree::Tree;
 
 pub struct Greedy<H: Heuristic + ?Sized> {
     config: GreedyConfig,

@@ -1,4 +1,3 @@
-use crate::algorithms::common::errors::ErrorWrapper;
 use crate::algorithms::common::heuristics::Heuristic;
 use crate::algorithms::greedy::classic::config::GreedyConfig;
 use crate::algorithms::greedy::classic::Greedy;

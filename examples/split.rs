@@ -8,9 +8,7 @@ use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
 use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
 use dtrees_rs::algorithms::TreeSearchAlgorithm;
 use dtrees_rs::caching::Trie;
-use dtrees_rs::parsers::examples::{
-    load_split_results, save_split_results, ExampleParser, ResSplit,
-};
+use dtrees_rs::parsers::examples::{load_results, save_results, ExampleParser, Res};
 use dtrees_rs::reader::data_reader::DataReader;
 use std::fs;
 use std::fs::remove_file;
@@ -30,6 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let one_time_sort = !app.always_sort;
     let heuristic_strategy = app.heuristic;
     let lambda = app.lambda;
+    let fast_d2 = app.fast_d2;
 
     let path = Path::new(file);
     let file_name = path.file_stem().expect("Invalid file name");
@@ -48,18 +47,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result_path = depth_dir.join(format!("{method}_{lookahead_depth}_{lambda}.json"));
 
     // Try to load previous results
-    let mut result = match load_split_results(&result_path) {
+    let mut result = match load_results(&result_path) {
         Some(res) if res.completed => {
             if !app.overwrite {
                 eprintln!("Computation was already completed. Use different parameters or remove the result file to recompute.");
             } else {
                 remove_file(&result_path).expect("Error in removing function");
             }
-            ResSplit {
+            Res {
                 name: file.to_string(),
                 method: method.clone(),
                 depth,
-                lookahead_depth,
+                lookahead_depth: Some(lookahead_depth),
                 regularization: lambda,
                 support,
                 metric: Vec::with_capacity(1),
@@ -70,15 +69,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 completed: false,
                 one_time_sort,
                 tree: Default::default(),
-                fast_d2: true,
+                fast_d2: fast_d2 == OptimalDepth2Policy::Enabled,
             }
         }
         Some(res) => res,
-        None => ResSplit {
+        None => Res {
             name: file.to_string(),
             method: method.clone(),
             depth,
-            lookahead_depth,
+            lookahead_depth: Some(lookahead_depth),
             regularization: lambda,
             support,
             metric: Vec::with_capacity(1),
@@ -89,7 +88,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             completed: false,
             one_time_sort,
             tree: Default::default(),
-            fast_d2: true,
+            fast_d2: fast_d2 == OptimalDepth2Policy::Enabled,
         },
     };
 
@@ -112,7 +111,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .max_time(time_limit)
         .regularization(lambda)
         .lookahead_depth(lookahead_depth, None, 0)
-        .always_sort(true)
+        .always_sort(app.always_sort)
         .specialization(OptimalDepth2Policy::Disabled)
         .cache(Box::<Trie>::default())
         .heuristic(heuristics)
@@ -120,7 +119,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .error_function(error_fn)
         .build()?;
 
-    let r = algo.fit(&mut cover);
+    let _r = algo.fit(&mut cover);
     let stats = algo.statistics();
     result.errors.push(stats.tree_error);
     result.cache.push(stats.cache_size);
@@ -129,7 +128,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     result.tree = algo.tree().clone();
 
     result.completed = true;
-    let _ = save_split_results(&result, &result_path);
+    let _ = save_results(&result, &result_path);
 
     if app.print_stats {
         println!("{:?}", algo.statistics());

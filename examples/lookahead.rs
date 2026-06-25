@@ -3,7 +3,9 @@ use dtrees_rs::algorithms::common::errors::NativeError;
 use dtrees_rs::algorithms::common::heuristics::{
     GiniIndex, Heuristic, InformationGain, NoHeuristic,
 };
-use dtrees_rs::algorithms::common::types::{SearchHeuristic, SearchStepStrategy};
+use dtrees_rs::algorithms::common::types::{
+    OptimalDepth2Policy, SearchHeuristic, SearchStepStrategy,
+};
 use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
 use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
 use dtrees_rs::algorithms::optimal::Reason;
@@ -17,7 +19,7 @@ use std::path::Path;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = ExampleParser::parse();
-    let method = "split".to_string();
+    let method = "anytimesplit".to_string();
 
     assert!(app.input.exists(), "File does not exist");
 
@@ -44,7 +46,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     });
 
-    let sub = match app.step {
+    let _sub = match app.step {
         SearchStepStrategy::Monotonic => "monotonic",
         SearchStepStrategy::Exponential => "exponential",
         SearchStepStrategy::Luby => "luby",
@@ -64,6 +66,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 name: file.to_string(),
                 method: method.clone(),
                 regularization: lambda,
+                lookahead_depth: None,
                 depth,
                 support,
                 metric: Vec::with_capacity(100),
@@ -74,7 +77,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 completed: false,
                 one_time_sort,
                 tree: Default::default(),
-                fast_d2: true,
+                fast_d2: fast_d2 == OptimalDepth2Policy::Enabled,
             }
         }
         Some(res) => res,
@@ -82,6 +85,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             name: file.to_string(),
             method: method.clone(),
             regularization: lambda,
+            lookahead_depth: None,
             depth,
             support,
             metric: Vec::with_capacity(100),
@@ -92,7 +96,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             completed: false,
             one_time_sort,
             tree: Default::default(),
-            fast_d2: true,
+            fast_d2: fast_d2 == OptimalDepth2Policy::Enabled,
         },
     };
 
@@ -113,7 +117,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .max_depth(depth)
         .min_support(support)
         .max_time(time_limit)
-        .always_sort(true)
+        .always_sort(app.always_sort)
         .specialization(fast_d2)
         .regularization(lambda)
         .lookahead_depth(1, Some(depth), 0)

@@ -1,12 +1,11 @@
 use dtrees_rs::algorithms::common::errors::NativeError;
-use dtrees_rs::algorithms::common::heuristics::{InformationGain, NoHeuristic};
+use dtrees_rs::algorithms::common::heuristics::InformationGain;
 use dtrees_rs::algorithms::common::types::OptimalDepth2Policy;
 use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
-use dtrees_rs::algorithms::optimal::dl85::{DL85Builder, HashDL85Builder};
-use dtrees_rs::algorithms::optimal::rules::common::TimeLimitRule;
-use dtrees_rs::algorithms::optimal::rules::{DiscrepancyRule, GainRule, Luby, Monotonic, TopkRule};
+use dtrees_rs::algorithms::optimal::dl85::HashDL85Builder;
+
 use dtrees_rs::algorithms::TreeSearchAlgorithm;
-use dtrees_rs::caching::Trie;
+
 use dtrees_rs::reader::data_reader::DataReader;
 use std::path::Path;
 

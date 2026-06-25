@@ -1,24 +1,11 @@
 use clap::Parser;
-use dtrees_rs::algorithms::common::errors::NativeError;
 use dtrees_rs::algorithms::common::heuristics::{
     GiniIndex, Heuristic, InformationGain, NoHeuristic,
 };
-use dtrees_rs::algorithms::common::types::{
-    OptimalDepth2Policy, SearchHeuristic, SearchStepStrategy,
-};
-use dtrees_rs::algorithms::greedy::{Greedy, GreedyBuilder};
-use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
-use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
-use dtrees_rs::algorithms::optimal::rules::{
-    DiscrepancyRule, Exponential, Luby, Monotonic, StepStrategy,
-};
-use dtrees_rs::algorithms::optimal::Reason;
+use dtrees_rs::algorithms::common::types::SearchHeuristic;
+use dtrees_rs::algorithms::greedy::GreedyBuilder;
 use dtrees_rs::algorithms::TreeSearchAlgorithm;
-use dtrees_rs::caching::Trie;
-use dtrees_rs::parsers::examples::{
-    load_results, load_split_results, save_results, save_split_results, ExampleParser, Res,
-    ResSplit,
-};
+use dtrees_rs::parsers::examples::{load_results, save_results, ExampleParser, Res};
 use dtrees_rs::reader::data_reader::DataReader;
 use std::fs;
 use std::fs::remove_file;
@@ -56,18 +43,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result_path = depth_dir.join(format!("{lambda}.json"));
 
     // Try to load previous results
-    let mut result = match load_split_results(&result_path) {
+    let mut result = match load_results(&result_path) {
         Some(res) if res.completed => {
             if !app.overwrite {
                 eprintln!("Computation was already completed. Use different parameters or remove the result file to recompute.");
             } else {
                 remove_file(&result_path).expect("Error in removing function");
             }
-            ResSplit {
+            Res {
                 name: file.to_string(),
                 method: method.clone(),
                 depth,
-                lookahead_depth,
+                lookahead_depth: Some(lookahead_depth),
                 regularization: lambda,
                 support,
                 metric: Vec::with_capacity(1),
@@ -78,15 +65,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 completed: false,
                 one_time_sort,
                 tree: Default::default(),
-                fast_d2: true,
+                fast_d2: false,
             }
         }
         Some(res) => res,
-        None => ResSplit {
+        None => Res {
             name: file.to_string(),
             method: method.clone(),
             depth,
-            lookahead_depth,
+            lookahead_depth: Some(lookahead_depth),
             regularization: lambda,
             support,
             metric: Vec::with_capacity(1),
@@ -97,7 +84,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             completed: false,
             one_time_sort,
             tree: Default::default(),
-            fast_d2: true,
+            fast_d2: false,
         },
     };
 
@@ -120,13 +107,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .max_time(time_limit)
         .build()?;
 
-    let r = algo.fit(&mut cover)?;
+    algo.fit(&mut cover)?;
     result.lambdas.push(algo.tree().root_lambda());
     result.errors.push(algo.tree().root_error());
     result.tree = algo.tree().clone();
 
     result.completed = true;
-    let _ = save_split_results(&result, &result_path);
+    let _ = save_results(&result, &result_path);
 
     if app.print_tree {
         algo.tree().print()

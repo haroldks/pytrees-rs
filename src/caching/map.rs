@@ -40,8 +40,8 @@ impl MapHash {
     pub fn insert(&mut self, bitset: &Bitset, depth: usize) -> Index {
         //println!("Depth {:?}", depth);
         let cache = &mut self.map[depth][bitset.count()];
-        if cache.contains_key(&bitset) {
-            Index::existing(*cache.get(&bitset).unwrap())
+        if cache.contains_key(bitset) {
+            Index::existing(*cache.get(bitset).unwrap())
         } else {
             let index = self.arena.len();
             self.arena.push(CacheEntry::default());
@@ -66,15 +66,12 @@ impl MapHash {
     pub fn update_root(&mut self) -> Option<CacheEntryUpdater> {
         self.arena
             .get_mut(self.root_index)
-            .map(|node| CacheEntryUpdater::new(node))
+            .map(CacheEntryUpdater::new)
     }
 
     pub fn update_node(&mut self, key: &CacheKey) -> Option<CacheEntryUpdater> {
         match key {
-            CacheKey::Index(index) => self
-                .arena
-                .get_mut(*index)
-                .map(|node| CacheEntryUpdater::new(node)),
+            CacheKey::Index(index) => self.arena.get_mut(*index).map(CacheEntryUpdater::new),
 
             _ => panic!("Should not come here."),
         }
@@ -85,7 +82,7 @@ impl MapHash {
     }
 
     pub fn init(&mut self) -> usize {
-        debug_assert!(self.arena.len() == 0, "Cache must me empty to init");
+        debug_assert!(self.arena.is_empty(), "Cache must me empty to init");
         self.arena.push(CacheEntry::default());
         self.root_index
     }

@@ -1,18 +1,18 @@
-use crate::algorithms::common::errors::{ErrorWrapper, NativeError};
-use crate::algorithms::common::heuristics::{Heuristic, NoHeuristic};
+use crate::algorithms::common::errors::ErrorWrapper;
+use crate::algorithms::common::heuristics::Heuristic;
 use crate::algorithms::common::types::{
     BranchingPolicy, CacheInitStrategy, LowerBoundPolicy, NodeDataType, OptimalDepth2Policy,
 };
-use crate::algorithms::greedy::Greedy;
+
 use crate::algorithms::optimal::depth2::OptimalDepth2Tree;
 use crate::algorithms::optimal::dl85::config::DL85Config;
 use crate::algorithms::optimal::dl85::hash_version::HashDL85;
-use crate::algorithms::optimal::dl85::DL85;
+
 use crate::algorithms::optimal::rules::common::{
     LowerBoundRule, MaxDepthRule, MinSupportRule, PureNodeRule, TimeLimitRule, UsableNodeRule,
 };
 use crate::algorithms::optimal::rules::{LookaheadRule, Rule, RuleManager};
-use crate::caching::{Caching, MapHash};
+use crate::caching::MapHash;
 
 pub struct HashDL85Builder<D, E, H>
 where
@@ -191,7 +191,7 @@ where
     }
 
     pub fn build(self) -> Result<HashDL85<D, E, H>, String> {
-        let cache = MapHash::default();
+        let _cache = MapHash::default();
         let depth2 = self.depth2_search.ok_or("Neee depth 2 algorithm")?;
         let error_function = self.error_fn.ok_or("Error function is required")?;
         let heuristic = self.heuristic_fn.ok_or("Heuristic is required")?;

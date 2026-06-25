@@ -3,9 +3,7 @@ use dtrees_rs::algorithms::common::errors::NativeError;
 use dtrees_rs::algorithms::common::heuristics::{
     GiniIndex, Heuristic, InformationGain, NoHeuristic,
 };
-use dtrees_rs::algorithms::common::types::{
-    OptimalDepth2Policy, SearchHeuristic, SearchStepStrategy,
-};
+use dtrees_rs::algorithms::common::types::{OptimalDepth2Policy, SearchHeuristic};
 use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
 use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
 use dtrees_rs::algorithms::optimal::rules::common::TimeLimitRule;
@@ -61,6 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 name: file.to_string(),
                 method: method.clone(),
                 regularization: lambda,
+                lookahead_depth: None,
                 depth,
                 support,
                 metric: Vec::with_capacity(100),
@@ -79,6 +78,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             name: file.to_string(),
             method: method.clone(),
             regularization: lambda,
+            lookahead_depth: None,
             depth,
             support,
             metric: Vec::with_capacity(100),
@@ -128,6 +128,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         result.errors.push(stats.tree_error);
         result.cache.push(stats.cache_size);
         result.runtimes.push(stats.duration);
+        result.lambdas.push(algo.tree().root_lambda());
         result.tree = algo.tree().clone();
         if counter > 0 && counter % checkpoint_interval == 0 {
             let _ = save_results(&result, &result_path);

@@ -19,7 +19,7 @@ use crate::cover::Cover;
 use crate::globals::{attribute, float_is_null, item};
 use crate::tree::{NodeInfos, Tree, TreeNode};
 
-use crate::algorithms::greedy::{Greedy, GreedyBuilder};
+use crate::algorithms::greedy::GreedyBuilder;
 
 pub struct HashDL85<D, E, H>
 where
@@ -316,7 +316,7 @@ where
         let mut node_candidates = self.get_candidates(
             cover,
             self.config.base.min_support,
-            Some(&candidates),
+            Some(candidates),
             Some(attribute(parent_item)),
         );
 
@@ -558,7 +558,7 @@ where
                     error = leaf_error;
                 }
 
-                return (error, lambda);
+                (error, lambda)
             },
         );
 
@@ -612,7 +612,7 @@ where
 
             //branch_context.node_lower_bound(self.config.lambda * 2.0);
 
-            self.cache.update_node(&branch_key).map(|mut updater| {
+            if let Some(mut updater) = self.cache.update_node(&branch_key) {
                 updater = updater
                     .leaf_error(error.0)
                     .error(error.0) // TODO : Watch out
@@ -621,7 +621,7 @@ where
                     .size(size)
                     .lambda(self.config.lambda)
                     .age(branch_context.node_age);
-            });
+            }
 
             // if self.config.lookahead_depth > 0 && branch_context.depth == self.config.lookahead_depth {
             //
@@ -706,14 +706,14 @@ where
         {
             if context.is_new {
                 self.get_greedy_bounds(cover, context);
-                self.cache.update_node(key).map(|mut updater| {
+                if let Some(mut updater) = self.cache.update_node(key) {
                     updater = updater
                         .error(context.error)
                         .lambda(context.lambda)
                         .upper_bound(context.node_upper_bound)
                         .lower_bound(context.node_lower_bound)
                         .optimal();
-                });
+                }
                 // println!("After greedy Cover : {:?} c {:?}", cover.path(), context);
             }
 
@@ -997,7 +997,7 @@ where
                 let bitset = cover.bitset();
                 let index = self.cache.insert(&bitset, depth + 1);
 
-                let key = index.to_cache_key(&path);
+                let _key = index.to_cache_key(path);
 
                 self.cache_specialized_depth2_tree_results(
                     path,

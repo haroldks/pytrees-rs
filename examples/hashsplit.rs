@@ -3,15 +3,10 @@ use dtrees_rs::algorithms::common::errors::NativeError;
 use dtrees_rs::algorithms::common::heuristics::{
     GiniIndex, Heuristic, InformationGain, NoHeuristic,
 };
-use dtrees_rs::algorithms::common::types::{
-    OptimalDepth2Policy, SearchHeuristic, SearchStepStrategy,
-};
+use dtrees_rs::algorithms::common::types::{OptimalDepth2Policy, SearchHeuristic};
 use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
-use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
-use dtrees_rs::algorithms::optimal::rules::PurityRule;
-use dtrees_rs::algorithms::optimal::Reason;
+use dtrees_rs::algorithms::optimal::dl85::HashDL85Builder;
 use dtrees_rs::algorithms::TreeSearchAlgorithm;
-use dtrees_rs::caching::Trie;
 use dtrees_rs::parsers::examples::{load_results, save_results, ExampleParser, Res};
 use dtrees_rs::reader::data_reader::DataReader;
 use std::fs;
@@ -20,41 +15,36 @@ use std::path::Path;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = ExampleParser::parse();
-    let method = "purity".to_string();
+    let method = "hashsplit".to_string();
 
     assert!(app.input.exists(), "File does not exist");
 
     let file = app.input.to_str().unwrap();
     let depth = app.depth;
+    let lookahead_depth = app.lookahead_depth;
     let support = app.support;
-    let fast_d2 = app.fast_d2;
     let time_limit = app.timeout;
     let one_time_sort = !app.always_sort;
     let heuristic_strategy = app.heuristic;
     let lambda = app.lambda;
+    let fast_d2 = app.fast_d2;
     let use_fast_d2 = fast_d2 == OptimalDepth2Policy::Enabled;
-
-    let checkpoint_interval = 10;
 
     let path = Path::new(file);
     let file_name = path.file_stem().expect("Invalid file name");
     let mut result_file = app.result.clone();
     result_file.push(file_name);
 
-    fs::create_dir_all(&result_file).unwrap_or_else(|_| {
+    let depth_dir = result_file.join(format!("{depth}"));
+
+    fs::create_dir_all(&depth_dir).unwrap_or_else(|_| {
         panic!(
             "Failed to create result directory: {}",
             result_file.display()
         )
     });
 
-    let sub = match app.step {
-        SearchStepStrategy::Monotonic => "monotonic",
-        SearchStepStrategy::Exponential => "exponential",
-        SearchStepStrategy::Luby => "luby",
-    };
-
-    let result_path = result_file.join(format!("{depth}_{method}-{sub}.json"));
+    let result_path = depth_dir.join(format!("{method}_{lookahead_depth}_{lambda}.json"));
 
     // Try to load previous results
     let mut result = match load_results(&result_path) {
@@ -67,15 +57,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Res {
                 name: file.to_string(),
                 method: method.clone(),
-                regularization: lambda,
-                lookahead_depth: None,
                 depth,
+                lookahead_depth: Some(lookahead_depth),
+                regularization: lambda,
                 support,
-                metric: Vec::with_capacity(100),
-                runtimes: Vec::with_capacity(100),
-                errors: Vec::with_capacity(100),
-                lambdas: vec![],
-                cache: Vec::with_capacity(100),
+                metric: Vec::with_capacity(1),
+                runtimes: Vec::with_capacity(1),
+                errors: Vec::with_capacity(1),
+                lambdas: Vec::with_capacity(1),
+                cache: Vec::with_capacity(1),
                 completed: false,
                 one_time_sort,
                 tree: Default::default(),
@@ -86,15 +76,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => Res {
             name: file.to_string(),
             method: method.clone(),
-            regularization: lambda,
-            lookahead_depth: None,
             depth,
+            lookahead_depth: Some(lookahead_depth),
+            regularization: lambda,
             support,
-            metric: Vec::with_capacity(100),
-            runtimes: Vec::with_capacity(100),
-            errors: Vec::with_capacity(100),
-            lambdas: vec![],
-            cache: Vec::with_capacity(100),
+            metric: Vec::with_capacity(1),
+            runtimes: Vec::with_capacity(1),
+            errors: Vec::with_capacity(1),
+            lambdas: Vec::with_capacity(1),
+            cache: Vec::with_capacity(1),
             completed: false,
             one_time_sort,
             tree: Default::default(),
@@ -115,42 +105,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ => Box::<NoHeuristic>::default(),
     };
 
-    let purity_rule = PurityRule::new(0.0, app.epsilon);
-
-    let mut algo = DL85Builder::default()
+    let mut algo = HashDL85Builder::default()
         .max_depth(depth)
         .min_support(support)
         .max_time(time_limit)
+        .regularization(lambda)
+        .lookahead_depth(lookahead_depth, None, 0)
         .always_sort(app.always_sort)
-        .add_node_rule(Box::new(purity_rule))
         .specialization(fast_d2)
-        .cache(Box::<Trie>::default())
         .heuristic(heuristics)
         .depth2_search(depth2)
         .error_function(error_fn)
         .build()?;
 
-    let mut counter = 0;
-    while !algo.time_is_exhausted() {
-        let r = algo.partial_fit(&mut cover);
-        let stats = algo.statistics();
-        result.errors.push(stats.tree_error);
-        result.cache.push(stats.cache_size);
-        result.runtimes.push(stats.duration);
-        result.lambdas.push(algo.tree().root_lambda());
-        result.tree = algo.tree().clone();
-        if counter > 0 && counter % checkpoint_interval == 0 {
-            let _ = save_results(&result, &result_path);
-        }
-        counter += 1;
-        if r.reason == Reason::Done {
-            result.completed = true;
-            break;
-        }
-    }
+    let _r = algo.fit(&mut cover);
+    let stats = algo.statistics();
+    result.errors.push(stats.tree_error);
+    result.cache.push(stats.cache_size);
+    result.runtimes.push(stats.duration);
+    result.lambdas.push(algo.tree().root_lambda());
+    result.tree = algo.tree().clone();
 
     result.completed = true;
-    result.tree = algo.tree().clone();
     let _ = save_results(&result, &result_path);
 
     if app.print_stats {

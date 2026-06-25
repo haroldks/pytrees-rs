@@ -72,28 +72,26 @@ where
                             .lambda(lambda)
                     });
                 }
-            } else {
-                if total_error + 2.0 * lambda < best_error + tree.root_lambda() {
-                    best_error = total_error;
-                    tree.update_root().map(|updater| {
-                        updater
-                            .test(candidate)
-                            .error(total_error)
-                            .lambda(2.0 * lambda)
-                    });
-                    tree.update_node(left_index).map(|updater| {
-                        updater
-                            .error(left_error.0)
-                            .output(left_error.1)
-                            .lambda(lambda)
-                    });
-                    tree.update_node(right_index).map(|updater| {
-                        updater
-                            .error(right_error.0)
-                            .output(right_error.1)
-                            .lambda(lambda)
-                    });
-                }
+            } else if total_error + 2.0 * lambda < best_error + tree.root_lambda() {
+                best_error = total_error;
+                tree.update_root().map(|updater| {
+                    updater
+                        .test(candidate)
+                        .error(total_error)
+                        .lambda(2.0 * lambda)
+                });
+                tree.update_node(left_index).map(|updater| {
+                    updater
+                        .error(left_error.0)
+                        .output(left_error.1)
+                        .lambda(lambda)
+                });
+                tree.update_node(right_index).map(|updater| {
+                    updater
+                        .error(right_error.0)
+                        .output(right_error.1)
+                        .lambda(lambda)
+                });
             }
         }
 

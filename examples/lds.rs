@@ -8,9 +8,7 @@ use dtrees_rs::algorithms::common::types::{
 };
 use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
 use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
-use dtrees_rs::algorithms::optimal::rules::{
-    DiscrepancyRule, Exponential, Luby, Monotonic, StepStrategy,
-};
+use dtrees_rs::algorithms::optimal::rules::{DiscrepancyRule, Exponential, Luby, Monotonic};
 use dtrees_rs::algorithms::optimal::Reason;
 use dtrees_rs::algorithms::TreeSearchAlgorithm;
 use dtrees_rs::caching::Trie;
@@ -69,6 +67,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 name: file.to_string(),
                 method: method.clone(),
                 regularization: lambda,
+                lookahead_depth: None,
                 depth,
                 support,
                 metric: Vec::with_capacity(100),
@@ -87,6 +86,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             name: file.to_string(),
             method: method.clone(),
             regularization: lambda,
+            lookahead_depth: None,
             depth,
             support,
             metric: Vec::with_capacity(100),
@@ -128,7 +128,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .max_depth(depth)
         .min_support(support)
         .max_time(time_limit)
-        .always_sort(true)
+        .always_sort(app.always_sort)
         .regularization(lambda)
         .add_search_rule(Box::new(discrepancy))
         .specialization(fast_d2)

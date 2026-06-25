@@ -1,9 +1,9 @@
-use crate::algorithms::common::errors::{ErrorWrapper, NativeError};
-use crate::algorithms::common::heuristics::{Heuristic, NoHeuristic};
+use crate::algorithms::common::errors::ErrorWrapper;
+use crate::algorithms::common::heuristics::Heuristic;
 use crate::algorithms::common::types::{
     BranchingPolicy, CacheInitStrategy, LowerBoundPolicy, NodeDataType, OptimalDepth2Policy,
 };
-use crate::algorithms::greedy::Greedy;
+
 use crate::algorithms::optimal::depth2::OptimalDepth2Tree;
 use crate::algorithms::optimal::dl85::config::DL85Config;
 use crate::algorithms::optimal::dl85::DL85;

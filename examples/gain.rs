@@ -3,7 +3,9 @@ use dtrees_rs::algorithms::common::errors::NativeError;
 use dtrees_rs::algorithms::common::heuristics::{
     GiniIndex, Heuristic, InformationGain, NoHeuristic,
 };
-use dtrees_rs::algorithms::common::types::{SearchHeuristic, SearchStepStrategy};
+use dtrees_rs::algorithms::common::types::{
+    OptimalDepth2Policy, SearchHeuristic, SearchStepStrategy,
+};
 use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
 use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
 use dtrees_rs::algorithms::optimal::rules::{
@@ -32,6 +34,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let one_time_sort = !app.always_sort;
     let heuristic_strategy = app.heuristic;
     let lds_strategy = app.step;
+    let lambda = app.lambda;
+    let use_fast_d2 = fast_d2 == OptimalDepth2Policy::Enabled;
 
     let checkpoint_interval = 10;
 
@@ -66,32 +70,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Res {
                 name: file.to_string(),
                 method: method.clone(),
+                regularization: lambda,
                 depth,
                 support,
                 metric: Vec::with_capacity(100),
                 runtimes: Vec::with_capacity(100),
                 errors: Vec::with_capacity(100),
+                lambdas: vec![],
                 cache: Vec::with_capacity(100),
                 completed: false,
                 one_time_sort,
                 tree: Default::default(),
-                fast_d2: true,
+                fast_d2: use_fast_d2,
+                ..Default::default()
             }
         }
         Some(res) => res,
         None => Res {
             name: file.to_string(),
             method: method.clone(),
+            regularization: lambda,
             depth,
             support,
             metric: Vec::with_capacity(100),
             runtimes: Vec::with_capacity(100),
             errors: Vec::with_capacity(100),
+            lambdas: vec![],
             cache: Vec::with_capacity(100),
             completed: false,
             one_time_sort,
             tree: Default::default(),
-            fast_d2: true,
+            fast_d2: use_fast_d2,
+            ..Default::default()
         },
     };
 
@@ -129,7 +139,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .max_depth(depth)
         .min_support(support)
         .max_time(time_limit)
-        .always_sort(true)
+        .regularization(lambda)
+        .always_sort(app.always_sort)
         .add_search_rule(Box::new(gain))
         .specialization(fast_d2)
         .cache(Box::<Trie>::default())
@@ -145,6 +156,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         result.errors.push(stats.tree_error);
         result.cache.push(stats.cache_size);
         result.runtimes.push(stats.duration);
+        result.lambdas.push(algo.tree().root_lambda());
         result.tree = algo.tree().clone();
         if counter > 0 && counter % checkpoint_interval == 0 {
             let _ = save_results(&result, &result_path);
