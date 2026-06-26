@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Parallel Benchmark Script for Split and HashSplit Examples
+# Parallel Benchmark Script for Split Examples
 
 log() {
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*" >&2
@@ -16,7 +16,8 @@ TIMEOUT=180
 SUPPORT=1
 DEPTHS=(2 3 4 5 6)
 LAMBDA_VALUES=(0 1 3 5 7 10)
-EXAMPLES=("split" "hashsplit")
+CACHE_TYPES=("trie" "hashmap")
+FAST_D2="enabled"
 NBTHREAD=70
 TEST_DATA_DIR="test_data"
 BASE_RESULT_DIR="results"
@@ -27,26 +28,29 @@ parse_arguments() {
         case "$1" in
             --input-dir)
                 TEST_DATA_DIR="$2"
-                shift
-                ;;
+                shift ;;
             --output-dir)
                 BASE_RESULT_DIR="$2"
-                shift
-                ;;
+                shift ;;
             --threads)
                 NBTHREAD="$2"
-                shift
-                ;;
+                shift ;;
             --timeout)
                 TIMEOUT="$2"
-                shift
-                ;;
+                shift ;;
+            --cache-types)
+                IFS=',' read -ra CACHE_TYPES <<< "$2"
+                shift ;;
+            --lambda-values)
+                IFS=',' read -ra LAMBDA_VALUES <<< "$2"
+                shift ;;
+            --fast-d2)
+                FAST_D2="$2"
+                shift ;;
             --dry-run)
-                dry_run=true
-                ;;
+                dry_run=true ;;
             *)
-                error_exit "Unknown parameter: $1"
-                ;;
+                error_exit "Unknown parameter: $1" ;;
         esac
         shift
     done
@@ -59,27 +63,24 @@ parse_arguments() {
 }
 
 run_benchmark() {
-    local example="$1"
-    local dataset="$2"
-    local depth="$3"
-    local lookahead="$4"
-    local lambda="$5"
+    local dataset="$1"
+    local depth="$2"
+    local lookahead="$3"
+    local lambda="$4"
+    local cache_type="$5"
     local output_dir="$6"
 
     local dataset_name
     dataset_name=$(basename "$dataset")
 
-    local example_output_dir="${output_dir}/${example}"
-    mkdir -p "$example_output_dir"
-
-    log "Running $example on $dataset_name | depth=$depth lookahead=$lookahead lambda=$lambda"
+    log "Running split on $dataset_name | depth=$depth lookahead=$lookahead lambda=$lambda cache=$cache_type fast-d2=$FAST_D2"
 
     if [[ "$dry_run" == true ]]; then
-        echo "DRY RUN: cargo run --release --example $example -- --input $dataset --depth $depth --lookahead-depth $lookahead --lambda $lambda --support $SUPPORT --timeout $TIMEOUT --heuristic information-gain --result $example_output_dir"
+        echo "DRY RUN: cargo run --release --example split -- --input $dataset --depth $depth --lookahead-depth $lookahead --lambda $lambda --support $SUPPORT --timeout $TIMEOUT --heuristic information-gain --cache-type $cache_type --fast-d2 $FAST_D2 --result $output_dir"
         return 0
     fi
 
-    cargo run --release --example "$example" -- \
+    cargo run --release --example split -- \
         --input "$dataset" \
         --depth "$depth" \
         --lookahead-depth "$lookahead" \
@@ -87,24 +88,25 @@ run_benchmark() {
         --support "$SUPPORT" \
         --timeout "$TIMEOUT" \
         --heuristic information-gain \
-        --result "$example_output_dir"
+        --cache-type "$cache_type" \
+        --fast-d2 "$FAST_D2" \
+        --result "$output_dir"
 }
 
 export -f run_benchmark
 export -f log
 export -f error_exit
-export TIMEOUT SUPPORT dry_run
+export TIMEOUT SUPPORT dry_run FAST_D2
 
 run_benchmarks() {
-    local timestamp
-    timestamp=$(date +"%Y%m%d_%H%M%S")
-
-    local output_dir="${BASE_RESULT_DIR}/results_${timestamp}"
+    local output_dir="${BASE_RESULT_DIR}/results_${TIMEOUT}"
     mkdir -p "$output_dir"
 
     log "Starting benchmarks"
-    log "Examples: ${EXAMPLES[*]}"
-    log "Depths: ${DEPTHS[*]}, Lookahead: 1 to depth-1, Lambda values: ${LAMBDA_VALUES[*]}"
+    log "Depths: ${DEPTHS[*]}, Lookahead: 1 to depth-1"
+    log "Lambda values: ${LAMBDA_VALUES[*]}"
+    log "Cache types: ${CACHE_TYPES[*]}"
+    log "Fast-D2: $FAST_D2"
     log "Threads: $NBTHREAD, Timeout: $TIMEOUT"
     log "Input: $TEST_DATA_DIR → Output: $output_dir"
 
@@ -113,17 +115,17 @@ run_benchmarks() {
     local CMDFILE
     CMDFILE=$(mktemp)
 
-    for example in "${EXAMPLES[@]}"; do
-        for input_file in "${INPUT_FILES[@]}"; do
-            for depth in "${DEPTHS[@]}"; do
-                for (( lookahead=1; lookahead<=depth-1; lookahead++ )); do
-                    for lambda in "${LAMBDA_VALUES[@]}"; do
+    for input_file in "${INPUT_FILES[@]}"; do
+        for depth in "${DEPTHS[@]}"; do
+            for (( lookahead=1; lookahead<=depth-1; lookahead++ )); do
+                for lambda in "${LAMBDA_VALUES[@]}"; do
+                    for cache_type in "${CACHE_TYPES[@]}"; do
                         printf 'run_benchmark %q %q %q %q %q %q\n' \
-                            "$example" \
                             "$input_file" \
                             "$depth" \
                             "$lookahead" \
                             "$lambda" \
+                            "$cache_type" \
                             "$output_dir" >> "$CMDFILE"
                     done
                 done
@@ -148,4 +150,4 @@ main() {
     run_benchmarks
 }
 
-main "$@"
+main "$@">?

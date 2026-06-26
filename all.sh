@@ -17,12 +17,11 @@ error_exit() {
 # Default configuration
 BENCHMARK_SCRIPT="./benchmarks.sh"
 TIMEOUT_VALUES=(5 15 30 60 120 150)  # Default timeout values in seconds
-BASE_ARGS=""``
+PASSTHROUGH_ARGS=()
 
 # Argument parsing
 parse_arguments() {
     local custom_timeouts=()
-    local passthrough_args=()
 
     while [[ "$#" -gt 0 ]]; do
         case $1 in
@@ -35,25 +34,16 @@ parse_arguments() {
             --help)
                 show_help
                 exit 0 ;;
+            --timeout)
+                shift ;;  # consumed by --timeouts; skip flag and value
             *)
-                # Collect all other arguments to pass through
-                # Skip --timeout if present (we'll override it)
-                if [[ "$1" == "--timeout" ]]; then
-                    shift  # Skip the --timeout flag
-                    shift  # Skip the timeout value
-                    continue
-                fi
-                passthrough_args+=("$1")
+                PASSTHROUGH_ARGS+=("$1")
                 ;;
         esac
         shift
     done
 
-    # Use custom timeouts if provided
     [[ ${#custom_timeouts[@]} -gt 0 ]] && TIMEOUT_VALUES=("${custom_timeouts[@]}")
-
-    # Build base arguments string
-    BASE_ARGS="${passthrough_args[*]}"
 }
 
 # Show help message
@@ -100,7 +90,7 @@ run_multi_timeout_benchmarks() {
     log "=========================================="
     log "Benchmark script: $BENCHMARK_SCRIPT"
     log "Timeout values: ${TIMEOUT_VALUES[*]}"
-    log "Base arguments: $BASE_ARGS"
+    log "Base arguments: ${PASSTHROUGH_ARGS[*]}"
     log "Total runs: ${#TIMEOUT_VALUES[@]}"
     log "=========================================="
 
@@ -118,13 +108,10 @@ run_multi_timeout_benchmarks() {
         log "Run $run_number/$total_runs: Timeout = ${timeout}s"
         log "=========================================="
 
-        # Build the full command
-        local cmd="$BENCHMARK_SCRIPT --timeout $timeout $BASE_ARGS"
-
-        log "Executing: $cmd"
+        log "Executing: $BENCHMARK_SCRIPT --timeout $timeout ${PASSTHROUGH_ARGS[*]}"
 
         # Run the benchmark
-        if eval "$cmd"; then
+        if "$BENCHMARK_SCRIPT" --timeout "$timeout" "${PASSTHROUGH_ARGS[@]}"; then
             log "Run $run_number/$total_runs completed successfully (timeout=${timeout}s)"
         else
             local exit_code=$?

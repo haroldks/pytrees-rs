@@ -23,11 +23,11 @@ TEST_DATA_DIR="test_data"
 BASE_RESULT_DIR="results_new_imp"
 
 # Algorithm-specific parameters
-PURITY_METRIC=0.0
 PURITY_EPSILON=0.002
 LDS_DISCREPANCY_TYPES=("monotonic" "exponential" "luby")
-GAIN_METRIC_VALUES=("0.0" "0.1" "0.2")
-TOPK_VALUES=(1 3 5 10)  # Number of solutions to find for topk
+CACHE_TYPES=("trie" "hashmap")
+LAMBDA_VALUES=(0 1 3 5 10)
+FAST_D2="enabled"
 
 # Argument parsing with validation
 parse_arguments() {
@@ -48,6 +48,15 @@ parse_arguments() {
             --lookahead-lds) scripts+=("lookahead_lds") ;;
             --lookahead-topk) scripts+=("lookahead_topk") ;;
             --all) scripts=("purity" "gain" "lds" "topk" "restart" "gainlds" "gaintopk" "lookahead" "lookahead_lds" "lookahead_topk") ;;
+            --cache-types)
+                IFS=',' read -ra CACHE_TYPES <<< "$2"
+                shift ;;
+            --lambda-values)
+                IFS=',' read -ra LAMBDA_VALUES <<< "$2"
+                shift ;;
+            --fast-d2)
+                FAST_D2="$2"
+                shift ;;
             --input-dir)
                 custom_input_dir="$2"
                 shift ;;
@@ -90,51 +99,53 @@ run_benchmark() {
     local depth="$3"
     local output_dir="$4"
     local extra_param="$5"
+    local cache_type="$6"
+    local lambda="$7"
 
     local dataset_name=$(basename "$dataset")
 
     # Build command with algorithm-specific parameters
-    local cmd="cargo run --release --example $algo -- --input $dataset --depth $depth --support $SUPPORT --timeout $TIMEOUT --heuristic information-gain --result $output_dir --fast-d2 enabled --overwrite"
+    local cmd="cargo run --release --example $algo -- --input $dataset --depth $depth --support $SUPPORT --timeout $TIMEOUT --heuristic information-gain --result $output_dir --fast-d2 $FAST_D2 --cache-type $cache_type --lambda $lambda --overwrite"
 
     # Add algorithm-specific parameters
     case "$algo" in
         "purity")
             cmd="$cmd --epsilon $PURITY_EPSILON"
-            log "Running $algo on $dataset_name with depth $depth"
+            log "Running $algo on $dataset_name with depth $depth, cache=$cache_type, lambda=$lambda"
             ;;
         "gain")
             cmd="$cmd --step $extra_param"
-            log "Running $algo on $dataset_name with depth $depth, discrepancy=$extra_param"
+            log "Running $algo on $dataset_name with depth $depth, discrepancy=$extra_param, cache=$cache_type, lambda=$lambda"
             ;;
         "lds")
             cmd="$cmd --step $extra_param"
-            log "Running $algo on $dataset_name with depth $depth, discrepancy=$extra_param"
+            log "Running $algo on $dataset_name with depth $depth, discrepancy=$extra_param, cache=$cache_type, lambda=$lambda"
             ;;
         "topk")
             cmd="$cmd --step $extra_param"
-            log "Running $algo on $dataset_name with depth $depth, discrepancy=$extra_param"
+            log "Running $algo on $dataset_name with depth $depth, discrepancy=$extra_param, cache=$cache_type, lambda=$lambda"
             ;;
         "gaintopk")
             cmd="$cmd --step $extra_param"
-            log "Running $algo on $dataset_name with depth $depth, discrepancy=$extra_param"
+            log "Running $algo on $dataset_name with depth $depth, discrepancy=$extra_param, cache=$cache_type, lambda=$lambda"
             ;;
         "gainlds")
             cmd="$cmd --step $extra_param"
-            log "Running $algo on $dataset_name with depth $depth, discrepancy=$extra_param"
+            log "Running $algo on $dataset_name with depth $depth, discrepancy=$extra_param, cache=$cache_type, lambda=$lambda"
             ;;
         "lookahead")
-            log "Running $algo on $dataset_name with depth $depth"
+            log "Running $algo on $dataset_name with depth $depth, cache=$cache_type, lambda=$lambda"
             ;;
         "lookahead_lds")
             cmd="$cmd --step $extra_param"
-            log "Running $algo on $dataset_name with depth $depth, discrepancy=$extra_param"
+            log "Running $algo on $dataset_name with depth $depth, discrepancy=$extra_param, cache=$cache_type, lambda=$lambda"
             ;;
         "lookahead_topk")
             cmd="$cmd --step $extra_param"
-            log "Running $algo on $dataset_name with depth $depth, discrepancy=$extra_param"
+            log "Running $algo on $dataset_name with depth $depth, discrepancy=$extra_param, cache=$cache_type, lambda=$lambda"
             ;;
         "restart")
-            log "Running $algo on $dataset_name with depth $depth"
+            log "Running $algo on $dataset_name with depth $depth, cache=$cache_type, lambda=$lambda"
             ;;
     esac
 
@@ -151,7 +162,7 @@ run_benchmark() {
 export -f run_benchmark
 export -f log
 export -f error_exit
-export TIMEOUT SUPPORT dry_run PURITY_METRIC PURITY_EPSILON
+export TIMEOUT SUPPORT dry_run PURITY_EPSILON FAST_D2
 
 # Main execution function
 run_benchmarks() {
@@ -161,12 +172,11 @@ run_benchmarks() {
     mkdir -p "$output_dir"
 
     log "Starting benchmarks with timeout=$TIMEOUT, depths=${DEPTHS[*]}, threads=$NBTHREAD"
-    log "Purity parameters: metric=$PURITY_METRIC, epsilon=$PURITY_EPSILON"
-    log "LDS discrepancy types: ${LDS_DISCREPANCY_TYPES[*]}"
-    log "Gain discrepancy types: ${LDS_DISCREPANCY_TYPES[*]}"
-    log "GainLDS discrepancy types: ${LDS_DISCREPANCY_TYPES[*]}"
-    log "GainTOPK discrepancy types: ${LDS_DISCREPANCY_TYPES[*]}"
-    log "Topk values: ${LDS_DISCREPANCY_TYPES[*]}"
+    log "Purity epsilon: $PURITY_EPSILON"
+    log "Discrepancy types: ${LDS_DISCREPANCY_TYPES[*]}"
+    log "Cache types: ${CACHE_TYPES[*]}"
+    log "Lambda values: ${LAMBDA_VALUES[*]}"
+    log "Fast-D2: $FAST_D2"
     log "Input directory: $TEST_DATA_DIR"
     log "Output directory: $output_dir"
 
@@ -182,48 +192,21 @@ run_benchmarks() {
     for script in "${SELECTED_SCRIPTS[@]}"; do
         for input_file in "${INPUT_FILES[@]}"; do
             for depth in "${DEPTHS[@]}"; do
-                if [[ "$script" == "lds" ]]; then
-                    # For LDS, run with each discrepancy type
-                    for discrepancy in "${LDS_DISCREPANCY_TYPES[@]}"; do
-                        echo "run_benchmark $script $input_file $depth $output_dir $discrepancy" >> "$CMDFILE"
+                for cache_type in "${CACHE_TYPES[@]}"; do
+                    for lambda in "${LAMBDA_VALUES[@]}"; do
+                        case "$script" in
+                            "lds"|"gain"|"topk"|"gainlds"|"gaintopk"|"lookahead_lds"|"lookahead_topk")
+                                for discrepancy in "${LDS_DISCREPANCY_TYPES[@]}"; do
+                                    echo "run_benchmark $script $input_file $depth $output_dir $discrepancy $cache_type $lambda" >> "$CMDFILE"
+                                done
+                                ;;
+                            *)
+                                # lookahead, purity, restart: no discrepancy parameter
+                                echo "run_benchmark $script $input_file $depth $output_dir '' $cache_type $lambda" >> "$CMDFILE"
+                                ;;
+                        esac
                     done
-                elif [[ "$script" == "gain" ]]; then
-                    # For gain, run with each discrepancy type
-                    for discrepancy in "${LDS_DISCREPANCY_TYPES[@]}"; do
-                        echo "run_benchmark $script $input_file $depth $output_dir $discrepancy" >> "$CMDFILE"
-                    done
-                elif [[ "$script" == "topk" ]]; then
-                    # For topk, run with each discrepancy type
-                    for discrepancy in "${LDS_DISCREPANCY_TYPES[@]}"; do
-                        echo "run_benchmark $script $input_file $depth $output_dir $discrepancy" >> "$CMDFILE"
-                    done
-                elif [[ "$script" == "gainlds" ]]; then
-                    # For gainlds, run with each discrepancy type
-                    for discrepancy in "${LDS_DISCREPANCY_TYPES[@]}"; do
-                        echo "run_benchmark $script $input_file $depth $output_dir $discrepancy" >> "$CMDFILE"
-                    done
-                elif [[ "$script" == "gaintopk" ]]; then
-                    # For gaintopk, run with each discrepancy type
-                    for discrepancy in "${LDS_DISCREPANCY_TYPES[@]}"; do
-                        echo "run_benchmark $script $input_file $depth $output_dir $discrepancy" >> "$CMDFILE"
-                    done
-                elif [[ "$script" == "lookahead_lds" ]]; then
-                    # For lookahead_lds, run with each discrepancy type
-                    for discrepancy in "${LDS_DISCREPANCY_TYPES[@]}"; do
-                        echo "run_benchmark $script $input_file $depth $output_dir $discrepancy" >> "$CMDFILE"
-                    done
-                elif [[ "$script" == "lookahead_topk" ]]; then
-                    # For lookahead_topk, run with each discrepancy type
-                    for discrepancy in "${LDS_DISCREPANCY_TYPES[@]}"; do
-                        echo "run_benchmark $script $input_file $depth $output_dir $discrepancy" >> "$CMDFILE"
-                    done
-                elif [[ "$script" == "lookahead" ]] || [[ "$script" == "purity" ]] || [[ "$script" == "restart" ]]; then
-                    # For lookahead, purity, and restart: no extra parameters needed
-                    echo "run_benchmark $script $input_file $depth $output_dir ''" >> "$CMDFILE"
-                else
-                    # For other algorithms
-                    echo "run_benchmark $script $input_file $depth $output_dir ''" >> "$CMDFILE"
-                fi
+                done
             done
         done
     done
