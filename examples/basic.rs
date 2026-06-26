@@ -18,18 +18,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let depth2 = Box::new(ErrorMinimizer::new(error_fn.clone()));
 
-    // let topk = TopkRule::new(usize::MAX, Box::new(Luby::default()));
-    // let gain_rule = GainRule::new(0.0, 0.001, 4.0, Box::new(Monotonic::default()));
-    // let time_rule = TimeLimitRule::new(1.0).relaxable();
-
     let mut algo = HashDL85Builder::default()
         .max_depth(3)
         .min_support(1)
         .max_time(300.0)
         .always_sort(true)
-        // .add_search_rule(Box::new(topk))
-        // .add_search_rule(Box::new(gain_rule))
-        // .add_search_rule(Box::new(time_rule))
         .lookahead_depth(1, Some(2), 0)
         .specialization(OptimalDepth2Policy::Enabled)
         .heuristic(Box::<InformationGain>::default())

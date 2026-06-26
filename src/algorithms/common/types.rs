@@ -157,3 +157,13 @@ pub enum SearchStepStrategy {
     Exponential,
     Luby,
 }
+
+impl fmt::Display for SearchStepStrategy {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            SearchStepStrategy::Monotonic => write!(f, "monotonic"),
+            SearchStepStrategy::Exponential => write!(f, "exponential"),
+            SearchStepStrategy::Luby => write!(f, "luby"),
+        }
+    }
+}

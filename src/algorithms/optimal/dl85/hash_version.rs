@@ -20,6 +20,7 @@ use crate::globals::{attribute, float_is_null, item};
 use crate::tree::{NodeInfos, Tree, TreeNode};
 
 use crate::algorithms::greedy::GreedyBuilder;
+use crate::algorithms::optimal::dl85::IterativeSearch;
 
 pub struct HashDL85<D, E, H>
 where
@@ -63,6 +64,25 @@ where
 
     fn tree(&self) -> &Tree {
         &self.tree
+    }
+}
+
+impl<D, E, H> IterativeSearch for HashDL85<D, E, H>
+where
+    D: OptimalDepth2Tree + ?Sized,
+    E: ErrorWrapper + ?Sized,
+    H: Heuristic + ?Sized,
+{
+    fn partial_fit(&mut self, cover: &mut Cover) -> SearchResult {
+        self.partial_fit(cover)
+    }
+
+    fn time_is_exhausted(&self) -> bool {
+        self.time_is_exhausted()
+    }
+
+    fn statistics(&self) -> &SearchStatistics {
+        self.statistics()
     }
 }
 
@@ -224,8 +244,6 @@ where
             &mut similarity,
             &mut root_context,
         );
-
-        println!("Res {:?}", result);
 
         self.root_candidates = candidates;
 

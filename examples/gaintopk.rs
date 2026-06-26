@@ -1,193 +1,101 @@
 use clap::Parser;
 use dtrees_rs::algorithms::common::errors::NativeError;
-use dtrees_rs::algorithms::common::heuristics::{
-    GiniIndex, Heuristic, InformationGain, NoHeuristic,
-};
-use dtrees_rs::algorithms::common::types::{
-    OptimalDepth2Policy, SearchHeuristic, SearchStepStrategy,
-};
+use dtrees_rs::algorithms::common::heuristics::Heuristic;
+use dtrees_rs::algorithms::common::types::CacheType;
 use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
-use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
-use dtrees_rs::algorithms::optimal::rules::{Exponential, GainRule, Luby, Monotonic, TopkRule};
-use dtrees_rs::algorithms::optimal::Reason;
-use dtrees_rs::algorithms::TreeSearchAlgorithm;
+use dtrees_rs::algorithms::optimal::dl85::{DL85Builder, HashDL85Builder};
 use dtrees_rs::caching::Trie;
-use dtrees_rs::parsers::examples::{load_results, save_results, ExampleParser, Res};
+use dtrees_rs::parsers::examples::{
+    load_or_create_result, make_gain_rule, make_topk_rule, run_iterative, ExampleParser,
+};
 use dtrees_rs::reader::data_reader::DataReader;
 use std::fs;
-use std::fs::remove_file;
 use std::path::Path;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = ExampleParser::parse();
-    let method = "gaintop".to_string();
+    let method = match app.cache_type {
+        CacheType::Trie => "triegaintopk",
+        CacheType::Hashmap => "hashgaintopk",
+    };
+    let checkpoint = 10;
 
-    assert!(app.input.exists(), "File does not exist");
+    if !app.input.exists() {
+        return Err(format!("File does not exist: {}", app.input.display()).into());
+    }
+    let file = app
+        .input
+        .to_str()
+        .ok_or_else(|| format!("Invalid UTF-8 in path: {}", app.input.display()))?;
 
-    let file = app.input.to_str().unwrap();
     let depth = app.depth;
     let support = app.support;
     let fast_d2 = app.fast_d2;
     let time_limit = app.timeout;
-    let one_time_sort = !app.always_sort;
-    let heuristic_strategy = app.heuristic;
-    let lds_strategy = app.step;
     let lambda = app.lambda;
-    let use_fast_d2 = fast_d2 == OptimalDepth2Policy::Enabled;
-
-    let checkpoint_interval = 10;
 
     let path = Path::new(file);
-    let file_name = path.file_stem().expect("Invalid file name");
-    let mut result_file = app.result.clone();
-    result_file.push(file_name);
+    let file_name = path.file_stem().ok_or("input path has no file stem")?;
+    let result_dir = app.result.join(file_name);
 
-    fs::create_dir_all(&result_file).unwrap_or_else(|_| {
-        panic!(
-            "Failed to create result directory: {}",
-            result_file.display()
-        )
-    });
+    fs::create_dir_all(&result_dir)?;
 
-    let sub = match app.step {
-        SearchStepStrategy::Monotonic => "monotonic",
-        SearchStepStrategy::Exponential => "exponential",
-        SearchStepStrategy::Luby => "luby",
-    };
+    let result_path = result_dir.join(format!("{depth}_{method}-{}_{lambda}.json", app.step));
 
-    let result_path = result_file.join(format!("{depth}_{method}-{sub}.json"));
+    let mut result =
+        load_or_create_result(&result_path, app.overwrite, app.fresh_result(file, method));
 
-    // Try to load previous results
-    let mut result = match load_results(&result_path) {
-        Some(res) if res.completed => {
-            if !app.overwrite {
-                eprintln!("Computation was already completed. Use different parameters or remove the result file to recompute.");
-            } else {
-                remove_file(&result_path).expect("Error in removing function");
-            }
-            Res {
-                name: file.to_string(),
-                method: method.clone(),
-                regularization: lambda,
-                depth,
-                support,
-                metric: Vec::with_capacity(100),
-                runtimes: Vec::with_capacity(100),
-                errors: Vec::with_capacity(100),
-                lambdas: vec![],
-                cache: Vec::with_capacity(100),
-                completed: false,
-                one_time_sort,
-                tree: Default::default(),
-                fast_d2: use_fast_d2,
-                ..Default::default()
-            }
-        }
-        Some(res) => res,
-        None => Res {
-            name: file.to_string(),
-            method: method.clone(),
-            regularization: lambda,
-            depth,
-            support,
-            metric: Vec::with_capacity(100),
-            runtimes: Vec::with_capacity(100),
-            errors: Vec::with_capacity(100),
-            lambdas: vec![],
-            cache: Vec::with_capacity(100),
-            completed: false,
-            one_time_sort,
-            tree: Default::default(),
-            fast_d2: use_fast_d2,
-            ..Default::default()
-        },
-    };
-
-    let reader = DataReader::default();
-    let path = Path::new(file);
-    let mut cover = reader.read_file(path)?;
+    let mut cover = DataReader::default().read_file(path)?;
+    let num_attributes = cover.num_attributes;
 
     let error_fn = Box::<NativeError>::default();
-
     let depth2 = Box::new(ErrorMinimizer::new(error_fn.clone()));
 
-    let heuristics: Box<dyn Heuristic> = match heuristic_strategy {
-        SearchHeuristic::InformationGain => Box::<InformationGain>::default(),
-        SearchHeuristic::GiniIndex => Box::<GiniIndex>::default(),
-        SearchHeuristic::NoHeuristic => Box::<NoHeuristic>::default(),
-        _ => Box::<NoHeuristic>::default(),
+    let stats = match app.cache_type {
+        CacheType::Trie => {
+            let mut algo = DL85Builder::default()
+                .max_depth(depth)
+                .min_support(support)
+                .max_time(time_limit)
+                .regularization(lambda)
+                .always_sort(app.always_sort)
+                .add_search_rule(Box::new(make_gain_rule(
+                    app.step,
+                    app.epsilon,
+                    depth as f64,
+                )))
+                .add_search_rule(Box::new(make_topk_rule(app.step, num_attributes)))
+                .specialization(fast_d2)
+                .cache(Box::<Trie>::default())
+                .heuristic(<Box<dyn Heuristic>>::from(app.heuristic))
+                .depth2_search(depth2)
+                .error_function(error_fn)
+                .build()?;
+            run_iterative(&mut algo, &mut cover, &mut result, &result_path, checkpoint)?
+        }
+        CacheType::Hashmap => {
+            let mut algo = HashDL85Builder::default()
+                .max_depth(depth)
+                .min_support(support)
+                .max_time(time_limit)
+                .regularization(lambda)
+                .always_sort(app.always_sort)
+                .add_search_rule(Box::new(make_gain_rule(
+                    app.step,
+                    app.epsilon,
+                    depth as f64,
+                )))
+                .add_search_rule(Box::new(make_topk_rule(app.step, num_attributes)))
+                .specialization(fast_d2)
+                .heuristic(<Box<dyn Heuristic>>::from(app.heuristic))
+                .depth2_search(depth2)
+                .error_function(error_fn)
+                .build()?;
+            run_iterative(&mut algo, &mut cover, &mut result, &result_path, checkpoint)?
+        }
     };
 
-    let gain: GainRule = match lds_strategy {
-        SearchStepStrategy::Monotonic => {
-            GainRule::new(0.0, app.epsilon, depth as f64, Box::<Monotonic>::default())
-        }
-        SearchStepStrategy::Exponential => GainRule::new(
-            0.0,
-            app.epsilon,
-            depth as f64,
-            Box::<Exponential>::default(),
-        ),
-        SearchStepStrategy::Luby => {
-            GainRule::new(0.0, app.epsilon, depth as f64, Box::<Luby>::default())
-        }
-    };
-
-    let topk_rule: TopkRule = match lds_strategy {
-        SearchStepStrategy::Monotonic => {
-            TopkRule::new(cover.num_attributes, Box::<Monotonic>::default())
-        }
-        SearchStepStrategy::Exponential => {
-            TopkRule::new(cover.num_attributes, Box::<Exponential>::default())
-        }
-        SearchStepStrategy::Luby => TopkRule::new(cover.num_attributes, Box::<Luby>::default()),
-    };
-
-    let mut algo = DL85Builder::default()
-        .max_depth(depth)
-        .min_support(support)
-        .max_time(time_limit)
-        .regularization(lambda)
-        .always_sort(app.always_sort)
-        .add_search_rule(Box::new(gain))
-        .add_search_rule(Box::new(topk_rule))
-        .specialization(fast_d2)
-        .cache(Box::<Trie>::default())
-        .heuristic(heuristics)
-        .depth2_search(depth2)
-        .error_function(error_fn)
-        .build()?;
-
-    let mut counter = 0;
-    while !algo.time_is_exhausted() {
-        let r = algo.partial_fit(&mut cover);
-        let stats = algo.statistics();
-        result.errors.push(stats.tree_error);
-        result.cache.push(stats.cache_size);
-        result.runtimes.push(stats.duration);
-        result.lambdas.push(algo.tree().root_lambda());
-        result.tree = algo.tree().clone();
-        if counter > 0 && counter % checkpoint_interval == 0 {
-            let _ = save_results(&result, &result_path);
-        }
-        counter += 1;
-        if r.reason == Reason::Done {
-            result.completed = true;
-            break;
-        }
-    }
-
-    result.completed = true;
-    result.tree = algo.tree().clone();
-    let _ = save_results(&result, &result_path);
-
-    if app.print_stats {
-        println!("{:?}", algo.statistics());
-    }
-
-    if app.print_tree {
-        algo.tree().print()
-    }
+    app.print_outcome(stats, &result.tree);
 
     Ok(())
 }

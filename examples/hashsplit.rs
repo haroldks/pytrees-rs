@@ -1,141 +1,100 @@
 use clap::Parser;
 use dtrees_rs::algorithms::common::errors::NativeError;
-use dtrees_rs::algorithms::common::heuristics::{
-    GiniIndex, Heuristic, InformationGain, NoHeuristic,
-};
-use dtrees_rs::algorithms::common::types::{OptimalDepth2Policy, SearchHeuristic};
+use dtrees_rs::algorithms::common::heuristics::Heuristic;
+use dtrees_rs::algorithms::common::types::CacheType;
 use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
-use dtrees_rs::algorithms::optimal::dl85::HashDL85Builder;
+use dtrees_rs::algorithms::optimal::dl85::{DL85Builder, HashDL85Builder};
 use dtrees_rs::algorithms::TreeSearchAlgorithm;
-use dtrees_rs::parsers::examples::{load_results, save_results, ExampleParser, Res};
+use dtrees_rs::caching::Trie;
+use dtrees_rs::parsers::examples::{load_or_create_result, save_results, ExampleParser, Res};
 use dtrees_rs::reader::data_reader::DataReader;
 use std::fs;
-use std::fs::remove_file;
 use std::path::Path;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = ExampleParser::parse();
-    let method = "hashsplit".to_string();
+    let method = "hashsplit";
 
-    assert!(app.input.exists(), "File does not exist");
+    if !app.input.exists() {
+        return Err(format!("File does not exist: {}", app.input.display()).into());
+    }
+    let file = app
+        .input
+        .to_str()
+        .ok_or_else(|| format!("Invalid UTF-8 in path: {}", app.input.display()))?;
 
-    let file = app.input.to_str().unwrap();
     let depth = app.depth;
-    let lookahead_depth = app.lookahead_depth;
     let support = app.support;
-    let time_limit = app.timeout;
-    let one_time_sort = !app.always_sort;
-    let heuristic_strategy = app.heuristic;
-    let lambda = app.lambda;
     let fast_d2 = app.fast_d2;
-    let use_fast_d2 = fast_d2 == OptimalDepth2Policy::Enabled;
+    let time_limit = app.timeout;
+    let lambda = app.lambda;
 
     let path = Path::new(file);
-    let file_name = path.file_stem().expect("Invalid file name");
-    let mut result_file = app.result.clone();
-    result_file.push(file_name);
+    let file_name = path.file_stem().ok_or("input path has no file stem")?;
+    let result_file = app.result.join(file_name);
 
     let depth_dir = result_file.join(format!("{depth}"));
+    fs::create_dir_all(&depth_dir)?;
 
-    fs::create_dir_all(&depth_dir).unwrap_or_else(|_| {
-        panic!(
-            "Failed to create result directory: {}",
-            result_file.display()
-        )
-    });
-
-    let result_path = depth_dir.join(format!("{method}_{lookahead_depth}_{lambda}.json"));
-
-    // Try to load previous results
-    let mut result = match load_results(&result_path) {
-        Some(res) if res.completed => {
-            if !app.overwrite {
-                eprintln!("Computation was already completed. Use different parameters or remove the result file to recompute.");
-            } else {
-                remove_file(&result_path).expect("Error in removing function");
-            }
-            Res {
-                name: file.to_string(),
-                method: method.clone(),
-                depth,
-                lookahead_depth: Some(lookahead_depth),
-                regularization: lambda,
-                support,
-                metric: Vec::with_capacity(1),
-                runtimes: Vec::with_capacity(1),
-                errors: Vec::with_capacity(1),
-                lambdas: Vec::with_capacity(1),
-                cache: Vec::with_capacity(1),
-                completed: false,
-                one_time_sort,
-                tree: Default::default(),
-                fast_d2: use_fast_d2,
-            }
-        }
-        Some(res) => res,
-        None => Res {
-            name: file.to_string(),
-            method: method.clone(),
-            depth,
-            lookahead_depth: Some(lookahead_depth),
-            regularization: lambda,
-            support,
-            metric: Vec::with_capacity(1),
-            runtimes: Vec::with_capacity(1),
-            errors: Vec::with_capacity(1),
-            lambdas: Vec::with_capacity(1),
-            cache: Vec::with_capacity(1),
-            completed: false,
-            one_time_sort,
-            tree: Default::default(),
-            fast_d2: use_fast_d2,
+    let result_path = depth_dir.join(format!("{method}_{}_{lambda}.json", app.lookahead_depth));
+    let mut result = load_or_create_result(
+        &result_path,
+        app.overwrite,
+        Res {
+            lookahead_depth: Some(app.lookahead_depth),
+            ..app.fresh_result(file, method)
         },
-    };
+    );
 
-    let reader = DataReader::default();
-    let path = Path::new(file);
-    let mut cover = reader.read_file(path)?;
+    let mut cover = DataReader::default().read_file(path)?;
     let error_fn = Box::<NativeError>::default();
     let depth2 = Box::new(ErrorMinimizer::new(error_fn.clone()));
 
-    let heuristics: Box<dyn Heuristic> = match heuristic_strategy {
-        SearchHeuristic::InformationGain => Box::<InformationGain>::default(),
-        SearchHeuristic::GiniIndex => Box::<GiniIndex>::default(),
-        SearchHeuristic::NoHeuristic => Box::<NoHeuristic>::default(),
-        _ => Box::<NoHeuristic>::default(),
+    let (stats, tree) = match app.cache_type {
+        CacheType::Trie => {
+            let mut algo = DL85Builder::default()
+                .max_depth(depth)
+                .min_support(support)
+                .max_time(time_limit)
+                .regularization(lambda)
+                .lookahead_depth(app.lookahead_depth, None, 0)
+                .always_sort(app.always_sort)
+                .specialization(fast_d2)
+                .cache(Box::<Trie>::default())
+                .heuristic(<Box<dyn Heuristic>>::from(app.heuristic))
+                .depth2_search(depth2)
+                .error_function(error_fn)
+                .build()?;
+            algo.fit(&mut cover)?;
+            (*algo.statistics(), algo.tree().clone())
+        }
+        CacheType::Hashmap => {
+            let mut algo = HashDL85Builder::default()
+                .max_depth(depth)
+                .min_support(support)
+                .max_time(time_limit)
+                .regularization(lambda)
+                .lookahead_depth(app.lookahead_depth, None, 0)
+                .always_sort(app.always_sort)
+                .specialization(fast_d2)
+                .heuristic(<Box<dyn Heuristic>>::from(app.heuristic))
+                .depth2_search(depth2)
+                .error_function(error_fn)
+                .build()?;
+            algo.fit(&mut cover)?;
+            (*algo.statistics(), algo.tree().clone())
+        }
     };
 
-    let mut algo = HashDL85Builder::default()
-        .max_depth(depth)
-        .min_support(support)
-        .max_time(time_limit)
-        .regularization(lambda)
-        .lookahead_depth(lookahead_depth, None, 0)
-        .always_sort(app.always_sort)
-        .specialization(fast_d2)
-        .heuristic(heuristics)
-        .depth2_search(depth2)
-        .error_function(error_fn)
-        .build()?;
-
-    let _r = algo.fit(&mut cover);
-    let stats = algo.statistics();
     result.errors.push(stats.tree_error);
     result.cache.push(stats.cache_size);
     result.runtimes.push(stats.duration);
-    result.lambdas.push(algo.tree().root_lambda());
-    result.tree = algo.tree().clone();
-
+    result.lambdas.push(tree.root_lambda());
+    result.tree = tree;
     result.completed = true;
-    let _ = save_results(&result, &result_path);
+    save_results(&result, &result_path)?;
 
-    if app.print_stats {
-        println!("{:?}", algo.statistics());
-    }
-
-    if app.print_tree {
-        algo.tree().print()
-    }
+    app.print_outcome(stats, &result.tree);
 
     Ok(())
 }

@@ -28,6 +28,12 @@ use crate::algorithms::greedy::GreedyBuilder;
 pub use builder::DL85Builder;
 pub use hashdl85builder::HashDL85Builder;
 
+pub trait IterativeSearch: TreeSearchAlgorithm {
+    fn partial_fit(&mut self, cover: &mut Cover) -> SearchResult;
+    fn time_is_exhausted(&self) -> bool;
+    fn statistics(&self) -> &SearchStatistics;
+}
+
 pub struct DL85<C, D, E, H>
 where
     C: Caching + ?Sized,
@@ -72,6 +78,26 @@ where
 
     fn tree(&self) -> &Tree {
         &self.tree
+    }
+}
+
+impl<C, D, E, H> IterativeSearch for DL85<C, D, E, H>
+where
+    C: Caching + ?Sized,
+    D: OptimalDepth2Tree + ?Sized,
+    E: ErrorWrapper + ?Sized,
+    H: Heuristic + ?Sized,
+{
+    fn partial_fit(&mut self, cover: &mut Cover) -> SearchResult {
+        self.partial_fit(cover)
+    }
+
+    fn time_is_exhausted(&self) -> bool {
+        self.time_is_exhausted()
+    }
+
+    fn statistics(&self) -> &SearchStatistics {
+        self.statistics()
     }
 }
 
