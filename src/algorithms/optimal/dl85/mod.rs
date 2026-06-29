@@ -563,7 +563,7 @@ where
 
                 if optimal {
                     return SearchResult {
-                        error: subtree_error,
+                        error: first_result_error + second_result_error,
                         lambda: first_result_lambda + second_result_lambda,
                         has_intersected: true,
                         reason: Reason::Done,
@@ -974,6 +974,14 @@ where
                     });
 
                 if global_error > upper_bound {
+                    self.cache.update_node(&key).map(|updater| {
+                        updater
+                            .upper_bound(upper_bound)
+                            .age(usize::MAX)
+                            .leaf()
+                            .optimal()
+                    });
+
                     return Ok(SearchResult {
                         error: cached_error,
                         lambda: cached_lambda,
