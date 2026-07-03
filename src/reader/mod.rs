@@ -1,5 +1,8 @@
 mod data_info;
 pub mod data_reader;
+pub mod dataset;
+
+pub use dataset::{ContinuousDataReader, Dataset};
 
 use std::error::Error;
 use std::fmt;
