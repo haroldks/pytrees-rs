@@ -1,0 +1,83 @@
+# Baseline configuration matrix: <dataset> <depth> <flags...>   [#tags]
+#
+# Chosen so every entry runs to completion deterministically. Configurations
+# that hit a time limit are excluded on purpose: a time-limited result depends
+# on machine load and cannot serve as a regression baseline.
+#
+# Empirically (release build, this machine): without --fast-d2 the depth-3
+# search does not finish inside 60s on anything but `bank`, and depth 4 does not
+# finish on anything but `bank` even with --fast-d2.
+#
+# Entries tagged `#smoke` form the fast subset (`capture.sh --smoke`, ~12s of
+# the full ~10 minutes). The subset is picked to keep full coverage of the axes
+# that matter -- all six datasets, all three flag combinations, depths 2/3/4,
+# and both the general search and the depth-2 specialization -- while dropping
+# the four large exhaustive runs that account for ~85% of the wall clock.
+# Wall-clock costs below are from that measurement, for choosing future subsets.
+# They predate the upstream bound fixes (5eaf77e, 0be232f), which made the
+# searches without --fast-d2 do several times more work for the same result:
+# `wilt 2` and `page 2 --use-lds` no longer finish in 2 minutes and were
+# dropped, and the other entries without --fast-d2 are now slower than listed.
+
+bank 2                                                          #smoke  0.13s
+raisin 2                                                        #smoke  1.4s
+page 2                                                          # 2.2s
+segment 2                                                       # 47s
+rice 2                                                          # 25s
+
+bank 2 --fast-d2                                                #smoke  0.006s
+raisin 2 --fast-d2                                              #smoke  0.014s
+wilt 2 --fast-d2                                                #smoke  0.065s
+page 2 --fast-d2                                                #smoke  0.036s
+segment 2 --fast-d2                                             #smoke  0.071s
+rice 2 --fast-d2                                                #smoke  0.077s
+
+bank 2 --fast-d2 --sort-by-heuristic                            # 0.005s
+raisin 2 --fast-d2 --sort-by-heuristic                          #smoke  0.014s
+wilt 2 --fast-d2 --sort-by-heuristic                            #smoke  0.067s
+page 2 --fast-d2 --sort-by-heuristic                            #smoke  0.040s
+segment 2 --fast-d2 --sort-by-heuristic                         #smoke  0.079s
+
+bank 3                                                          #smoke  6.8s
+bank 3 --fast-d2                                                #smoke  0.087s
+raisin 3 --fast-d2                                              #smoke  1.4s
+wilt 3 --fast-d2                                                # 3.6s
+page 3 --fast-d2                                                # 4.9s
+segment 3 --fast-d2                                             # 12s
+rice 3 --fast-d2                                                # 33s
+
+bank 3 --fast-d2 --sort-by-heuristic                            #smoke  0.11s
+raisin 3 --fast-d2 --sort-by-heuristic                          #smoke  1.4s
+wilt 3 --fast-d2 --sort-by-heuristic                            # 1.7s
+page 3 --fast-d2 --sort-by-heuristic                            # 6.0s
+segment 3 --fast-d2 --sort-by-heuristic                         # 5.1s
+
+bank 4 --fast-d2                                                #smoke  0.083s
+bank 4 --fast-d2 --sort-by-heuristic                            #smoke  0.11s
+
+# The anytime LDS variant. Without --fast-d2 it only finishes inside a minute
+# on the smaller instances; those entries stay out of the smoke subset.
+bank 2 --use-lds                                                #smoke  0.54s
+raisin 2 --use-lds                                              # 12s
+bank 3 --use-lds                                                # 28s
+
+bank 2 --use-lds --fast-d2                                      #smoke  0.006s
+raisin 2 --use-lds --fast-d2                                    #smoke  0.019s
+wilt 2 --use-lds --fast-d2                                      #smoke  0.064s
+page 2 --use-lds --fast-d2                                      #smoke  0.040s
+segment 2 --use-lds --fast-d2                                   #smoke  0.072s
+rice 2 --use-lds --fast-d2                                      #smoke  0.081s
+
+bank 2 --use-lds --fast-d2 --sort-by-heuristic                  #smoke  0.005s
+raisin 2 --use-lds --fast-d2 --sort-by-heuristic                #smoke  0.020s
+wilt 2 --use-lds --fast-d2 --sort-by-heuristic                  # 0.065s
+page 2 --use-lds --fast-d2 --sort-by-heuristic                  # 0.038s
+segment 2 --use-lds --fast-d2 --sort-by-heuristic               # 0.072s
+
+bank 3 --use-lds --fast-d2                                      #smoke  0.13s
+raisin 3 --use-lds --fast-d2                                    # 1.8s
+bank 3 --use-lds --fast-d2 --sort-by-heuristic                  #smoke  0.16s
+raisin 3 --use-lds --fast-d2 --sort-by-heuristic                # 1.7s
+
+bank 4 --use-lds --fast-d2                                      #smoke  0.27s
+bank 4 --use-lds --fast-d2 --sort-by-heuristic                  #smoke  0.49s
