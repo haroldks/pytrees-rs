@@ -132,8 +132,8 @@ impl SearchOutput {
 /// ## Example
 ///
 /// ```python
-/// from pytreesrs.odt.rules import ExposedDiscrepancyRule
-/// from pytreesrs.enums import ExposedStepStrategy
+/// from pytrees.common import ExposedDiscrepancyRule
+/// from pytrees.common import ExposedStepStrategy
 ///
 /// # Conservative LDS with slow budget increase
 /// rule = ExposedDiscrepancyRule(
@@ -209,7 +209,7 @@ impl From<ExposedDiscrepancyRule> for DiscrepancyRule {
 /// ## Example
 ///
 /// ```python
-/// from pytreesrs.odt.rules import ExposedGainRule
+/// from pytrees.common import ExposedGainRule
 ///
 /// # Conservative gain-based pruning
 /// rule = ExposedGainRule(
@@ -283,7 +283,7 @@ impl From<ExposedGainRule> for GainRule {
 /// ## Example
 ///
 /// ```python
-/// from pytreesrs.odt.rules import ExposedPurityRule
+/// from pytrees.common import ExposedPurityRule
 ///
 /// # Stop when nodes are 90% pure
 /// rule = ExposedPurityRule(
@@ -340,8 +340,8 @@ impl From<ExposedPurityRule> for PurityRule {
 /// ## Example
 ///
 /// ```python
-/// from pytreesrs.odt.rules import ExposedTopKRule
-/// from pytreesrs.enums import ExposedStepStrategy
+/// from pytrees.common import ExposedTopKRule
+/// from pytrees.common import ExposedStepStrategy
 ///
 /// # Conservative top-K search
 /// rule = ExposedTopKRule(
@@ -408,7 +408,7 @@ impl From<ExposedTopKRule> for TopkRule {
 /// ## Example
 ///
 /// ```python
-/// from pytreesrs.odt.rules import ExposedRestartRule
+/// from pytrees.common import ExposedRestartRule
 ///
 /// # Quick restart for interactive use
 /// rule = ExposedRestartRule(limit=0.5)

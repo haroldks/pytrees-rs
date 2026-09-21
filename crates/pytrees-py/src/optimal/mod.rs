@@ -41,9 +41,9 @@ use pyo3::prelude::*;
 /// ## Usage Example
 ///
 /// ```python
-/// from pytreesrs.odt import PyDL85
-/// from pytreesrs.enums import ExposedHeuristic
-/// from pytreesrs.odt.rules import ExposedGainRule, ExposedPurityRule
+/// from pytrees._native.odt import PyDL85
+/// from pytrees.common import ExposedHeuristic
+/// from pytrees.common import ExposedGainRule, ExposedPurityRule
 ///
 /// # Create classifier with advanced configuration
 /// classifier = PyDL85(
@@ -121,7 +121,7 @@ impl PyDL85 {
     /// # Example
     ///
     /// ```python
-    /// from pytreesrs.odt import PyDL85
+    /// from pytrees._native.odt import PyDL85
     /// # Basic usage
     /// classifier = PyDL85(max_depth=3, min_sup=5)
     ///
@@ -293,7 +293,7 @@ impl PyDL85 {
     ///
     /// ```python
     /// import numpy as np
-    /// from pytreesrs.odt import PyDL85
+    /// from pytrees._native.odt import PyDL85
     ///
     /// X = np.array([[1, 0], [0, 1], [1, 1], [0, 0]])
     /// y = np.array([1, 1, 0, 0])

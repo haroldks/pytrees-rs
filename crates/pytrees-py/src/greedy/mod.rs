@@ -45,8 +45,8 @@ use crate::common::types::SearchOutput;
 ///
 /// ```python
 /// import numpy as np
-/// from pytreesrs.greedy import lgdt
-/// from pytreesrs.enums import ExposedSearchStrategy
+/// from pytrees._native.greedy import lgdt
+/// from pytrees.common import ExposedSearchStrategy
 ///
 /// # Generate sample data
 /// X = np.random.rand(1000, 10)

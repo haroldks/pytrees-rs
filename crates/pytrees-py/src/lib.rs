@@ -1,4 +1,4 @@
-//! # pytrees-rs: Python Bindings for Decision Tree Algorithms
+//! # pytrees._native: Python Bindings for Decision Tree Algorithms
 //!
 //! This crate provides Python bindings for the `dtrees-rs` library, exposing
 //! decision tree algorithms through a PyO3-based interface. The library focuses on optimal
@@ -23,12 +23,12 @@
 //! ## Example Usage
 //!
 //! ```python
-//! import pytreesrs
-//! from pytreesrs.enums import ExposedHeuristic
-//! from pytreesrs.odt.rules import ExposedGainRule
+//! from pytrees import _native
+//! from pytrees.common import ExposedHeuristic
+//! from pytrees.common import ExposedGainRule
 //!
 //! # Create DL8.5 classifier with information gain heuristic
-//! classifier = pytreesrs.odt.PyDL85(
+//! classifier = _native.odt.PyDL85(
 //!     max_depth=3,
 //!     min_sup=5,
 //!     heuristic=ExposedHeuristic.InformationGain,
@@ -56,16 +56,16 @@ mod greedy;
 mod optimal;
 mod common;
 
-/// PyO3 module entry point for pytreesrs.
+/// PyO3 module entry point for `pytrees._native`.
 ///
 /// This function initializes all submodules and makes them available to Python.
 /// The module structure follows a hierarchical organization:
 ///
-/// - `pytreesrs.odt`: Optimal decision tree algorithms
-/// - `pytreesrs.greedy`: Greedy decision tree algorithms
-/// - `pytreesrs.enums`: Configuration enumerations
+/// - `pytrees._native.odt`: Optimal decision tree algorithms
+/// - `pytrees._native.greedy`: Greedy decision tree algorithms
+/// - `pytrees._native.enums`: Configuration enumerations
 #[pymodule]
-fn pytreesrs(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn _native(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     odt(py, m)?;
     greed(py, m)?;
     enums(py, m)?;
@@ -104,7 +104,7 @@ fn enums(py: Python<'_>, parent_module:  &Bound<'_, PyModule>) -> PyResult<()> {
     parent_module.add_submodule(&module)?;
     py.import("sys")?
         .getattr("modules")?
-        .set_item("pytreesrs.enums", module)?;
+        .set_item("pytrees._native.enums", module)?;
     Ok(())
 }
 
@@ -144,11 +144,11 @@ fn odt(py: Python<'_>, parent_module:  &Bound<'_, PyModule>) -> PyResult<()> {
 
     py.import("sys")?
         .getattr("modules")?
-        .set_item("pytreesrs.odt", module)?;
+        .set_item("pytrees._native.odt", module)?;
 
     py.import("sys")?
         .getattr("modules")?
-        .set_item("pytreesrs.odt.rules", rules_module)?;
+        .set_item("pytrees._native.odt.rules", rules_module)?;
 
     Ok(())
 }
@@ -173,7 +173,7 @@ fn greed(py: Python<'_>, parent_module:  &Bound<'_, PyModule>) -> PyResult<()> {
     parent_module.add_submodule(&module)?;
     py.import("sys")?
         .getattr("modules")?
-        .set_item("pytreesrs.greedy", module)?;
+        .set_item("pytrees._native.greedy", module)?;
 
     Ok(())
 }

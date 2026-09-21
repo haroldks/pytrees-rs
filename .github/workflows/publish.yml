@@ -39,7 +39,7 @@ jobs:
           CIBW_ENVIRONMENT: 'PATH="$PATH:$HOME/.cargo/bin"'
           CIBW_SKIP: "cp38-* cp39-* *-win32 *-musllinux*"
         with:
-          package-dir: ./pytrees-rs
+          package-dir: .
 
       - uses: actions/upload-artifact@v4
         with:
@@ -54,12 +54,12 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Build sdist
-        run: cd pytrees-rs && pipx run build --sdist
+        run: pipx run build --sdist
 
       - uses: actions/upload-artifact@v4
         with:
           name: artifact-dist
-          path: pytrees-rs/dist/*.tar.gz
+          path: dist/*.tar.gz
 
 
   publish-to-testpypi:

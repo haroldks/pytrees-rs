@@ -3,8 +3,8 @@ import numpy as np
 from .. import DecisionTree, SearchFailedError
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils import check_array, check_X_y, assert_all_finite
-from pytreesrs.odt import PyDL85
-from pytreesrs.enums import *
+from pytrees._native.odt import PyDL85
+from pytrees._native.enums import *
 
 
 class DL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
@@ -95,8 +95,8 @@ class DL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
 
     Advanced usage with rules and heuristics:
 
-    >>> from pytreesrs.odt.rules import ExposedGainRule, ExposedPurityRule
-    >>> from pytreesrs.enums import ExposedHeuristic
+    >>> from pytrees.common import ExposedGainRule, ExposedPurityRule
+    >>> from pytrees.common import ExposedHeuristic
     >>> clf = DL85Classifier(
     ...     max_depth=4,
     ...     min_sup=10,

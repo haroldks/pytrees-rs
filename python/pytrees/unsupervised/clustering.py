@@ -5,8 +5,8 @@ from sklearn.metrics import DistanceMetric
 from .. import DecisionTree, SearchFailedError
 from sklearn.base import BaseEstimator, ClusterMixin
 from sklearn.utils import check_array, assert_all_finite
-from pytreesrs.odt import PyDL85
-from pytreesrs.enums import *
+from pytrees._native.odt import PyDL85
+from pytrees._native.enums import *
 
 
 class DL85Cluster(BaseEstimator, ClusterMixin, DecisionTree):

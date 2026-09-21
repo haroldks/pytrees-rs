@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/dtrees", "crates/dtrees-cli", "crates/contree", "crates/contree-py", "crates/contree-cli", "pytrees-rs"]
+members = ["crates/dtrees", "crates/dtrees-cli", "crates/contree", "crates/contree-py", "crates/contree-cli", "crates/pytrees-py"]
 
 [workspace.package]
 edition = "2021"

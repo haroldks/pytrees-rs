@@ -424,7 +424,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pytrees-rs"
+name = "pytrees-py"
 version = "1.0.3"
 dependencies = [
  "dtrees-rs",

@@ -1,8 +1,8 @@
 import numpy as np
 
 from .. import DecisionTree, SearchFailedError
-from pytreesrs.enums import ExposedSearchStrategy
-from pytreesrs.greedy import lgdt
+from pytrees._native.enums import ExposedSearchStrategy
+from pytrees._native.greedy import lgdt
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils import check_X_y
 
@@ -55,7 +55,7 @@ class LGDTClassifier(BaseEstimator, ClassifierMixin, DecisionTree):
 
     Using different search strategies:
 
-    >>> from pytreesrs.enums import ExposedSearchStrategy
+    >>> from pytrees.common import ExposedSearchStrategy
     >>>
     >>> # Error minimizer strategy search for quality
     >>> clf = LGDTClassifier(
