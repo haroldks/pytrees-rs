@@ -31,7 +31,7 @@ def test_fit_returns_the_estimator(rows):
 def test_the_default_error_function_gives_a_finite_error(rows):
     clf = DL85Cluster(max_depth=2, min_sup=10)
     clf.fit(rows)
-    assert math.isfinite(clf.results.error)
+    assert math.isfinite(clf.train_error_)
 
 
 @known_bug("error_function is only read in __init__")

@@ -1,11 +1,11 @@
 import numpy as np
 
-from ..base import DecisionTree, validate_binary_classification
+from ..base import TreeClassifier, validate_binary_classification
 from pytrees._native.greedy import lgdt
 from sklearn.base import BaseEstimator, ClassifierMixin
 
 
-class LGDTClassifier(BaseEstimator, ClassifierMixin, DecisionTree):
+class LGDTClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
     """
     Less Greedy Decision Tree (LGDT) Classifier for fast approximate solutions.
 
@@ -33,9 +33,17 @@ class LGDTClassifier(BaseEstimator, ClassifierMixin, DecisionTree):
 
     Attributes
     ----------
-    results : SearchOutput
-        Detailed results from the last fit operation including tree structure,
-        error metrics, and construction statistics.
+    classes_ : ndarray of shape (n_classes,)
+        The class labels seen during ``fit``.
+    n_classes_ : int
+    n_features_in_ : int
+    tree_ : dict of ndarray or None
+        The tree as flat arrays; see ``pytrees.base.DecisionTree``. ``None``
+        if the search found no tree.
+    train_error_ : float
+        Training error of the tree, as the error function measures it.
+    statistics_ : dict
+        Search counters: cache size and hits, restarts, duration.
 
     Examples
     --------
@@ -44,16 +52,14 @@ class LGDTClassifier(BaseEstimator, ClassifierMixin, DecisionTree):
     >>> from pytrees import LGDTClassifier
     >>> from sklearn.datasets import make_classification
     >>> X, y = make_classification(n_samples=1000, n_features=10, random_state=42)
-    >>> clf = LGDTClassifier(max_depth=5, min_sup=10)
-    >>> clf.fit(X, y)
-    >>> predictions = clf.predict(X)
-    >>> print(f"Accuracy: {clf.accuracy_}")
+    >>> X = (X > 0).astype(int)  # LGDT needs binary features
+    >>> clf = LGDTClassifier(max_depth=5, min_sup=10).fit(X, y)
+    >>> accuracy = clf.score(X, y)
 
     Using different search strategies:
 
     >>> clf = LGDTClassifier(max_depth=4, criterion="information_gain")
-    >>> clf.fit(X, y)
-    >>>
+    >>> clf = clf.fit(X, y)
     """
 
     def __init__(
@@ -78,19 +84,9 @@ class LGDTClassifier(BaseEstimator, ClassifierMixin, DecisionTree):
             Class labels, of any type ``np.unique`` accepts.
         """
         X, self.classes_, encoded = validate_binary_classification(self, X, y)
-        self.results = lgdt(
-            X,
-            encoded.astype(np.float64),
-            self.criterion,
-            self.min_sup,
-            self.max_depth,
+        output = lgdt(
+            X, encoded.astype(np.float64), self.criterion, self.min_sup, self.max_depth
         )
-        self.refresh_stats()
+        self._set_tree(output)
+        self.n_classes_ = len(self.classes_)
         return self
-
-    def predict(self, X):
-        """Classify each row of ``X``."""
-        # The base class checks that the model is fitted before anything
-        # reads classes_.
-        encoded = np.asarray(super().predict(X), dtype=np.intp)
-        return self.classes_.take(encoded)

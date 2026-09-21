@@ -23,7 +23,7 @@ optimal_pred = optimal_clf.predict(X_test)
 optimal_accuracy = accuracy_score(y_test, optimal_pred)
 
 print(f"Optimal Tree Accuracy: {optimal_accuracy:.3f}")
-print(f"Training Time: {optimal_clf.results.duration:.3f}s")
+print(f"Search time: {optimal_clf.statistics_['duration']:.3f}s ({optimal_clf.status_})")
 
 # Greedy decision tree (fast approximate solution)
 greedy_clf = LGDTClassifier(max_depth=3, min_sup=10)
@@ -32,7 +32,6 @@ greedy_pred = greedy_clf.predict(X_test)
 greedy_accuracy = accuracy_score(y_test, greedy_pred)
 
 print(f"Greedy Tree Accuracy: {greedy_accuracy:.3f}")
-print(f"Training Time: {greedy_clf.results.duration:.3f}s")
 ```
 
 ### Tree Visualization

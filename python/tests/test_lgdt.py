@@ -23,7 +23,7 @@ def test_its_predictions_reproduce_the_error_the_search_reports(anneal):
     X, y = anneal
     clf = LGDTClassifier(max_depth=3, min_sup=1)
     clf.fit(X, y)
-    assert errors(clf, X, y) == clf.results.error
+    assert errors(clf, X, y) == clf.train_error_
 
 
 def test_its_result_on_anneal_does_not_drift(anneal):

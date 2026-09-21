@@ -8,7 +8,7 @@ import pickle
 
 import numpy as np
 import pytest
-from sklearn.base import clone
+from sklearn.base import clone, is_classifier
 from sklearn.exceptions import NotFittedError
 from sklearn.model_selection import GridSearchCV, cross_val_score
 
@@ -39,7 +39,7 @@ def test_its_predictions_reproduce_the_error_the_search_reports(anneal):
     X, y = anneal
     clf = DL85Classifier(max_depth=3, min_sup=5)
     clf.fit(X, y)
-    assert errors(clf, X, y) == clf.results.error
+    assert errors(clf, X, y) == clf.train_error_
 
 
 def test_it_is_never_worse_than_the_greedy_tree_of_the_same_depth(anneal):
@@ -49,6 +49,37 @@ def test_it_is_never_worse_than_the_greedy_tree_of_the_same_depth(anneal):
     optimal.fit(X, y)
     greedy.fit(X, y)
     assert errors(optimal, X, y) <= errors(greedy, X, y)
+
+
+def test_tree_uses_the_same_array_layout_as_contree(anneal):
+    X, y = anneal
+    tree = DL85Classifier(max_depth=2, min_sup=1).fit(X, y).tree_
+    assert set(tree) == {
+        "children_left",
+        "children_right",
+        "feature",
+        "threshold",
+        "value",
+        "error",
+    }
+    leaves = tree["children_left"] == -1
+    assert leaves.sum() == 4
+    assert np.isnan(tree["threshold"][leaves]).all()
+    assert (tree["threshold"][~leaves] == 0.5).all()
+    assert tree["error"][0] == 137
+
+
+def test_a_search_that_finishes_reports_optimal(anneal):
+    X, y = anneal
+    assert DL85Classifier(max_depth=2).fit(X, y).status_ == "optimal"
+
+
+def test_to_dot_draws_every_node(anneal):
+    X, y = anneal
+    dot = DL85Classifier(max_depth=2).fit(X, np.where(y == 0, "no", "yes")).to_dot()
+    assert dot.startswith("digraph Tree {")
+    assert dot.count("{class|") == 4
+    assert dot.count("{feature|") == 3
 
 
 # --- scikit-learn contracts ----------------------------------------------
@@ -92,7 +123,6 @@ def test_grid_search_actually_varies_the_depth(anneal):
     assert first != second
 
 
-@known_bug("the search results are a native object that cannot be pickled")
 def test_a_fitted_model_survives_pickling(anneal):
     X, y = anneal
     clf = DL85Classifier(max_depth=2)
@@ -144,6 +174,13 @@ def test_an_exception_in_a_custom_error_function_reaches_the_caller(anneal):
 
     with pytest.raises(ZeroDivisionError, match="user's error function"):
         DL85Classifier(max_depth=2, error_function=failing).fit(X, y)
+
+
+@pytest.mark.parametrize("estimator", [DL85Classifier, LGDTClassifier])
+def test_scikit_learn_sees_a_classifier(estimator):
+    # With BaseEstimator ahead of ClassifierMixin the tag is lost, and
+    # cross-validation silently falls back to unstratified folds.
+    assert is_classifier(estimator())
 
 
 @pytest.mark.parametrize("estimator", [DL85Classifier, LGDTClassifier])

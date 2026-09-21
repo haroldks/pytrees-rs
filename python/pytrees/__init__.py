@@ -31,6 +31,7 @@ from sklearn.model_selection import train_test_split
 
 # Generate sample data
 X, y = make_classification(n_samples=1000, n_features=10, random_state=42)
+X = (X > 0).astype(int)  # DL8.5 and LGDT need binary features
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 
 # Optimal decision tree
@@ -43,8 +44,8 @@ greedy_clf = LGDTClassifier(max_depth=3, min_sup=10)
 greedy_clf.fit(X_train, y_train)
 greedy_pred = greedy_clf.predict(X_test)
 
-print(f"Optimal accuracy: {optimal_clf.accuracy_}")
-print(f"Greedy accuracy: {greedy_clf.accuracy_}")
+print(f"Optimal accuracy: {optimal_clf.score(X_test, y_test)}")
+print(f"Greedy accuracy: {greedy_clf.score(X_test, y_test)}")
 ```
 For more information, see the individual class documentation and examples.
 """

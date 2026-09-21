@@ -254,6 +254,17 @@ impl PyDL85 {
         Ok(json)
     }
 
+    /// `"optimal"` if the search ran to completion, `"time_limit"` if it
+    /// stopped at `time_limit` with the best tree found so far.
+    #[getter]
+    fn status(&self) -> &'static str {
+        if self.learner.time_is_exhausted() {
+            "time_limit"
+        } else {
+            "optimal"
+        }
+    }
+
     /// Updates internal statistics from the current algorithm state.
     ///
     /// This method synchronizes the Python-accessible statistics with the

@@ -2,7 +2,8 @@ import sys
 import json
 import numpy as np
 from sklearn.metrics import DistanceMetric
-from .. import DecisionTree, SearchFailedError
+from ..base import DecisionTree
+from ..exceptions import SearchFailedError
 from sklearn.base import BaseEstimator, ClusterMixin
 from sklearn.utils import check_array, assert_all_finite
 from pytrees._native.odt import PyDL85
@@ -97,7 +98,10 @@ class DL85Cluster(BaseEstimator, ClusterMixin, DecisionTree):
 
         try:
             self.__obj.fit(X, X_error)
-            self.results = self.__obj.stats
-            self.refresh_stats()
+            self._set_tree(self.__obj.stats)
         except Exception as e:
             raise SearchFailedError
+
+    def predict(self, X):
+        """The value of the leaf each row of ``X`` reaches."""
+        return self._leaf_values(X)

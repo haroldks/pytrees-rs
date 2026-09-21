@@ -1,11 +1,10 @@
-import json
 import numpy as np
-from ..base import DecisionTree, validate_binary_classification
+from ..base import TreeClassifier, validate_binary_classification
 from sklearn.base import BaseEstimator, ClassifierMixin
 from pytrees._native.odt import PyDL85
 
 
-class DL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
+class DL85Classifier(ClassifierMixin, TreeClassifier, BaseEstimator):
     """
     Optimal Decision Tree Classifier using the DL8.5 algorithm.
 
@@ -77,12 +76,20 @@ class DL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
 
     Attributes
     ----------
-    config : dict
-        Complete algorithm configuration as parsed from JSON.
-
-    results : SearchOutput
-        Detailed results from the last fit operation including tree,
-        error, and search statistics.
+    classes_ : ndarray of shape (n_classes,)
+        The class labels seen during ``fit``.
+    n_classes_ : int
+    n_features_in_ : int
+    tree_ : dict of ndarray or None
+        The tree as flat arrays; see ``pytrees.base.DecisionTree``. ``None``
+        if the search found no tree.
+    train_error_ : float
+        Training error of the tree, as the error function measures it.
+    statistics_ : dict
+        Search counters: cache size and hits, restarts, duration.
+    status_ : str
+        ``"optimal"``, or ``"time_limit"`` if the search stopped at
+        ``max_time`` with the best tree found so far.
 
     Examples
     --------
@@ -91,10 +98,11 @@ class DL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
     >>> from pytrees import DL85Classifier
     >>> from sklearn.datasets import make_classification
     >>> X, y = make_classification(n_samples=100, n_features=5, random_state=42)
-    >>> clf = DL85Classifier(max_depth=3, min_sup=5)
-    >>> clf.fit(X, y)
-    >>> predictions = clf.predict(X)
-    >>> print(f"Accuracy: {clf.accuracy_}")
+    >>> X = (X > 0).astype(int)  # DL8.5 needs binary features
+    >>> clf = DL85Classifier(max_depth=3, min_sup=5).fit(X, y)
+    >>> clf.status_
+    'optimal'
+    >>> accuracy = clf.score(X, y)
 
     Advanced usage with rules and heuristics:
 
@@ -180,13 +188,6 @@ class DL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
         self._store(native)
         return self
 
-    def predict(self, X):
-        """Classify each row of ``X``."""
-        # The base class checks that the model is fitted before anything
-        # reads classes_.
-        encoded = np.asarray(super().predict(X), dtype=np.intp)
-        return self.classes_.take(encoded)
-
     def _native_search(self):
         if self.error_function_input == "indices" and self.error_function is None:
             raise ValueError(
@@ -217,6 +218,6 @@ class DL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
         )
 
     def _store(self, native):
-        self.results = native.stats
-        self.config = json.loads(native.config)
-        self.refresh_stats()
+        self._set_tree(native.stats)
+        self.n_classes_ = len(self.classes_)
+        self.status_ = native.status
