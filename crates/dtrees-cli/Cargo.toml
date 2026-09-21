@@ -2,7 +2,9 @@
 name = "dtrees-cli"
 description = "Command line driver for the dtrees decision tree searches."
 version = "1.0.3"
-edition = "2021"
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
 
 # Keeps the binary's historical name, so existing scripts still work.
 [[bin]]
@@ -10,5 +12,5 @@ name = "dtrees-rs"
 path = "src/main.rs"
 
 [dependencies]
-dtrees-rs = { path = "../dtrees" }
-clap = { version = "4.5.1", features = ["derive"] }
+dtrees-rs.workspace = true
+clap.workspace = true

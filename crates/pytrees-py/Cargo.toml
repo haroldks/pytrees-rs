@@ -2,7 +2,9 @@
 name = "pytrees-py"
 description = "Python bindings for the dtrees and contree decision tree searches."
 version = "1.0.3"
-edition = "2021"
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
 
 [lib]
 # `cdylib` for the extension module itself; `lib` so the Rust side stays
@@ -11,13 +13,11 @@ name = "_native"
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
-numpy = "0.26.0"
-# abi3: one wheel per platform covers every Python from 3.10 on.
-pyo3 = { version = "0.26.0", features = ["abi3-py310"] }
-serde.workspace = true
-serde_json.workspace = true
-dtrees-rs = { path = "../dtrees" }
 contree.workspace = true
+dtrees-rs.workspace = true
+numpy.workspace = true
+# abi3: one wheel per platform covers every Python from 3.10 on.
+pyo3 = { workspace = true, features = ["abi3-py310"] }
 
 [features]
 extension-module = ["pyo3/extension-module"]
