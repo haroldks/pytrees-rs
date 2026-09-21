@@ -173,11 +173,16 @@ impl RawDL85 {
     #[pyo3(signature = (x, y=None))]
     fn fit(
         &mut self,
+        py: Python<'_>,
         x: PyReadonlyArray2<'_, f64>,
         y: Option<PyReadonlyArray1<'_, i64>>,
     ) -> PyResult<()> {
         let mut cover = data::cover(&x, y.as_ref())?;
-        let outcome = self.learner.fit(&mut cover);
+        // The search can run for minutes; holding the GIL through it would
+        // block every other thread in the process. A Python error function
+        // takes the GIL back for each call.
+        let learner = &mut self.learner;
+        let outcome = py.detach(|| learner.fit(&mut cover));
         raise_stored(&self.failure)?;
         outcome.map_err(search_failed)?;
         self.fitted = true;
@@ -200,7 +205,8 @@ impl RawDL85 {
         let mut cover = data::cover(&x, y.as_ref())?;
         let mut best = f64::INFINITY;
         loop {
-            let result = self.learner.partial_fit(&mut cover);
+            let learner = &mut self.learner;
+            let result = py.detach(|| learner.partial_fit(&mut cover));
             raise_stored(&self.failure)?;
             let status = if self.learner.time_is_exhausted() {
                 "time_limit"

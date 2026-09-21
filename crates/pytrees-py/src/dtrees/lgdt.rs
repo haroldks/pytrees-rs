@@ -39,9 +39,13 @@ impl RawLGDT {
 }
 
 /// Fits `learner` and hands back its tree.
-fn run<D: OptimalDepth2Tree + ?Sized>(mut learner: LGDT<D>, cover: &mut Cover) -> PyResult<Tree> {
-    learner
-        .fit(cover)
+fn run<D: OptimalDepth2Tree + Send + ?Sized>(
+    py: Python<'_>,
+    mut learner: LGDT<D>,
+    cover: &mut Cover,
+) -> PyResult<Tree> {
+    // As for DL8.5: other Python threads keep running during the search.
+    py.detach(|| learner.fit(cover))
         .map_err(|err| PyRuntimeError::new_err(format!("LGDT failed: {err}")))?;
     Ok(learner.tree().clone())
 }
@@ -66,7 +70,12 @@ impl RawLGDT {
     }
 
     /// Builds the tree. `y` holds labels encoded as `0..k-1`.
-    fn fit(&mut self, x: PyReadonlyArray2<'_, f64>, y: PyReadonlyArray1<'_, i64>) -> PyResult<()> {
+    fn fit(
+        &mut self,
+        py: Python<'_>,
+        x: PyReadonlyArray2<'_, f64>,
+        y: PyReadonlyArray1<'_, i64>,
+    ) -> PyResult<()> {
         let mut cover = data::cover(&x, Some(&y))?;
         if cover.count() == 0 {
             return Err(PyValueError::new_err("X has no rows"));
@@ -75,6 +84,7 @@ impl RawLGDT {
         let start = Instant::now();
         let tree = match self.criterion {
             LgdtCriterion::Error => run(
+                py,
                 LGDTBuilder::<ErrorMinimizer<NativeError>>::with_default_error_minimizer()
                     .min_support(self.min_sup)
                     .max_depth(self.max_depth)
@@ -83,6 +93,7 @@ impl RawLGDT {
                 &mut cover,
             )?,
             LgdtCriterion::InformationGain => run(
+                py,
                 LGDTBuilder::<InfoGainMaximizer<NativeError>>::with_default_info_gain_maximizer()
                     .min_support(self.min_sup)
                     .max_depth(self.max_depth)

@@ -40,3 +40,26 @@ def test_x_and_y_must_have_the_same_rows(search):
 def test_an_unknown_criterion_is_a_value_error():
     with pytest.raises(ValueError, match="error, information_gain"):
         RawLGDT(criterion="gini")
+
+
+def test_other_threads_keep_running_during_a_search(anneal):
+    # A search of about half a second. With the GIL held, this loop would
+    # stall for all of it; released, it never waits longer than a thread
+    # switch. LGDT releases it the same way, but its searches take a few
+    # milliseconds, too short to tell the two apart.
+    import threading
+    import time
+
+    from pytrees import DL85Classifier
+
+    X, y = anneal
+    worker = threading.Thread(
+        target=DL85Classifier(max_depth=4, min_sup=40).fit, args=(X, y)
+    )
+    last = time.perf_counter()
+    longest_pause = 0.0
+    worker.start()
+    while worker.is_alive():
+        now = time.perf_counter()
+        longest_pause, last = max(longest_pause, now - last), now
+    assert longest_pause < 0.1
