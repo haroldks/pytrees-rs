@@ -7,6 +7,8 @@ pub mod bitsets;
 pub mod caching;
 pub mod cover;
 pub mod globals;
+// The command line parsers of the examples, which need clap.
+#[cfg(feature = "cli")]
 pub mod parsers;
 pub mod reader;
 pub mod tree;

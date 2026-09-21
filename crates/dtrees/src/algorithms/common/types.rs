@@ -2,12 +2,12 @@ use crate::algorithms::common::heuristics::{
     GiniIndex, Heuristic, InformationGain, NoHeuristic, WeightedEntropy,
 };
 use crate::algorithms::optimal::Reason;
-use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::Formatter;
 
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, ValueEnum, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, Eq, PartialEq)]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 pub enum SearchStrategy {
     Depth2ErrorMinimizer,
     Depth2InfoGainMaximizer,
@@ -84,7 +84,8 @@ pub struct SearchResult {
     pub reason: Reason,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 pub enum RuleType {
     Node,
     Search,
@@ -92,19 +93,22 @@ pub enum RuleType {
     Similarity,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 pub enum LowerBoundPolicy {
     Similarity,
     Disabled,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 pub enum BranchingPolicy {
     Dynamic,
     Default,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 pub enum OptimalDepth2Policy {
     Enabled,
     Disabled,
@@ -116,13 +120,15 @@ pub enum NodeDataType {
     Tids,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 pub enum CacheType {
     Trie,
     Hashmap,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 pub enum CacheInitStrategy {
     DynamicAllocation,
     UserAllocation,
@@ -131,7 +137,8 @@ pub enum CacheInitStrategy {
 
 pub type BranchingChoice = (usize, f64, f64);
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 pub enum SearchHeuristic {
     NoHeuristic,
     GiniIndex,
@@ -150,7 +157,8 @@ impl From<SearchHeuristic> for Box<dyn Heuristic> {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 pub enum SearchStepStrategy {
     Monotonic,
     Exponential,

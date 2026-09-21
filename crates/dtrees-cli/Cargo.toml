@@ -12,7 +12,7 @@ name = "dtrees-rs"
 path = "src/main.rs"
 
 [dependencies]
-dtrees-rs.workspace = true
+dtrees-rs = { workspace = true, features = ["cli"] }
 clap.workspace = true
 
 [lints]

@@ -91,7 +91,7 @@ run_benchmark() {
     local dataset_name=$(basename "$dataset")
 
     # Build command with algorithm-specific parameters
-    local cmd="cargo run --release -p dtrees-rs --example $algo -- --input $dataset --depth $depth --support $SUPPORT --timeout $TIMEOUT --heuristic information-gain --result $output_dir --fast-d2 enabled"
+    local cmd="cargo run --release -p dtrees-rs --features cli --example $algo -- --input $dataset --depth $depth --support $SUPPORT --timeout $TIMEOUT --heuristic information-gain --result $output_dir --fast-d2 enabled"
 
     # Add algorithm-specific parameters
     case "$algo" in
