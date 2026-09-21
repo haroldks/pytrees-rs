@@ -1,24 +1,22 @@
-use crate::algorithms::common::errors::NativeError;
-use crate::algorithms::common::heuristics::Heuristic;
-use crate::algorithms::common::types::{CacheType, NodeDataType, SearchStatistics, SearchStrategy};
-use crate::algorithms::greedy::{LGDTBuilder, LGDT};
-use crate::algorithms::optimal::depth2::{ErrorMinimizer, InfoGainMaximizer, OptimalDepth2Tree};
-use crate::algorithms::optimal::dl85::DL85Builder;
-use crate::algorithms::TreeSearchAlgorithm;
-use crate::caching::{Caching, Trie};
-use crate::parsers::{ArgCommand, MainApp};
-use crate::reader::data_reader::DataReader;
-use crate::tree::Tree;
 use clap::Parser;
+use dtrees_rs::algorithms::common::errors::NativeError;
+use dtrees_rs::algorithms::common::heuristics::Heuristic;
+use dtrees_rs::algorithms::common::types::{
+    CacheType, NodeDataType, SearchStatistics, SearchStrategy,
+};
+use dtrees_rs::algorithms::greedy::{LGDTBuilder, LGDT};
+use dtrees_rs::algorithms::optimal::depth2::{
+    ErrorMinimizer, InfoGainMaximizer, OptimalDepth2Tree,
+};
+use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
+use dtrees_rs::algorithms::TreeSearchAlgorithm;
+use dtrees_rs::caching::{Caching, Trie};
+use dtrees_rs::reader::data_reader::DataReader;
+use dtrees_rs::tree::Tree;
 
-mod algorithms;
-mod bitsets;
-mod caching;
-mod cover;
-mod globals;
-mod parsers;
-mod reader;
-mod tree;
+mod args;
+
+use args::{ArgCommand, MainApp};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = MainApp::parse();
@@ -43,8 +41,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             let learner: Box<dyn OptimalDepth2Tree> = match objective {
-                SearchStrategy::Depth2ErrorMinimizer => Box::<ErrorMinimizer<NativeError>>::default(),
-                SearchStrategy::Depth2InfoGainMaximizer => Box::<InfoGainMaximizer<NativeError>>::default(),
+                SearchStrategy::Depth2ErrorMinimizer => {
+                    Box::<ErrorMinimizer<NativeError>>::default()
+                }
+                SearchStrategy::Depth2InfoGainMaximizer => {
+                    Box::<InfoGainMaximizer<NativeError>>::default()
+                }
                 _ => {
                     panic!("Error wrong algorithm")
                 }
@@ -60,8 +62,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             print_config,
         } => {
             let obejective_fn: Box<dyn OptimalDepth2Tree> = match objective {
-                SearchStrategy::Depth2ErrorMinimizer => Box::<ErrorMinimizer<NativeError>>::default(),
-                SearchStrategy::Depth2InfoGainMaximizer => Box::<InfoGainMaximizer<NativeError>>::default(),
+                SearchStrategy::Depth2ErrorMinimizer => {
+                    Box::<ErrorMinimizer<NativeError>>::default()
+                }
+                SearchStrategy::Depth2InfoGainMaximizer => {
+                    Box::<InfoGainMaximizer<NativeError>>::default()
+                }
                 _ => {
                     panic!("Error wrong objective method")
                 }
