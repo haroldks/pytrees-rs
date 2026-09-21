@@ -8,7 +8,6 @@ edition = "2021"
 # pinned: a rust-toolchain.toml would force every contributor onto one exact
 # compiler for no reason.
 rust-version = "1.77"
-# Only the contree crates declare it: the repository has no LICENSE file yet.
 license = "MIT"
 repository = "https://github.com/haroldks/pytrees-rs"
 

@@ -4,6 +4,7 @@ description = "Command line driver for the dtrees decision tree searches."
 version = "1.0.3"
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 repository.workspace = true
 
 # Keeps the binary's historical name, so existing scripts still work.

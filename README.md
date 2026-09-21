@@ -31,3 +31,7 @@ For a more in-depth understanding, refer to the details provided in the accompan
 
 
 For more information on how to use Pytrees-rs, check the [documentation](https://haroldks.github.io/pytrees-rs/installation.html).
+
+## License
+
+MIT; see [LICENSE](LICENSE).

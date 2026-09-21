@@ -1,5 +1,5 @@
 [build-system]
-requires = ["maturin>=1.7,<2.0"]
+requires = ["maturin>=1.8,<2.0"]
 build-backend = "maturin"
 
 [project]
@@ -7,6 +7,8 @@ name = "pytrees-rs"
 description = "Optimal and greedy decision trees in Rust, with a scikit-learn API."
 readme = "README.md"
 requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
 dynamic = ["version"]
 dependencies = ["numpy>=1.23", "scipy>=1.8", "scikit-learn>=1.6"]
 classifiers = [
@@ -22,7 +24,7 @@ Documentation = "https://haroldks.github.io/pytrees-rs/"
 
 # Only for working on the repository (`uv sync`); never installed by users.
 [dependency-groups]
-dev = ["maturin>=1.7,<2.0", "pytest>=7", "pre-commit"]
+dev = ["maturin>=1.8,<2.0", "pytest>=7", "pre-commit"]
 
 [tool.maturin]
 # The compiled module is `pytrees._native`; the pure-Python package around it

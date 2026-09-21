@@ -4,6 +4,7 @@ description = "Optimal (DL8.5) and greedy (LGDT) decision trees over binary feat
 version = "1.0.3"
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 repository.workspace = true
 
 [dependencies]
