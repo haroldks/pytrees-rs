@@ -24,17 +24,24 @@ where
     D: OptimalDepth2Tree + ?Sized,
 {
     fn fit(&mut self, cover: &mut Cover) -> Result<(), FitError> {
+        let depth = self.config.max_depth.min(2);
+        let root_tree = match self.search.fit(self.config.min_support, depth, cover, None) {
+            // The depth-2 search's way of saying that no split beats a leaf,
+            // as with a single class. The recursion below turns it into a
+            // leaf, and so must the root.
+            Err(FitError::EmptyTree | FitError::EmptyCandidates) => {
+                self.tree = self.leaf_tree(cover);
+                return Ok(());
+            }
+            result => result?,
+        };
         if self.config.max_depth <= 2 {
-            self.tree =
-                self.search
-                    .fit(self.config.min_support, self.config.max_depth, cover, None)?;
+            self.tree = root_tree;
             return Ok(());
         }
 
         let mut solution_tree = Tree::new();
         let root_index = solution_tree.add_default_root();
-
-        let root_tree = self.search.fit(self.config.min_support, 2, cover, None)?;
 
         let root_attribute = root_tree.root_test().ok_or(FitError::EmptyTree)?;
         solution_tree
@@ -146,6 +153,14 @@ where
         let error = self.search.error(&cover.labels_count());
         tree.update_leaf_node(child_index, error);
         error.0
+    }
+
+    /// A tree that is a single leaf over all of `cover`.
+    fn leaf_tree(&self, cover: &mut Cover) -> Tree {
+        let mut tree = Tree::new();
+        let root = tree.add_default_root();
+        tree.update_leaf_node(root, self.search.error(&cover.labels_count()));
+        tree
     }
 
     pub fn config(&self) -> &BaseSearchConfig {

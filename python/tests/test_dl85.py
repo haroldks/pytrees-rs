@@ -190,6 +190,14 @@ def test_predicting_before_fitting_is_a_not_fitted_error(anneal, estimator):
         estimator().predict(X)
 
 
+@pytest.mark.parametrize("estimator", [DL85Classifier, LGDTClassifier])
+def test_a_single_class_gives_a_tree_that_predicts_it(anneal, estimator):
+    X, _ = anneal
+    clf = estimator(max_depth=2).fit(X, np.full(len(X), "only"))
+    assert clf.train_error_ == 0
+    assert (clf.predict(X) == "only").all()
+
+
 def test_indices_without_an_error_function_is_a_value_error(anneal):
     X, y = anneal
     with pytest.raises(ValueError, match="needs an error_function"):

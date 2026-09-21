@@ -765,9 +765,22 @@ where
         let mut tree = Tree::default();
         let mut path = SearchPath::new();
         if let Some(cache_root) = self.cache.root() {
-            let tree_entry = self.cache_entry_to_tree_entry(cache_root);
-            let root = tree.add_root(TreeNode::new(tree_entry));
-            self.build_tree_branches(cache_root.test(), &mut path, &mut tree, root);
+            // The search only records trees that beat the root as a leaf. When
+            // none does, as with a single class, the root keeps an infinite
+            // error, and the leaf itself is the answer, if within max_error.
+            let unsolved = cache_root.error().is_infinite() && !cache_root.is_leaf();
+            if unsolved && cache_root.leaf_error() < self.config.base.max_error {
+                tree.add_root(TreeNode::new(NodeInfos {
+                    test: None,
+                    error: cache_root.leaf_error(),
+                    metric: None,
+                    out: Some(cache_root.out()),
+                }));
+            } else {
+                let tree_entry = self.cache_entry_to_tree_entry(cache_root);
+                let root = tree.add_root(TreeNode::new(tree_entry));
+                self.build_tree_branches(cache_root.test(), &mut path, &mut tree, root);
+            }
         }
         self.tree = tree;
     }
