@@ -145,7 +145,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if app.print_tree {
-        tree.print();
+        println!("{}", tree);
     }
 
     Ok(())

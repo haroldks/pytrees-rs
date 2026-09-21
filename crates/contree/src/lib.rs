@@ -11,6 +11,10 @@
 //! * **A split routes left when `x[feature] <= threshold`**, right otherwise,
 //!   as in scikit-learn.
 
+// A library hands text back to its caller rather than printing it; the
+// binaries and examples print. Tests may print.
+#![cfg_attr(not(test), warn(clippy::print_stdout, clippy::print_stderr))]
+
 pub mod algorithms;
 mod bitsets;
 mod caching;

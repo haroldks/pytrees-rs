@@ -9,6 +9,10 @@
 //! - `pytrees._native.contree`: `RawConTree`, over continuous features
 //! - `pytrees._native.tree`: `apply`, which every estimator's `Tree` uses
 
+// A library hands text back to its caller rather than printing it; the
+// binaries and examples print. Tests may print.
+#![cfg_attr(not(test), warn(clippy::print_stdout, clippy::print_stderr))]
+
 use pyo3::prelude::*;
 
 mod contree;

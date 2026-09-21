@@ -31,6 +31,4 @@ pub trait Caching {
     fn size(&self) -> usize;
 
     fn is_empty(&self) -> bool;
-
-    fn print(&self);
 }

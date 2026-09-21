@@ -174,7 +174,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if app.print_tree {
-        algo.tree().print()
+        println!("{}", algo.tree())
     }
 
     Ok(())

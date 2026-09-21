@@ -32,7 +32,7 @@ fn main() -> ExitCode {
     };
 
     if app.print_tree {
-        outcome.tree.print();
+        println!("{}", outcome.tree);
     }
 
     if app.print_stats {

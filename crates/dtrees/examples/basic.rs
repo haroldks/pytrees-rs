@@ -41,7 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Search statistics: {:#?}", algo.statistics());
 
-    algo.tree().print();
+    println!("{}", algo.tree());
 
     Ok(())
 }

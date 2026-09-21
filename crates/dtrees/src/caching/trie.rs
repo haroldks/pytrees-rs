@@ -110,10 +110,6 @@ impl Caching for Trie {
     fn is_empty(&self) -> bool {
         self.arena.is_empty()
     }
-
-    fn print(&self) {
-        println!("{:#?}", self.arena)
-    }
 }
 
 impl Trie {

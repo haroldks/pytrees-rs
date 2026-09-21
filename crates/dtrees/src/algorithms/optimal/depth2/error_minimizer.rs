@@ -365,7 +365,7 @@ mod tests {
 
         if let Ok(t) = tree {
             println!("Error {}", t.root_error());
-            t.print()
+            println!("{}", t)
         }
     }
 }

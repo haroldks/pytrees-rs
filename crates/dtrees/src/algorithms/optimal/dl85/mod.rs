@@ -858,7 +858,7 @@ mod dl85_test {
         println!("Execution time: {:.3}s", algo.time_rule.elapsed_seconds());
 
         // Print resulting tree
-        algo.tree.print();
+        println!("{}", algo.tree);
 
         Ok(())
     }

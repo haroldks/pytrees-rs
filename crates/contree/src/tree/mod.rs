@@ -604,22 +604,21 @@ impl Tree {
         }
         Ok(Some(next))
     }
+}
 
-    pub fn print(&self) {
+/// One node per line, indented by depth, children after their parent.
+impl fmt::Display for Tree {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut stack: Vec<(usize, Option<&TreeNode>)> = Vec::new();
-        let root = self.get_node(self.get_root_index());
-        stack.push((0, root));
-        while let Some((deep, node_opt)) = stack.pop() {
-            if let Some(node) = node_opt {
-                for _ in 0..deep {
-                    print!("    ");
-                }
-                println!("----{:?}", node.value);
-
-                stack.push((deep + 1, self.get_right_child(node)));
-                stack.push((deep + 1, self.get_left_child(node)));
+        stack.push((0, self.get_node(self.get_root_index())));
+        while let Some((depth, node)) = stack.pop() {
+            if let Some(node) = node {
+                writeln!(f, "{}----{:?}", "    ".repeat(depth), node.value)?;
+                stack.push((depth + 1, self.get_right_child(node)));
+                stack.push((depth + 1, self.get_left_child(node)));
             }
         }
+        Ok(())
     }
 }
 
