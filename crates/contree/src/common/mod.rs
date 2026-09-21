@@ -106,7 +106,7 @@ impl SearchConfig {
         let mut left_config = *self;
         left_config.max_depth -= 1;
         left_config.is_root = false;
-        left_config.max_gap = (self.max_gap - (self.max_gap + 1) / 2) / 2;
+        left_config.max_gap = (self.max_gap - self.max_gap.div_ceil(2)) / 2;
         left_config
     }
 
@@ -114,7 +114,7 @@ impl SearchConfig {
         let mut right_config = *self;
         right_config.max_depth -= 1;
         right_config.is_root = false;
-        right_config.max_gap = (self.max_gap - (self.max_gap + 1) / 2).saturating_sub(left_gap);
+        right_config.max_gap = (self.max_gap - self.max_gap.div_ceil(2)).saturating_sub(left_gap);
         right_config
     }
 }

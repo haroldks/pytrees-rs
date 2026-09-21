@@ -47,6 +47,9 @@ macro_rules! dl85_test_suite {
         $(
             paste! {
                 #[test]
+                // The names come from the dataset files, and one of them,
+                // small_.txt, ends in an underscore.
+                #[allow(non_snake_case)]
                 fn [<$name_prefix _ $name _minsup_ $minsup _maxdepth_ $maxdepth>]() -> Result<(), Box<dyn std::error::Error>> {
                     let error = solve_dataset(stringify!($name), $minsup, $maxdepth)?;
                     assert_eq!(

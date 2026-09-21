@@ -23,7 +23,8 @@ impl RuleManager {
 
     pub fn add_rule(&mut self, rule: Box<dyn Rule>) {
         self.rules.push(rule);
-        self.rules.sort_by(|a, b| b.priority().cmp(&a.priority()));
+        self.rules
+            .sort_by_key(|rule| std::cmp::Reverse(rule.priority()));
     }
 
     pub fn relax_all(&mut self) {
@@ -40,6 +41,10 @@ impl RuleManager {
 
     pub fn len(&self) -> usize {
         self.rules.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.rules.is_empty()
     }
 
     pub fn clear_rules(&mut self) {

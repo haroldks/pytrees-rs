@@ -348,17 +348,14 @@ impl Tree {
         let root = self.get_node(self.get_root_index());
         stack.push((0, root));
         while !stack.is_empty() {
-            let next = stack.pop();
-            if let Some((deep, node_opt)) = next {
-                if let Some(node) = node_opt {
-                    for _i in 0..deep {
-                        print!("    ");
-                    }
-                    println!("----{:?}", node.value);
-
-                    stack.push((deep + 1, self.get_right_child(node)));
-                    stack.push((deep + 1, self.get_left_child(node)));
+            if let Some((deep, Some(node))) = stack.pop() {
+                for _i in 0..deep {
+                    print!("    ");
                 }
+                println!("----{:?}", node.value);
+
+                stack.push((deep + 1, self.get_right_child(node)));
+                stack.push((deep + 1, self.get_left_child(node)));
             }
         }
     }
@@ -433,7 +430,7 @@ mod binary_tree_test {
     fn create_node_data() {
         let data = NodeInfos::new();
         assert_eq!(data.error, <f64>::INFINITY);
-        assert_eq!(data.test.is_none(), true);
+        assert!(data.test.is_none());
         assert_eq!(data.out, None);
     }
 
@@ -461,11 +458,11 @@ mod binary_tree_test {
     #[test]
     fn tree_is_empty() {
         let mut tree = Tree::new();
-        assert_eq!(tree.is_empty(), true);
+        assert!(tree.is_empty());
 
         let root = TreeNode::new(NodeInfos::default());
         tree.add_root(root);
-        assert_eq!(tree.is_empty(), false);
+        assert!(!tree.is_empty());
     }
 
     #[test]

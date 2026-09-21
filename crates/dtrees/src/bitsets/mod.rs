@@ -43,14 +43,14 @@ impl BitCollection for Bitset {
     fn new(init: BitsetInit) -> Self {
         match init {
             BitsetInit::Empty(n) => {
-                let word_count = (n + 63) / 64;
+                let word_count = n.div_ceil(64);
                 Self {
                     capacity: n,
                     words: vec![0u64; word_count],
                 }
             }
             BitsetInit::Full(n) => {
-                let word_count = (n + 63) / 64;
+                let word_count = n.div_ceil(64);
                 let mut words = vec![u64::MAX; word_count];
                 if n > 0 && n % 64 != 0 {
                     if let Some(last) = words.last_mut() {
@@ -97,11 +97,11 @@ impl BitCollection for Bitset {
     }
 
     fn resize(&mut self, capacity: usize) {
-        let new_words = (capacity + 63) / 64;
-        if new_words > self.words.len() {
-            self.words.resize(new_words, 0);
-        } else if new_words < self.words.len() {
-            self.words.truncate(new_words);
+        let new_words = capacity.div_ceil(64);
+        match new_words.cmp(&self.words.len()) {
+            std::cmp::Ordering::Greater => self.words.resize(new_words, 0),
+            std::cmp::Ordering::Less => self.words.truncate(new_words),
+            std::cmp::Ordering::Equal => {}
         }
         self.capacity = 64 * self.words.len();
     }

@@ -18,7 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let depth2 = Box::new(ErrorMinimizer::new(error_fn.clone()));
 
-    let topk = TopkRule::new(usize::MAX, Box::new(Luby::default()));
+    let topk = TopkRule::new(usize::MAX, Box::<Luby>::default());
     // let gain_rule = GainRule::new(0.0, 0.001, 4.0, Box::new(Monotonic::default()));
     // let time_rule = TimeLimitRule::new(1.0).relaxable();
 

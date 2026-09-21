@@ -38,7 +38,7 @@ impl BitCollection for Bitset {
     fn new(init: BitsetInit) -> Self {
         match init {
             BitsetInit::Empty(n) => {
-                let word_count = (n + 63) / 64;
+                let word_count = n.div_ceil(64);
                 Self {
                     capacity: n,
                     count: 0,
@@ -47,7 +47,7 @@ impl BitCollection for Bitset {
                 }
             }
             BitsetInit::Full(n) => {
-                let word_count = (n + 63) / 64;
+                let word_count = n.div_ceil(64);
                 let mut words = vec![u64::MAX; word_count];
                 if n > 0 && n % 64 != 0 {
                     if let Some(last) = words.last_mut() {

@@ -196,14 +196,14 @@ mod trie_test {
     #[test]
     fn test_cache_init() {
         let mut cache = Trie::new();
-        assert_eq!(cache.is_empty(), true);
+        assert!(cache.is_empty());
 
         let root_data = TrieNode::default();
         cache.add_root(root_data);
         cache.add_node(0, TrieNode::default());
         println!("Cache 0 {:?}", cache.arena[0].children);
 
-        assert_eq!(cache.is_empty(), false);
+        assert!(!cache.is_empty());
 
         let mut itemset = Vec::new();
         itemset.push(0);

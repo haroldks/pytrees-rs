@@ -76,6 +76,8 @@ where
     E: ErrorWrapper + ?Sized,
     H: Heuristic + ?Sized,
 {
+    // Called by DL85Builder, which is how callers are meant to build a DL85.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         config: DL85Config,
         cache: Box<C>,
@@ -206,6 +208,9 @@ where
         result
     }
 
+    // The search's state travels through the recursion as arguments;
+    // bundling it into a struct is a refactor of the hot path, not a lint fix.
+    #[allow(clippy::too_many_arguments)]
     fn recursive_search(
         &mut self,
         cover: &mut Cover,
@@ -252,7 +257,7 @@ where
         let mut node_candidates = self.get_candidates(
             cover,
             self.config.base.min_support,
-            Some(&candidates),
+            Some(candidates),
             Some(attribute(parent_item)),
         );
 
@@ -303,8 +308,8 @@ where
 
             if scores.len() > 1 {
                 branch_context.gain(parent_context.gain + (scores[0] - scores[position]));
-                if (self.statistics.restarts() <= 1 || self.gain_gap <= 0.0)
-                    && (self.gain_gap <= 0f64 || branch_context.gain < self.gain_gap)
+                if self.gain_gap <= 0.0
+                    || (self.statistics.restarts() <= 1 && branch_context.gain < self.gain_gap)
                 {
                     self.gain_gap = branch_context.gain;
                 }
@@ -380,7 +385,7 @@ where
                 let optimal = self
                     .cache
                     .update_node(&parent_key)
-                    .map_or(false, |mut updater| {
+                    .is_some_and(|mut updater| {
                         updater = updater.error(subtree_error).test(child);
 
                         if float_is_null(updater.get_lower_bound() - subtree_error) {

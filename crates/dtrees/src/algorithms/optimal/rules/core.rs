@@ -128,33 +128,6 @@ impl Default for RuleContext {
 }
 
 impl RuleContext {
-    /// Create a new rule context
-    pub fn new(
-        depth: usize,
-        upper_bound: f64,
-        node_lower_bound: f64,
-        node_upper_bound: f64,
-        item: usize,
-        support: usize,
-        position: usize,
-        gain: f64,
-        error: f64,
-    ) -> Self {
-        Self {
-            depth,
-            upper_bound,
-            node_lower_bound,
-            node_upper_bound,
-            item,
-            support,
-            position,
-            discrepancy: 0,
-            gain,
-            error,
-            leaf_error: f64::INFINITY,
-        }
-    }
-
     pub fn depth(&mut self, depth: usize) {
         self.depth = depth;
     }
