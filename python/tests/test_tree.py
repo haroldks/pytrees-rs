@@ -7,7 +7,9 @@ import pickle
 import numpy as np
 import pytest
 
-from pytrees import DL85Classifier, DL85Cluster, LGDTClassifier
+from sklearn.datasets import load_iris
+
+from pytrees import ConTreeClassifier, DL85Classifier, DL85Cluster, LGDTClassifier
 from pytrees.tree import Tree
 
 
@@ -16,10 +18,15 @@ from pytrees.tree import Tree
         lambda X, y: DL85Classifier(max_depth=3, min_sup=5).fit(X, y),
         lambda X, y: LGDTClassifier(max_depth=3, min_sup=5).fit(X, y),
         lambda X, y: DL85Cluster(max_depth=2, min_sup=40).fit(X[:300]),
+        None,
     ],
-    ids=["DL85Classifier", "LGDTClassifier", "DL85Cluster"],
+    ids=["DL85Classifier", "LGDTClassifier", "DL85Cluster", "ConTreeClassifier"],
 )
 def fitted(request, anneal):
+    if request.param is None:
+        # ConTree works on continuous features.
+        X, y = load_iris(return_X_y=True)
+        return ConTreeClassifier(max_depth=3).fit(X, y), X
     X, y = anneal
     return request.param(X, y), X
 

@@ -8,7 +8,6 @@ use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2, PyUntypedArrayMethods}
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use serde::{Deserialize, Serialize};
 
 use contree::algorithms::{validate, ConTree, ConTreeLds};
 use contree::common::{PointSelector, ScheduleKind, SearchError, SearchStatus, Statistics};
@@ -53,7 +52,7 @@ fn status_name(status: SearchStatus) -> &'static str {
 
 /// Everything the constructor was given, kept verbatim so the Python layer can
 /// hand it straight back to `get_params`.
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Clone, Copy)]
 struct Params {
     min_sup: usize,
     max_depth: usize,
@@ -71,20 +70,10 @@ struct Params {
     budget_schedule: ScheduleKind,
 }
 
-#[derive(Serialize, Deserialize)]
 struct Fitted {
     tree: Tree,
     statistics: Statistics,
     status: SearchStatus,
-    n_features: usize,
-}
-
-/// What `pickle` round-trips. Held as JSON so the wire format does not depend
-/// on the memory layout of anything in the core crate.
-#[derive(Serialize, Deserialize)]
-struct State {
-    params: Params,
-    fitted: Option<Fitted>,
 }
 
 #[pyclass(module = "pytrees._native.contree")]
@@ -100,10 +89,7 @@ impl RawConTree {
             .ok_or_else(|| PyRuntimeError::new_err("this estimator has not been fitted yet"))
     }
 
-    fn dataset(
-        x: &PyReadonlyArray2<'_, f64>,
-        y: &PyReadonlyArray1<'_, i64>,
-    ) -> PyResult<(Dataset, usize)> {
+    fn dataset(x: &PyReadonlyArray2<'_, f64>, y: &PyReadonlyArray1<'_, i64>) -> PyResult<Dataset> {
         let shape = x.shape();
         let (n_rows, n_features) = (shape[0], shape[1]);
         if y.len() != n_rows {
@@ -131,7 +117,7 @@ impl RawConTree {
         }
 
         let dataset = Dataset::from_rows(values, &labels, n_features).map_err(dataset_err)?;
-        Ok((dataset, n_features))
+        Ok(dataset)
     }
 }
 
@@ -190,7 +176,7 @@ impl RawConTree {
         x: PyReadonlyArray2<'_, f64>,
         y: PyReadonlyArray1<'_, i64>,
     ) -> PyResult<()> {
-        let (dataset, n_features) = Self::dataset(&x, &y)?;
+        let dataset = Self::dataset(&x, &y)?;
         let params = self.params;
 
         // The search is pure Rust and can run for minutes; holding the GIL
@@ -235,7 +221,6 @@ impl RawConTree {
             tree: outcome.tree,
             statistics: outcome.statistics,
             status: outcome.status,
-            n_features,
         });
         Ok(())
     }
@@ -254,7 +239,7 @@ impl RawConTree {
         y: PyReadonlyArray1<'_, i64>,
         callback: Option<Py<PyAny>>,
     ) -> PyResult<()> {
-        let (dataset, n_features) = Self::dataset(&x, &y)?;
+        let dataset = Self::dataset(&x, &y)?;
         let params = self.params;
 
         let mut solver = ConTreeLds::new(
@@ -303,52 +288,8 @@ impl RawConTree {
             tree,
             statistics: *solver.statistics(),
             status: solver.status(),
-            n_features,
         });
         Ok(())
-    }
-
-    /// Classifies a batch. The whole loop runs in Rust.
-    fn predict<'py>(
-        &self,
-        py: Python<'py>,
-        x: PyReadonlyArray2<'py, f64>,
-    ) -> PyResult<Bound<'py, PyArray1<i64>>> {
-        let fitted = self.fitted()?;
-        let shape = x.shape();
-        let (n_rows, n_features) = (shape[0], shape[1]);
-        if n_features != fitted.n_features {
-            return Err(PyValueError::new_err(format!(
-                "X has {n_features} features, but this estimator was fitted with {}",
-                fitted.n_features
-            )));
-        }
-
-        let values = x
-            .as_slice()
-            .map_err(|_| PyValueError::new_err("X must be a contiguous C-order float64 array"))?;
-
-        let predictions = py
-            .detach(|| fitted.tree.predict(values, n_features))
-            .map_err(tree_err)?;
-
-        debug_assert_eq!(predictions.len(), n_rows);
-        let out: Vec<i64> = predictions.into_iter().map(|label| label as i64).collect();
-        Ok(PyArray1::from_vec(py, out))
-    }
-
-    /// The path each instance takes, as node indices, one row per instance.
-    fn decision_path(&self, x: PyReadonlyArray2<'_, f64>) -> PyResult<Vec<Vec<usize>>> {
-        let fitted = self.fitted()?;
-        let n_features = x.shape()[1];
-        let values = x
-            .as_slice()
-            .map_err(|_| PyValueError::new_err("X must be a contiguous C-order float64 array"))?;
-
-        values
-            .chunks_exact(n_features)
-            .map(|row| fitted.tree.decision_path(row).map_err(tree_err))
-            .collect()
     }
 
     /// The tree as flat arrays, in the shape scikit-learn's own `tree_` uses.
@@ -398,13 +339,6 @@ impl RawConTree {
         Ok(dict)
     }
 
-    /// The tree as JSON, for callers that want to store or ship it.
-    #[getter]
-    fn tree_json(&self) -> PyResult<String> {
-        let fitted = self.fitted()?;
-        serde_json::to_string(&fitted.tree).map_err(|err| PyRuntimeError::new_err(err.to_string()))
-    }
-
     #[getter]
     fn statistics<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let stats = self.fitted()?.statistics;
@@ -431,75 +365,11 @@ impl RawConTree {
         Ok(self.fitted()?.statistics.error)
     }
 
-    #[getter]
-    fn n_features(&self) -> PyResult<usize> {
-        Ok(self.fitted()?.n_features)
-    }
-
-    #[getter]
-    fn is_fitted(&self) -> bool {
-        self.fitted.is_some()
-    }
-
     // --- pickle -----------------------------------------------------------
     //
     // A `#[pyclass]` is not picklable by default, and an estimator that cannot
     // be pickled cannot be cached, sent to a worker process, or saved --
     // `sklearn.utils.estimator_checks.check_estimator` rejects it outright.
-
-    fn __getstate__(&self) -> PyResult<String> {
-        let state = State {
-            params: self.params,
-            fitted: self.fitted.as_ref().map(|fitted| Fitted {
-                tree: fitted.tree.clone(),
-                statistics: fitted.statistics,
-                status: fitted.status,
-                n_features: fitted.n_features,
-            }),
-        };
-        serde_json::to_string(&state).map_err(|err| PyRuntimeError::new_err(err.to_string()))
-    }
-
-    fn __setstate__(&mut self, state: &str) -> PyResult<()> {
-        let state: State = serde_json::from_str(state)
-            .map_err(|err| PyValueError::new_err(format!("corrupt estimator state: {err}")))?;
-        self.params = state.params;
-        self.fitted = state.fitted;
-        Ok(())
-    }
-
-    /// Pickle calls `__new__` with these before `__setstate__` fills the rest
-    /// in, so they only have to be constructible, not correct.
-    #[allow(clippy::type_complexity)]
-    fn __getnewargs__(
-        &self,
-    ) -> (
-        usize,
-        usize,
-        f64,
-        Option<usize>,
-        usize,
-        String,
-        bool,
-        bool,
-        bool,
-        Option<u64>,
-        String,
-    ) {
-        (
-            self.params.min_sup,
-            self.params.max_depth,
-            self.params.max_time,
-            (self.params.max_error != usize::MAX).then_some(self.params.max_error),
-            self.params.max_gap,
-            self.params.point_selector.to_string(),
-            self.params.sort_by_heuristic,
-            self.params.fast_d2,
-            self.params.use_lds,
-            self.params.random_state,
-            self.params.budget_schedule.to_string(),
-        )
-    }
 }
 
 /// Fills `pytrees._native.contree`.

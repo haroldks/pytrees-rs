@@ -45,8 +45,8 @@ experiment notebooks stayed in the contree-rs repository.
 **Python.** `ConTreeClassifier(max_depth=3, min_sup=1, max_error=None,
 max_time=600.0, max_gap=0, split_selection="mid", sort_by_heuristic=False,
 fast_d2=True, use_lds=False, random_state=None, budget_schedule="diagonal")`.
-- Supports `fit`, `fit_anytime(callback)`, `predict`, `decision_path`,
-  `tree_json_` and pickle.
+- Supports `fit`, `fit_anytime(callback)`, `predict`, `apply`, `decision_path`,
+  `to_dot` and pickle, through the `Tree` all pytrees estimators share.
 - Passes the 55 `check_estimator` checks, and 31 pytest tests pass.
 
 **Correctness fixes.** Each is a separate commit with its evidence.

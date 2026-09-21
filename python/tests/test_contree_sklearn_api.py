@@ -2,7 +2,6 @@
 like one: clone, grid search, pipelines and cross-validation all rely on
 contracts that are easy to break by accident."""
 
-import json
 import pickle
 
 import numpy as np
@@ -131,8 +130,8 @@ def test_the_tree_arrays_describe_the_same_tree_predict_walks(iris):
     clf = ConTreeClassifier(max_depth=2, fast_d2=True).fit(X, y)
     tree = clf.tree_
 
-    left, right = tree["children_left"], tree["children_right"]
-    feature, threshold, value = tree["feature"], tree["threshold"], tree["value"]
+    left, right = tree.children_left, tree.children_right
+    feature, threshold, value = tree.feature, tree.threshold, tree.value
 
     def walk(x):
         node = 0
@@ -147,30 +146,27 @@ def test_the_tree_arrays_describe_the_same_tree_predict_walks(iris):
 def test_leaves_are_marked_consistently(iris):
     X, y = iris
     tree = ConTreeClassifier(max_depth=3, fast_d2=True).fit(X, y).tree_
-    for i in range(len(tree["children_left"])):
-        is_leaf = tree["children_left"][i] == -1
-        assert (tree["children_right"][i] == -1) == is_leaf
-        assert (tree["feature"][i] == -1) == is_leaf
-        assert np.isnan(tree["threshold"][i]) == is_leaf
-        if is_leaf:
-            assert tree["value"][i] >= 0
+    for i in range(tree.node_count):
+        is_leaf = tree.children_left[i] == -1
+        assert (tree.children_right[i] == -1) == is_leaf
+        assert (tree.feature[i] == -1) == is_leaf
+        assert np.isnan(tree.threshold[i]) == is_leaf
+        assert (tree.value[i] >= 0) == is_leaf
 
 
 def test_decision_path_ends_at_the_predicted_leaf(iris):
     X, y = iris
     clf = ConTreeClassifier(max_depth=2, fast_d2=True).fit(X, y)
-    paths = clf.decision_path(X)
+    paths = clf.decision_path(X).toarray()
 
-    assert len(paths) == len(X)
-    assert all(path[0] == 0 for path in paths)
-    leaves = np.array([clf.tree_["value"][path[-1]] for path in paths])
-    np.testing.assert_array_equal(clf.classes_.take(leaves), clf.predict(X))
-
-
-def test_the_tree_serializes_to_json(iris):
-    X, y = iris
-    clf = ConTreeClassifier(max_depth=2, fast_d2=True).fit(X, y)
-    assert json.loads(clf.tree_json_)
+    assert paths.shape == (len(X), clf.tree_.node_count)
+    assert (paths[:, 0] == 1).all()
+    # The deepest node on each path is the leaf that decides the prediction.
+    leaves = clf.tree_.children_left == -1
+    reached = np.argmax(paths * leaves, axis=1)
+    np.testing.assert_array_equal(
+        clf.classes_.take(clf.tree_.value[reached]), clf.predict(X)
+    )
 
 
 def test_the_anytime_search_is_usable_from_python(iris):
@@ -230,10 +226,11 @@ def test_random_split_selection_is_reproducible_when_seeded(iris):
             max_depth=2, fast_d2=True, split_selection="random", random_state=7
         )
         .fit(X, y)
-        .tree_json_
+        .tree_
         for _ in range(2)
     ]
-    assert trees[0] == trees[1]
+    assert np.array_equal(trees[0].feature, trees[1].feature)
+    assert np.array_equal(trees[0].threshold, trees[1].threshold, equal_nan=True)
 
 
 def test_a_value_equal_to_the_threshold_goes_left():
@@ -241,7 +238,7 @@ def test_a_value_equal_to_the_threshold_goes_left():
     X = np.array([[1.0], [2.0], [3.0], [4.0]])
     y = np.array([0, 0, 1, 1])
     clf = ConTreeClassifier(max_depth=1).fit(X, y)
-    threshold = clf.tree_["threshold"][0]
+    threshold = clf.tree_.threshold[0]
     assert threshold == 2.5
     assert clf.predict([[threshold]])[0] == 0
     assert clf.predict([[np.nextafter(threshold, np.inf)]])[0] == 1

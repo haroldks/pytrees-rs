@@ -28,7 +28,7 @@ def test_predicting_before_fitting_is_a_not_fitted_error():
 
 def test_the_native_object_says_so_too():
     with pytest.raises(RuntimeError, match="not been fitted"):
-        RawConTree().predict(np.zeros((2, 2)))
+        RawConTree().tree_arrays()
 
 
 def test_predicting_with_the_wrong_width_is_a_value_error():

@@ -95,7 +95,7 @@ X, y = load_iris(return_X_y=True)
 clf = ConTreeClassifier(max_depth=3, min_sup=5, fast_d2=True).fit(X, y)
 clf.status_        # "optimal" -- anything else means the search ran out of something
 clf.train_error_   # misclassifications on the training set
-clf.tree_          # children_left / children_right / feature / threshold / value
+clf.tree_          # a pytrees.tree.Tree: children_left, feature, threshold, value, ...
 
 cross_val_score(clf, X, y, cv=5)
 ```
@@ -105,7 +105,8 @@ it clones, pickles, and drops into `Pipeline` and `GridSearchCV` unchanged. `y`
 may be anything `np.unique` accepts -- strings, non-contiguous integers -- and
 `classes_` maps back to it; the Rust core keeps its dense `0..k` contract.
 
-`predict` runs the whole batch in Rust, and `fit` releases the GIL for the
+`predict`, `apply` and `decision_path` come from the `Tree` every pytrees
+estimator shares, which sends rows down in Rust; `fit` releases the GIL for the
 duration of the search.
 
 Because the search is exact it can take a long time, and the anytime variant

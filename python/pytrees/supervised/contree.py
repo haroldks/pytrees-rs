@@ -5,14 +5,17 @@ from __future__ import annotations
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils.multiclass import check_classification_targets
-from sklearn.utils.validation import check_is_fitted, validate_data
+from sklearn.utils.validation import validate_data
 
 from pytrees._native.contree import RawConTree
+
+from ..base import TreeClassifier
+from ..tree import LEAF, Tree
 
 __all__ = ["ConTreeClassifier"]
 
 
-class ConTreeClassifier(ClassifierMixin, BaseEstimator):
+class ConTreeClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
     """An optimal decision tree classifier for continuous features.
 
     Where a greedy learner picks the locally best split at each node, this
@@ -61,10 +64,9 @@ class ConTreeClassifier(ClassifierMixin, BaseEstimator):
         encoding uses.
     n_features_in_ : int
     n_classes_ : int
-    tree_ : dict of ndarray
-        ``children_left``, ``children_right``, ``feature``, ``threshold``,
-        ``value`` and ``error``, one entry per node. ``children_left == -1``
-        marks a leaf.
+    tree_ : pytrees.tree.Tree
+        The fitted tree, in scikit-learn's layout: a row goes left when
+        ``x[feature] <= threshold``.
     train_error_ : int
         Training misclassifications of the returned tree.
     status_ : str
@@ -115,38 +117,10 @@ class ConTreeClassifier(ClassifierMixin, BaseEstimator):
 
     def fit(self, X, y):
         """Fit the tree and return ``self``."""
-        X, y = validate_data(self, X, y, dtype=np.float64, ensure_all_finite=True)
-        check_classification_targets(y)
-
-        # The Rust core works with a dense 0..k-1 encoding; keeping the
-        # original labels here is what lets arbitrary ones -- strings,
-        # non-contiguous integers -- work at all.
-        self.classes_, encoded = np.unique(y, return_inverse=True)
-        self.n_classes_ = len(self.classes_)
-
-        native = RawConTree(
-            min_sup=self.min_sup,
-            max_depth=self.max_depth,
-            max_time=self.max_time,
-            max_error=self.max_error,
-            max_gap=self.max_gap,
-            split_selection=self.split_selection,
-            sort_by_heuristic=self.sort_by_heuristic,
-            fast_d2=self.fast_d2,
-            use_lds=self.use_lds,
-            random_state=self.random_state,
-            budget_schedule=self.budget_schedule,
-        )
-        native.fit(
-            np.ascontiguousarray(X, dtype=np.float64),
-            np.ascontiguousarray(encoded, dtype=np.int64),
-        )
-
-        self._native = native
-        self.tree_ = native.tree_arrays()
-        self.train_error_ = native.error
-        self.status_ = native.status
-        self.statistics_ = native.statistics
+        X, encoded = self._validate(X, y)
+        native = self._native_search(use_lds=self.use_lds)
+        native.fit(X, encoded)
+        self._store(native)
         return self
 
     def fit_anytime(self, X, y, callback=None):
@@ -159,12 +133,24 @@ class ConTreeClassifier(ClassifierMixin, BaseEstimator):
 
         Returns ``self``.
         """
+        X, encoded = self._validate(X, y)
+        native = self._native_search(use_lds=True)
+        native.fit_anytime(X, encoded, callback)
+        self._store(native)
+        return self
+
+    def _validate(self, X, y):
         X, y = validate_data(self, X, y, dtype=np.float64, ensure_all_finite=True)
         check_classification_targets(y)
+        # The Rust core works with a dense 0..k-1 encoding; keeping the
+        # original labels here is what lets arbitrary ones -- strings,
+        # non-contiguous integers -- work at all.
         self.classes_, encoded = np.unique(y, return_inverse=True)
         self.n_classes_ = len(self.classes_)
+        return np.ascontiguousarray(X), np.ascontiguousarray(encoded, dtype=np.int64)
 
-        native = RawConTree(
+    def _native_search(self, use_lds):
+        return RawConTree(
             min_sup=self.min_sup,
             max_depth=self.max_depth,
             max_time=self.max_time,
@@ -173,45 +159,26 @@ class ConTreeClassifier(ClassifierMixin, BaseEstimator):
             split_selection=self.split_selection,
             sort_by_heuristic=self.sort_by_heuristic,
             fast_d2=self.fast_d2,
-            use_lds=True,
+            use_lds=use_lds,
             random_state=self.random_state,
             budget_schedule=self.budget_schedule,
         )
-        native.fit_anytime(
-            np.ascontiguousarray(X, dtype=np.float64),
-            np.ascontiguousarray(encoded, dtype=np.int64),
-            callback,
-        )
 
-        self._native = native
-        self.tree_ = native.tree_arrays()
+    def _store(self, native):
+        # Only plain data is kept, so the fitted estimator pickles without
+        # the native search.
+        arrays = native.tree_arrays()
+        self.tree_ = Tree(
+            arrays["children_left"],
+            arrays["children_right"],
+            arrays["feature"],
+            arrays["threshold"],
+            np.where(arrays["children_left"] == LEAF, arrays["value"], LEAF),
+            arrays["error"],
+        )
         self.train_error_ = native.error
         self.status_ = native.status
         self.statistics_ = native.statistics
-        return self
-
-    def predict(self, X):
-        """Classify each row of ``X``."""
-        check_is_fitted(self)
-        X = validate_data(
-            self, X, dtype=np.float64, ensure_all_finite=True, reset=False
-        )
-        encoded = self._native.predict(np.ascontiguousarray(X, dtype=np.float64))
-        return self.classes_.take(encoded)
-
-    def decision_path(self, X):
-        """The node indices each row of ``X`` visits, root first."""
-        check_is_fitted(self)
-        X = validate_data(
-            self, X, dtype=np.float64, ensure_all_finite=True, reset=False
-        )
-        return self._native.decision_path(np.ascontiguousarray(X, dtype=np.float64))
-
-    @property
-    def tree_json_(self):
-        """The fitted tree as JSON."""
-        check_is_fitted(self)
-        return self._native.tree_json
 
     def __sklearn_tags__(self):
         tags = super().__sklearn_tags__()
