@@ -13,15 +13,25 @@ use dtrees_rs::algorithms::TreeSearchAlgorithm;
 use dtrees_rs::caching::{Caching, Trie};
 use dtrees_rs::reader::data_reader::DataReader;
 use dtrees_rs::tree::Tree;
+use std::process::ExitCode;
 
 mod args;
 
 use args::{ArgCommand, MainApp};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let app = MainApp::parse();
+fn main() -> ExitCode {
+    match run(MainApp::parse()) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(err) => {
+            eprintln!("error: {err}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run(app: MainApp) -> Result<(), Box<dyn std::error::Error>> {
     if !app.input.exists() {
-        panic!("File does not exist");
+        return Err(format!("{} does not exist", app.input.display()).into());
     }
 
     let reader = DataReader::default();
@@ -37,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             objective,
         } => {
             if depth == 0 || depth > 2 {
-                panic!("Invalid depth depth must be 1 or 2");
+                return Err(format!("d2 needs a depth of 1 or 2, not {depth}").into());
             }
 
             let learner: Box<dyn OptimalDepth2Tree> = match objective {
@@ -47,8 +57,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 SearchStrategy::Depth2InfoGainMaximizer => {
                     Box::<InfoGainMaximizer<NativeError>>::default()
                 }
-                _ => {
-                    panic!("Error wrong algorithm")
+                other => {
+                    return Err(format!("d2 cannot optimise {other:?}").into());
                 }
             };
 
@@ -68,8 +78,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 SearchStrategy::Depth2InfoGainMaximizer => {
                     Box::<InfoGainMaximizer<NativeError>>::default()
                 }
-                _ => {
-                    panic!("Error wrong objective method")
+                other => {
+                    return Err(format!("lgdt cannot optimise {other:?}").into());
                 }
             };
 
@@ -106,7 +116,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let cache: Box<dyn Caching> = match cache_type {
                 CacheType::Trie => Box::<Trie>::default(),
                 CacheType::Hashmap => {
-                    panic!("Not yet implemented")
+                    return Err("the hashmap cache is not implemented yet; use trie".into());
                 }
             };
 

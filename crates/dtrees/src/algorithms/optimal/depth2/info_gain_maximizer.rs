@@ -252,10 +252,7 @@ mod tests {
         let path = Path::new("test_data/anneal.txt");
         let cover_result = reader.read_file(path);
 
-        let mut cover = match cover_result {
-            Ok(cover) => cover,
-            Err(_) => panic!("oops"),
-        };
+        let mut cover = cover_result.expect("the test data is readable");
 
         let info_gain_maximizer = InfoGainMaximizer::default();
         let tree = info_gain_maximizer.fit(1, 2, &mut cover, None);

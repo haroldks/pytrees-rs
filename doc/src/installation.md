@@ -72,10 +72,10 @@ cd pytrees-rs
 cargo build --release
 
 # Create symbolic link (Unix-based systems)
-ln -s $(pwd)/target/release/dtrees_rs $HOME/.local/bin/dtrees_rs
+ln -s $(pwd)/target/release/dtrees-rs $HOME/.local/bin/dtrees-rs
 
 # Or copy to system path
-sudo cp target/release/dtrees_rs /usr/local/bin/
+sudo cp target/release/dtrees-rs /usr/local/bin/
 ```
 
 ## Basic Usage
@@ -102,7 +102,7 @@ print(f"Accuracy: {clf.score(X, y):.3f}")
 
 ```bash
 # Test binary installation
-dtrees_rs --help
+dtrees-rs --help
 ```
 
 ## Next Steps

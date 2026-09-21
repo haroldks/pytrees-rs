@@ -178,13 +178,7 @@ mod data_reader_test {
         let reader = DataReader::default();
         let path = Path::new("test_data/anneal.txt");
         let cover_result = reader.read_file(path);
-        let cover = match cover_result {
-            Ok(cover) => cover,
-            Err(err) => {
-                println!("Data error {}", err);
-                panic!("oops")
-            }
-        };
+        let cover = cover_result.expect("the test data is readable");
 
         assert_eq!(cover.num_labels, 2);
         assert_eq!(cover.num_attributes, 93);
