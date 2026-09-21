@@ -168,7 +168,7 @@ class DL85Classifier(ClassifierMixin, TreeClassifier, BaseEstimator):
         """
         X, self.classes_, encoded = validate_binary_classification(self, X, y)
         native = self._native_search()
-        native.fit(X, encoded.astype(np.float64))
+        native.fit(X, encoded.astype(np.int64))
         self._store(native)
         return self
 
@@ -184,7 +184,7 @@ class DL85Classifier(ClassifierMixin, TreeClassifier, BaseEstimator):
         """
         X, self.classes_, encoded = validate_binary_classification(self, X, y)
         native = self._native_search()
-        native.fit_anytime(X, encoded.astype(np.float64), callback)
+        native.fit_anytime(X, encoded.astype(np.int64), callback)
         self._store(native)
         return self
 
@@ -202,6 +202,6 @@ class DL85Classifier(ClassifierMixin, TreeClassifier, BaseEstimator):
         )
 
     def _store(self, native):
-        self._set_tree(native.stats)
+        self._set_tree(native)
         self.n_classes_ = len(self.classes_)
         self.status_ = native.status

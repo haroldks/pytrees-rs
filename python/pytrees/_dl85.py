@@ -4,7 +4,7 @@ Shared by DL85Classifier and DL85Cluster, which differ only in what they
 fix: the clustering search always hands row indices to its error function.
 """
 
-from pytrees._native.odt import PyDL85
+from pytrees._native.dtrees import RawDL85
 
 
 def dl85_search(estimator, *, fast_d2, error_function_input, error_function):
@@ -18,7 +18,7 @@ def dl85_search(estimator, *, fast_d2, error_function_input, error_function):
     # The rules relax the search pass by pass, which the similarity bounds
     # and dynamic branching do not take into account.
     bounded = any(rule is not None for rule in rules)
-    return PyDL85(
+    return RawDL85(
         min_sup=estimator.min_sup,
         max_depth=estimator.max_depth,
         max_error=estimator.max_error,

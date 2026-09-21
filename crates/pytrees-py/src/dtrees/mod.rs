@@ -1,9 +1,18 @@
 //! Bindings for the dtrees searches over binary features: DL8.5 and LGDT.
 
-pub mod data;
-pub mod dl85;
-pub mod errors;
-pub mod lgdt;
-pub mod options;
-pub mod output;
-pub mod rules;
+mod data;
+mod dl85;
+mod errors;
+mod lgdt;
+mod options;
+mod output;
+mod rules;
+
+use pyo3::prelude::*;
+
+/// Fills `pytrees._native.dtrees`.
+pub fn add_classes(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_class::<dl85::RawDL85>()?;
+    module.add_class::<lgdt::RawLGDT>()?;
+    Ok(())
+}

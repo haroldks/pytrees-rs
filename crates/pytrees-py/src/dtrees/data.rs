@@ -1,69 +1,63 @@
+//! Turns numpy arrays into the `Cover` the dtrees searches work on.
+
 use dtrees_rs::bitsets::{BitCollection, Bitset, BitsetInit};
 use dtrees_rs::cover::Cover;
-use numpy::PyReadonlyArrayDyn;
+use numpy::{PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::exceptions::PyValueError;
 use pyo3::PyResult;
-use std::collections::HashSet;
 
-pub(crate) fn create_cover_from_numpy(
-    input: PyReadonlyArrayDyn<f64>,
-    target: Option<&PyReadonlyArrayDyn<f64>>,
+/// One bitset per feature, set where the feature is 1, and one per label.
+///
+/// `x` must hold only 0 and 1, and `y` labels encoded as `0..k-1`; the
+/// Python layer guarantees both, and this checks them again rather than
+/// truncating or indexing out of bounds. Without `y`, as for clustering,
+/// the cover has no labels.
+pub(crate) fn cover(
+    x: &PyReadonlyArray2<'_, f64>,
+    y: Option<&PyReadonlyArray1<'_, i64>>,
 ) -> PyResult<Cover> {
-    let input_array = input.as_array().map(|&x| x as usize);
-    let num_samples = input_array.shape()[0];
-    let num_features = input_array.shape()[1];
+    let x = x.as_array();
+    let (n_rows, n_features) = x.dim();
 
-    let mut attributes = Vec::with_capacity(num_features);
-
-    for feature_idx in 0..num_features {
-        let mut feature_bitset = Bitset::new(BitsetInit::Empty(num_samples));
-        for sample_idx in 0..num_samples {
-            let value = input_array[[sample_idx, feature_idx]];
-            if value == 1 {
-                feature_bitset.set(sample_idx);
-            }
+    let mut attributes = vec![Bitset::new(BitsetInit::Empty(n_rows)); n_features];
+    for ((row, feature), &value) in x.indexed_iter() {
+        if value == 1.0 {
+            attributes[feature].set(row);
+        } else if value != 0.0 {
+            return Err(PyValueError::new_err(format!(
+                "features must be 0 or 1, found {value} at row {row}, column {feature}"
+            )));
         }
-        attributes.push(feature_bitset);
     }
 
-    let labels = match target {
-        Some(target_array) => {
-            let target_array = target_array.as_array().map(|&x| x as usize);
-
-            if target_array.len() != num_samples {
+    let labels = match y {
+        None => vec![],
+        Some(y) => {
+            let y = y.as_array();
+            if y.len() != n_rows {
                 return Err(PyValueError::new_err(format!(
-                    "Target length ({}) doesn't match input samples ({})",
-                    target_array.len(),
-                    num_samples
+                    "X has {n_rows} rows but y has {} labels",
+                    y.len()
                 )));
             }
-
-            let mut unique_labels = HashSet::new();
-            for sample_idx in 0..num_samples {
-                let label = target_array[sample_idx];
-                unique_labels.insert(label);
-            }
-
-            // Each label indexes a bitset, so they must be exactly 0..k-1.
-            // The Python layer encodes them that way; this guards the rest.
-            let num_labels = unique_labels.len();
-            if let Some(&label) = unique_labels.iter().find(|&&label| label >= num_labels) {
+            let n_labels = y.iter().max().map_or(0, |&max| max + 1);
+            if let Some(&label) = y.iter().find(|&&label| label < 0) {
                 return Err(PyValueError::new_err(format!(
-                    "labels must be encoded as 0..{}, found {label}",
-                    num_labels.saturating_sub(1)
+                    "labels must be encoded as 0..k-1, found {label}"
                 )));
             }
-            let mut labels = vec![Bitset::new(BitsetInit::Empty(num_samples)); num_labels];
-
-            for sample_idx in 0..num_samples {
-                let label = target_array[sample_idx];
-                labels[label].set(sample_idx);
+            let mut labels = vec![Bitset::new(BitsetInit::Empty(n_rows)); n_labels as usize];
+            for (row, &label) in y.iter().enumerate() {
+                labels[label as usize].set(row);
             }
-
+            if let Some(missing) = labels.iter().position(|label| label.count() == 0) {
+                return Err(PyValueError::new_err(format!(
+                    "labels must be encoded as 0..k-1, but no row has label {missing}"
+                )));
+            }
             labels
         }
-        None => vec![],
     };
 
-    Ok(Cover::new(attributes, labels, num_samples))
+    Ok(Cover::new(attributes, labels, n_rows))
 }

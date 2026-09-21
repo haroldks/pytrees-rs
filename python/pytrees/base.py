@@ -1,5 +1,3 @@
-import json
-
 import numpy as np
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.utils.validation import check_is_fitted, validate_data
@@ -45,13 +43,13 @@ class DecisionTree:
     ``max_error`` is below the best error achievable.
     """
 
-    def _set_tree(self, output):
-        """Store the tree and statistics of a native search output."""
-        tree = output.tree_arrays
+    def _set_tree(self, native):
+        """Store the tree and statistics of a fitted native search."""
+        tree = native.tree_arrays()
         found = tree["children_left"][0] != -1 or not np.isnan(tree["value"][0])
         self.tree_ = tree if found else None
-        self.train_error_ = output.error
-        self.statistics_ = json.loads(output.statistics)
+        self.train_error_ = native.error
+        self.statistics_ = native.statistics
 
     def _leaf_values(self, X):
         """The value of the leaf each row of ``X`` reaches."""

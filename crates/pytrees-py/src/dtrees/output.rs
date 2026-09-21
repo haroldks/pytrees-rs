@@ -1,110 +1,55 @@
-use dtrees_rs::algorithms::common::types::{SearchStatistics, SearchStrategy};
+//! What a fitted dtrees search hands back to Python.
+
+use dtrees_rs::algorithms::common::types::SearchStatistics;
 use dtrees_rs::tree::Tree;
 use numpy::PyArray1;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-/// Search output container for decision tree algorithm results.
-///
-/// This class encapsulates all results and statistics from decision tree
-/// construction algorithms, providing a unified interface for accessing
-/// tree structures, performance metrics, and detailed search statistics.
-///
-/// ## Fields
-///
-/// - `error`: Final classification error of the constructed tree
-/// - `tree`: The decision tree structure in JSON format
-/// - `statistics`: Detailed search statistics (nodes explored, cache performance, etc.)
-/// - `duration`: Total algorithm execution time in seconds
-/// - `search`: Search strategy information used during construction
-///
-/// ## Usage
-///
-/// This class is typically returned by algorithm functions and should not
-/// be instantiated directly by users.
-///
-/// ```python
-/// # Returned by algorithm functions
-/// result = classifier.fit(X, y)
-/// stats = classifier.stats
-///
-/// print(f"Error: {stats.error}")
-/// print(f"Duration: {stats.duration}s")
-/// print(f"Tree: {stats.tree}")
-/// print(f"Statistics: {stats.statistics}")
-/// ```
-#[pyclass(name = "output")]
-#[derive(Default, Clone)]
-pub struct SearchOutput {
-    #[pyo3(get, set)]
-    pub(crate) error: f64,
-    pub(crate) tree: Tree,
-    pub(crate) statistics: SearchStatistics,
-    pub(crate) duration: f64,
-    pub(crate) search: SearchStrategy,
+/// The tree as flat arrays, in the layout `RawConTree.tree_arrays` uses:
+/// node `i` tests `feature[i]` and sends a row left when its value is below
+/// `threshold[i]` (0.5 here, so 0 goes left and 1 right).
+/// `children_left[i] == -1` marks a leaf, which predicts `value[i]`. Nodes
+/// are numbered from the root, depth first; `value` is NaN where the search
+/// set no output, as on a root it found no tree for.
+pub(crate) fn tree_arrays<'py>(py: Python<'py>, tree: &Tree) -> PyResult<Bound<'py, PyDict>> {
+    let mut arrays = TreeArrays::default();
+    if !tree.is_empty() {
+        arrays.push_subtree(tree, tree.get_root_index());
+    }
+    let dict = PyDict::new(py);
+    dict.set_item(
+        "children_left",
+        PyArray1::from_vec(py, arrays.children_left),
+    )?;
+    dict.set_item(
+        "children_right",
+        PyArray1::from_vec(py, arrays.children_right),
+    )?;
+    dict.set_item("feature", PyArray1::from_vec(py, arrays.feature))?;
+    dict.set_item("threshold", PyArray1::from_vec(py, arrays.threshold))?;
+    dict.set_item("value", PyArray1::from_vec(py, arrays.value))?;
+    dict.set_item("error", PyArray1::from_vec(py, arrays.error))?;
+    Ok(dict)
 }
 
-#[pymethods]
-impl SearchOutput {
-    /// Returns the classification error of the constructed tree.
-    ///
-    /// # Returns
-    ///
-    /// The error rate as a float between 0.0 and 1.0, where 0.0 indicates
-    /// perfect classification and 1.0 indicates completely incorrect classification.
-    #[getter]
-    pub fn error(&self) -> PyResult<f64> {
-        Ok(self.error)
-    }
-
-    /// Returns detailed search statistics as a JSON string.
-    ///
-    /// The statistics include information about:
-    /// - Number of nodes explored during search
-    /// - Cache hit/miss ratios
-    /// - Memory usage patterns
-    /// - Algorithm-specific metrics
-    ///
-    /// # Returns
-    ///
-    /// A pretty-printed JSON string containing comprehensive search statistics.
-    #[getter]
-    pub fn statistics(&self) -> PyResult<String> {
-        let json = serde_json::to_string_pretty(&self.statistics).unwrap();
-        Ok(json)
-    }
-
-    /// The tree as flat arrays, in the layout `ConTreeClassifier.tree_` uses:
-    /// node `i` tests `feature[i]` and sends a row left when its value is
-    /// below `threshold[i]` (0.5 here, so 0 goes left and 1 right).
-    /// `children_left[i] == -1` marks a leaf, which predicts `value[i]`.
-    /// Nodes are numbered from the root, depth first; `value` is NaN where
-    /// the search set no output, as on a root it found no tree for.
-    #[getter]
-    pub fn tree_arrays<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        let mut arrays = TreeArrays::default();
-        if !self.tree.is_empty() {
-            arrays.push_subtree(&self.tree, self.tree.get_root_index());
-        }
-        let dict = PyDict::new(py);
-        dict.set_item("children_left", PyArray1::from_vec(py, arrays.children_left))?;
-        dict.set_item("children_right", PyArray1::from_vec(py, arrays.children_right))?;
-        dict.set_item("feature", PyArray1::from_vec(py, arrays.feature))?;
-        dict.set_item("threshold", PyArray1::from_vec(py, arrays.threshold))?;
-        dict.set_item("value", PyArray1::from_vec(py, arrays.value))?;
-        dict.set_item("error", PyArray1::from_vec(py, arrays.error))?;
-        Ok(dict)
-    }
-
-    /// Returns the total algorithm execution time.
-    ///
-    /// # Returns
-    ///
-    /// Duration in seconds as a float.
-    #[getter]
-    pub fn duration(&self) -> f64 {
-        self.duration
-    }
+/// The search counters, under the names `RawConTree.statistics` uses where
+/// the two libraries count the same thing.
+pub(crate) fn statistics<'py>(
+    py: Python<'py>,
+    stats: &SearchStatistics,
+) -> PyResult<Bound<'py, PyDict>> {
+    let dict = PyDict::new(py);
+    dict.set_item("error", stats.tree_error)?;
+    dict.set_item("duration", stats.duration)?;
+    dict.set_item("cache_size", stats.cache_size)?;
+    dict.set_item("cache_hits", stats.cache_hits)?;
+    dict.set_item("restarts", stats.restarts)?;
+    dict.set_item("sibling_pruning", stats.sibling_pruning)?;
+    dict.set_item("search_space_size", stats.search_space_size)?;
+    dict.set_item("n_samples", stats.num_samples)?;
+    dict.set_item("n_features", stats.num_attributes)?;
+    Ok(dict)
 }
 
 #[derive(Default)]

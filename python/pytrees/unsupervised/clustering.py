@@ -123,8 +123,8 @@ class DL85Cluster(ClusterMixin, DecisionTree, BaseEstimator):
             error_function_input="indices",
             error_function=error_function,
         )
-        native.fit(X, None)
-        self._set_tree(native.stats)
+        native.fit(X)
+        self._set_tree(native)
         self.status_ = native.status
         if self.tree_ is not None:
             self.n_clusters_ = int((self.tree_["children_left"] == -1).sum())

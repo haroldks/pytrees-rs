@@ -502,15 +502,8 @@ impl RawConTree {
     }
 }
 
-/// Adds the `contree` submodule to `pytrees._native`.
-pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
-    let module = PyModule::new(py, "contree")?;
+/// Fills `pytrees._native.contree`.
+pub fn add_classes(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<RawConTree>()?;
-    parent.add_submodule(&module)?;
-    // Makes `from pytrees._native.contree import ...` work, and lets pickle
-    // find `RawConTree` by the module name above.
-    py.import("sys")?
-        .getattr("modules")?
-        .set_item("pytrees._native.contree", module)?;
     Ok(())
 }

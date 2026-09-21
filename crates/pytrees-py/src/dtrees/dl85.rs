@@ -1,33 +1,37 @@
-use crate::dtrees::data::create_cover_from_numpy;
-use crate::dtrees::errors::{raise_stored, ErrorSlot, PythonError};
-use crate::dtrees::options;
-use crate::dtrees::rules::{DiscrepancySpec, GainSpec, PuritySpec, RestartSpec, TopKSpec};
-use crate::dtrees::output::SearchOutput;
+//! DL8.5, the optimal search over binary features.
+
 use dtrees_rs::algorithms::common::errors::{ErrorWrapper, NativeError};
 use dtrees_rs::algorithms::common::heuristics::Heuristic;
 use dtrees_rs::algorithms::common::types::{
     BranchingPolicy, LowerBoundPolicy, OptimalDepth2Policy,
 };
 use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
-use dtrees_rs::algorithms::optimal::dl85::config::DL85Config;
 use dtrees_rs::algorithms::optimal::dl85::{DL85Builder, DL85};
 use dtrees_rs::algorithms::optimal::rules::{Reason, Rule};
 use dtrees_rs::algorithms::TreeSearchAlgorithm;
 use dtrees_rs::caching::Trie;
-use numpy::PyReadonlyArrayDyn;
-use pyo3::exceptions::PyValueError;
+use numpy::{PyReadonlyArray1, PyReadonlyArray2};
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
+
+use crate::dtrees::data;
+use crate::dtrees::errors::{raise_stored, ErrorSlot, PythonError};
+use crate::dtrees::options;
+use crate::dtrees::output;
+use crate::dtrees::rules::{DiscrepancySpec, GainSpec, PuritySpec, RestartSpec, TopKSpec};
+
+type Search = DL85<Trie, ErrorMinimizer<dyn ErrorWrapper>, dyn ErrorWrapper, dyn Heuristic>;
 
 /// The DL8.5 search, as `pytrees.DL85Classifier` and `pytrees.DL85Cluster`
 /// drive it. Options arrive as strings and rules as plain Python objects;
 /// both are documented on the Python classes.
-#[pyclass]
-pub struct PyDL85 {
-    learner: DL85<Trie, ErrorMinimizer<dyn ErrorWrapper>, dyn ErrorWrapper, dyn Heuristic>,
-    config: DL85Config,
-    statistics: SearchOutput,
+#[pyclass(module = "pytrees._native.dtrees")]
+pub struct RawDL85 {
+    learner: Search,
     /// The first exception the caller's error function raised, if any.
     failure: ErrorSlot,
+    fitted: bool,
 }
 
 /// Wraps the caller's error function, or uses the built-in one.
@@ -42,8 +46,25 @@ fn wrap_error_function(
     }
 }
 
+/// A failure inside the search is a broken invariant, not bad input.
+fn search_failed(err: impl std::fmt::Display) -> PyErr {
+    PyRuntimeError::new_err(format!("DL8.5 failed: {err}"))
+}
+
+impl RawDL85 {
+    fn fitted(&self) -> PyResult<&Search> {
+        if self.fitted {
+            Ok(&self.learner)
+        } else {
+            Err(PyRuntimeError::new_err(
+                "this search has not been fitted yet",
+            ))
+        }
+    }
+}
+
 #[pymethods]
-impl PyDL85 {
+impl RawDL85 {
     #[new]
     #[pyo3(signature = (
         min_sup=1,
@@ -138,29 +159,28 @@ impl PyDL85 {
             .add_node_rules(node_rules)
             .error_function(wrap_error_function(py, &error_function, &failure))
             .build()
-            .map_err(|e| PyValueError::new_err(format!("invalid DL8.5 configuration: {e:?}")))?;
+            .map_err(|err| PyValueError::new_err(format!("invalid DL8.5 configuration: {err}")))?;
 
-        let config = learner.config();
         Ok(Self {
             learner,
-            config,
-            statistics: SearchOutput::default(),
             failure,
+            fitted: false,
         })
     }
 
-    /// Runs the search to completion, or until the time limit.
-    #[pyo3(signature = (input, target=None))]
+    /// Runs the search to completion, or until the time limit. `y` holds
+    /// labels encoded as `0..k-1`; clustering passes none.
+    #[pyo3(signature = (x, y=None))]
     fn fit(
         &mut self,
-        input: PyReadonlyArrayDyn<f64>,
-        target: Option<PyReadonlyArrayDyn<f64>>,
+        x: PyReadonlyArray2<'_, f64>,
+        y: Option<PyReadonlyArray1<'_, i64>>,
     ) -> PyResult<()> {
-        let mut cover = create_cover_from_numpy(input, target.as_ref())?;
+        let mut cover = data::cover(&x, y.as_ref())?;
         let outcome = self.learner.fit(&mut cover);
         raise_stored(&self.failure)?;
-        outcome.map_err(|err| PyValueError::new_err(format!("DL8.5 failed: {err:?}")))?;
-        self.update_stats();
+        outcome.map_err(search_failed)?;
+        self.fitted = true;
         Ok(())
     }
 
@@ -170,15 +190,14 @@ impl PyDL85 {
     /// Passes only differ when rules bound them: each pass relaxes the rules
     /// until one runs unbounded. `status` is `"budget_exhausted"` while a
     /// rule still bounds the search, then `"optimal"`, or `"time_limit"`.
-    #[pyo3(signature = (input, target, callback))]
     fn fit_anytime(
         &mut self,
         py: Python<'_>,
-        input: PyReadonlyArrayDyn<f64>,
-        target: Option<PyReadonlyArrayDyn<f64>>,
+        x: PyReadonlyArray2<'_, f64>,
+        y: Option<PyReadonlyArray1<'_, i64>>,
         callback: Py<PyAny>,
     ) -> PyResult<()> {
-        let mut cover = create_cover_from_numpy(input, target.as_ref())?;
+        let mut cover = data::cover(&x, y.as_ref())?;
         let mut best = f64::INFINITY;
         loop {
             let result = self.learner.partial_fit(&mut cover);
@@ -199,81 +218,34 @@ impl PyDL85 {
                 break;
             }
         }
-        self.update_stats();
+        self.fitted = true;
         Ok(())
     }
 
-    /// Returns comprehensive search statistics and results.
-    ///
-    /// This property provides access to detailed information about the search
-    /// process, including the optimal tree, error metrics, and performance statistics.
-    ///
-    /// # Returns
-    ///
-    /// A `SearchOutput` object containing:
-    /// - `error`: Optimal classification error achieved
-    /// - `tree`: JSON representation of the current or optimal decision tree
-    /// - `statistics`: Detailed search statistics (nodes explored, cache hits, etc.)
-    /// - `duration`: Total search time in seconds
-    ///
-    /// # Example
-    ///
-    /// ```python
-    /// classifier.fit(X_train, y_train)
-    /// stats = classifier.stats
-    ///
-    /// print(f"Optimal error: {stats.error}")
-    /// print(f"Search time: {stats.duration}s")
-    /// print(f"Tree: {stats.tree}")
-    /// print(f"Statistics: {stats.statistics}")
-    /// ```
-    #[getter]
-    pub fn stats(&self) -> PyResult<SearchOutput> {
-        Ok(self.statistics.clone())
+    /// The fitted tree as flat arrays; see `output::tree_arrays`.
+    fn tree_arrays<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        output::tree_arrays(py, self.fitted()?.tree())
     }
 
-    /// Returns the algorithm configuration as a JSON string.
-    ///
-    /// This property provides access to the configuration used
-    /// for the DL8.5 algorithm, useful for reproducibility and debugging.
-    ///
-    /// # Returns
-    ///
-    /// A JSON string containing all configuration parameters.
-    ///
-    /// # Example
-    ///
-    /// ```python
-    /// classifier = PyDL85(max_depth=3, min_sup=5)
-    /// config = classifier.config
-    /// print(config)
-    /// ```
     #[getter]
-    pub fn config(&self) -> PyResult<String> {
-        let json = serde_json::to_string_pretty(&self.config).unwrap();
-        Ok(json)
+    fn statistics<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        output::statistics(py, self.fitted()?.statistics())
+    }
+
+    /// The error of the fitted tree, as the error function measures it.
+    #[getter]
+    fn error(&self) -> PyResult<f64> {
+        Ok(self.fitted()?.error())
     }
 
     /// `"optimal"` if the search ran to completion, `"time_limit"` if it
     /// stopped at `time_limit` with the best tree found so far.
     #[getter]
-    fn status(&self) -> &'static str {
-        if self.learner.time_is_exhausted() {
+    fn status(&self) -> PyResult<&'static str> {
+        Ok(if self.fitted()?.time_is_exhausted() {
             "time_limit"
         } else {
             "optimal"
-        }
-    }
-
-    /// Updates internal statistics from the current algorithm state.
-    ///
-    /// This method synchronizes the Python-accessible statistics with the
-    /// current state of the underlying Rust algorithm. Called automatically
-    /// after fitting operations.
-    fn update_stats(&mut self) {
-        self.statistics.error = self.learner.error();
-        self.statistics.duration = self.learner.elapsed_seconds();
-        self.statistics.statistics = *self.learner.statistics();
-        self.statistics.tree = self.learner.tree().clone();
+        })
     }
 }
