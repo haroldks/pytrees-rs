@@ -5,11 +5,15 @@ root, and ``children_left[i] == -1`` for a leaf. Every estimator shares it,
 so prediction, decision paths and drawing work the same way for all of them.
 
 **A row goes left when ``x[feature] <= threshold``**, and right otherwise, as
-in scikit-learn. On binary features the threshold is 0.5: 0 goes left.
+in scikit-learn. On binary features the threshold is 0.5: 0 goes left. The
+rule lives in one place, ``pytrees._native.tree.apply``; everything else
+here is derived from the leaf each row reaches.
 """
 
 import numpy as np
 from scipy.sparse import csr_matrix
+
+from pytrees._native.tree import apply as _apply
 
 __all__ = ["Tree"]
 
@@ -47,12 +51,14 @@ class Tree:
         error,
         binary_features=False,
     ):
-        self.children_left = np.asarray(children_left, dtype=np.int64)
-        self.children_right = np.asarray(children_right, dtype=np.int64)
-        self.feature = np.asarray(feature, dtype=np.int64)
-        self.threshold = np.asarray(threshold, dtype=np.float64)
-        self.value = np.asarray(value, dtype=np.int64)
-        self.error = np.asarray(error, dtype=np.float64)
+        # Copies, so the tree owns its arrays whatever built them: arrays
+        # backed by Rust memory cannot have their flags changed.
+        self.children_left = np.array(children_left, dtype=np.int64)
+        self.children_right = np.array(children_right, dtype=np.int64)
+        self.feature = np.array(feature, dtype=np.int64)
+        self.threshold = np.array(threshold, dtype=np.float64)
+        self.value = np.array(value, dtype=np.int64)
+        self.error = np.array(error, dtype=np.float64)
         self.binary_features = binary_features
 
     @property
@@ -76,46 +82,44 @@ class Tree:
                 stack.append((self.children_right[node], depth + 1))
         return deepest
 
-    def _descend(self, X, on_step=None):
-        """Move every row of ``X`` down one level at a time, all rows at once;
-        return the leaf each reaches. ``on_step(rows, nodes)`` sees each node
-        a row passes through, the root and the leaf included."""
-        node = np.zeros(X.shape[0], dtype=np.int64)
-        rows = np.arange(X.shape[0])
-        if on_step is not None:
-            # A copy: `node` changes in place as the rows move down.
-            on_step(rows, node.copy())
-        while True:
-            internal = self.children_left[node] != LEAF
-            if not internal.any():
-                return node
-            at, where = node[internal], rows[internal]
-            goes_left = X[where, self.feature[at]] <= self.threshold[at]
-            node[internal] = np.where(
-                goes_left, self.children_left[at], self.children_right[at]
-            )
-            if on_step is not None:
-                on_step(where, node[internal])
-
     def apply(self, X):
         """The index of the leaf each row of ``X`` reaches."""
-        return self._descend(X)
+        return _apply(
+            self.children_left,
+            self.children_right,
+            self.feature,
+            self.threshold,
+            np.ascontiguousarray(X, dtype=np.float64),
+        )
 
     def decision_path(self, X):
         """The nodes each row of ``X`` passes through, as a sparse indicator
         matrix of shape ``(n_samples, node_count)``, as in scikit-learn."""
-        rows, nodes = [], []
-
-        def record(where, at):
-            rows.append(where)
-            nodes.append(at)
-
-        self._descend(X, record)
-        rows, nodes = np.concatenate(rows), np.concatenate(nodes)
-        ones = np.ones(len(rows), dtype=np.int64)
-        path = csr_matrix((ones, (rows, nodes)), shape=(X.shape[0], self.node_count))
+        leaves = self.apply(X)
+        n = len(leaves)
+        # A leaf is reached by one path only, so a row's path is its leaf's.
+        reached = csr_matrix(
+            (np.ones(n, dtype=np.int64), (np.arange(n), leaves)),
+            shape=(n, self.node_count),
+        )
+        path = reached @ self._paths_to_nodes()
         path.sort_indices()
         return path
+
+    def _paths_to_nodes(self):
+        """A ``(node_count, node_count)`` indicator: row ``i`` marks the
+        nodes on the path from the root to node ``i``."""
+        rows, columns = [], []
+        stack = [(0, [0])]
+        while stack:
+            node, path = stack.pop()
+            rows.extend([node] * len(path))
+            columns.extend(path)
+            if self.children_left[node] != LEAF:
+                for child in (self.children_left[node], self.children_right[node]):
+                    stack.append((child, path + [child]))
+        ones = np.ones(len(rows), dtype=np.int64)
+        return csr_matrix((ones, (rows, columns)), shape=(self.node_count,) * 2)
 
     def to_dot(self, feature_names=None, value_names=None, value_label="class"):
         """The tree in Graphviz DOT format.

@@ -7,11 +7,13 @@
 //!
 //! - `pytrees._native.dtrees`: `RawDL85` and `RawLGDT`, over binary features
 //! - `pytrees._native.contree`: `RawConTree`, over continuous features
+//! - `pytrees._native.tree`: `apply`, which every estimator's `Tree` uses
 
 use pyo3::prelude::*;
 
 mod contree;
 mod dtrees;
+mod tree;
 
 #[pymodule]
 fn _native(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -21,6 +23,10 @@ fn _native(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     let module = PyModule::new(py, "contree")?;
     contree::add_classes(&module)?;
+    add_submodule(py, m, &module)?;
+
+    let module = PyModule::new(py, "tree")?;
+    module.add_function(wrap_pyfunction!(tree::apply, &module)?)?;
     add_submodule(py, m, &module)?;
     Ok(())
 }

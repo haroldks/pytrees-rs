@@ -108,3 +108,46 @@ def test_a_value_on_the_threshold_goes_left():
     assert list(tree.apply(X)) == [1, 2]
     assert tree.max_depth == 1
     assert "x0 <= 2.5" in tree.to_dot()
+
+
+def stump(**overrides):
+    arrays = dict(
+        children_left=np.array([1, -1, -1]),
+        children_right=np.array([2, -1, -1]),
+        feature=np.array([0, -1, -1]),
+        threshold=np.array([0.5, np.nan, np.nan]),
+    )
+    arrays.update(overrides)
+    return arrays
+
+
+@pytest.mark.parametrize(
+    "overrides, message",
+    [
+        (dict(feature=np.array([0, -1])), "same, non-zero length"),
+        (dict(children_left=np.array([7, -1, -1])), "outside the tree"),
+        (dict(feature=np.array([3, -1, -1])), "tests feature 3"),
+        (
+            # Node 1 sends a row with x0 = 0 back to itself.
+            dict(
+                children_left=np.array([1, 1, -1]),
+                children_right=np.array([2, 2, -1]),
+                feature=np.array([0, 0, -1]),
+                threshold=np.array([0.5, 0.5, np.nan]),
+            ),
+            "cycle",
+        ),
+    ],
+)
+def test_a_malformed_tree_is_a_value_error(overrides, message):
+    from pytrees._native.tree import apply
+
+    arrays = stump(**overrides)
+    with pytest.raises(ValueError, match=message):
+        apply(
+            arrays["children_left"].astype(np.int64),
+            arrays["children_right"].astype(np.int64),
+            arrays["feature"].astype(np.int64),
+            arrays["threshold"].astype(np.float64),
+            np.zeros((2, 1)),
+        )
