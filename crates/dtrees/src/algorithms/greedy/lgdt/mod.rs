@@ -168,7 +168,8 @@ where
     }
 }
 
-mod test_lgdt {
+#[cfg(test)]
+mod tests {
     use crate::algorithms::greedy::lgdt::factories::with_error_minimizer;
     use crate::algorithms::TreeSearchAlgorithm;
     use crate::reader::data_reader::DataReader;
@@ -190,7 +191,7 @@ mod test_lgdt {
             .max_depth(8)
             .build()
             .unwrap();
-        let x = lgdt.fit(&mut cover).unwrap();
-        lgdt.tree.print()
+        lgdt.fit(&mut cover).unwrap();
+        assert!(lgdt.tree.root_error() < cover.count() as f64);
     }
 }

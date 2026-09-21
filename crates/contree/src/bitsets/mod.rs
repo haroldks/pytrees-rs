@@ -6,7 +6,6 @@
 //! [`Bitset::saved_count`] -- because recomputing either means another pass
 //! over `n / 64` words.
 
-use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::ops::Index;
 
@@ -32,23 +31,7 @@ pub trait BitCollection {
 
     fn set(&mut self, index: usize);
 
-    fn unset(&mut self, index: usize);
-
-    fn is_empty(&self) -> bool;
-
-    fn clear(&mut self);
-
-    fn capacity(&self) -> usize;
-
-    fn resize(&mut self, capacity: usize);
-
     fn intersect_with(&self, other: &Bitset, invert: bool) -> Bitset;
-
-    fn union_with(&self, other: &Bitset, invert: bool) -> Bitset;
-
-    fn count_intersect_with(&self, other: &Bitset) -> usize;
-
-    fn count_interest_with_many(&self, others: &[Bitset]) -> Vec<usize>;
 }
 
 impl BitCollection for Bitset {
@@ -99,35 +82,6 @@ impl BitCollection for Bitset {
         self.hash = None; // Invalidate hash
     }
 
-    fn unset(&mut self, index: usize) {
-        debug_assert!(index < self.capacity, "Index out of bounds");
-        self.words[index / 64] &= !(1u64 << (index % 64));
-        self.hash = None; // Invalidate hash
-    }
-
-    fn is_empty(&self) -> bool {
-        self.words.iter().all(|&word| word == 0)
-    }
-
-    fn clear(&mut self) {
-        self.words.fill(0);
-        self.hash = None; // Invalidate hash
-    }
-
-    fn capacity(&self) -> usize {
-        self.capacity
-    }
-
-    fn resize(&mut self, capacity: usize) {
-        let new_words = capacity.div_ceil(64);
-        match new_words.cmp(&self.words.len()) {
-            Ordering::Greater => self.words.resize(new_words, 0),
-            Ordering::Less => self.words.truncate(new_words),
-            Ordering::Equal => {}
-        }
-        self.capacity = 64 * self.words.len();
-    }
-
     fn intersect_with(&self, other: &Bitset, invert: bool) -> Bitset {
         debug_assert_eq!(
             self.capacity, other.capacity,
@@ -138,43 +92,6 @@ impl BitCollection for Bitset {
             out.words[i] = word & if invert { !other_word } else { other_word };
         }
         out
-    }
-
-    fn union_with(&self, other: &Bitset, invert: bool) -> Bitset {
-        debug_assert_eq!(
-            self.capacity, other.capacity,
-            "Bitsets must have the same capacity"
-        );
-        let mut out = Bitset::new(BitsetInit::Empty(self.capacity));
-        for (i, (&word, &other_word)) in self.words.iter().zip(&other.words).enumerate() {
-            out.words[i] = word | if invert { !other_word } else { other_word };
-        }
-        out
-    }
-
-    fn count_intersect_with(&self, other: &Bitset) -> usize {
-        debug_assert_eq!(
-            self.capacity, other.capacity,
-            "Bitsets must have the same capacity"
-        );
-        let mut count = 0;
-        for (word, other_word) in self.words.iter().zip(&other.words) {
-            count += (*word & *other_word).count_ones() as usize;
-        }
-        count
-    }
-
-    fn count_interest_with_many(&self, others: &[Bitset]) -> Vec<usize> {
-        others
-            .iter()
-            .map(|other| {
-                self.words
-                    .iter()
-                    .zip(&other.words)
-                    .map(|(&a, &b)| (a & b).count_ones() as usize)
-                    .sum()
-            })
-            .collect()
     }
 }
 

@@ -240,7 +240,7 @@ where
 }
 
 #[cfg(test)]
-mod info_gain_maximizer {
+mod tests {
     use crate::algorithms::optimal::depth2::info_gain_maximizer::InfoGainMaximizer;
     use crate::algorithms::optimal::depth2::OptimalDepth2Tree;
     use crate::reader::data_reader::DataReader;

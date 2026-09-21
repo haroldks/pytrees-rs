@@ -4,7 +4,7 @@ use dtrees_rs::algorithms::common::heuristics::Heuristic;
 use dtrees_rs::algorithms::common::types::{
     CacheType, NodeDataType, SearchStatistics, SearchStrategy,
 };
-use dtrees_rs::algorithms::greedy::{LGDTBuilder, LGDT};
+use dtrees_rs::algorithms::greedy::LGDTBuilder;
 use dtrees_rs::algorithms::optimal::depth2::{
     ErrorMinimizer, InfoGainMaximizer, OptimalDepth2Tree,
 };
@@ -28,7 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut cover = reader.read_file(&app.input)?;
 
     let mut statistics = SearchStatistics::default();
-    let mut tree = Tree::default();
+    let tree: Tree;
 
     match app.command {
         ArgCommand::D2 {

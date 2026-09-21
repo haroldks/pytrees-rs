@@ -189,7 +189,7 @@ impl Trie {
 
 #[cfg(test)]
 mod trie_test {
-    use crate::caching::helpers::{CacheKey, Index};
+    use crate::caching::helpers::Index;
     use crate::caching::trie::{Trie, TrieNode};
     use crate::caching::Caching;
 
@@ -214,7 +214,7 @@ mod trie_test {
 
         match idx {
             Index::NewUnknown => {}
-            Index::New(pos) | Index::Existing(pos) => {}
+            Index::New(_) | Index::Existing(_) => {}
         }
 
         itemset.remove(1);

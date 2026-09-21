@@ -272,17 +272,14 @@ impl Rule for LowerBoundRule {
 }
 
 #[derive(Debug)]
+/// Always active: it stops a node once its error and upper bound are known.
 pub struct UsableNodeRule {
     priority: u8,
-    current_state: RuleState,
 }
 
 impl UsableNodeRule {
     pub fn new() -> Self {
-        Self {
-            priority: 101,
-            current_state: RuleState::Disabled,
-        }
+        Self { priority: 101 }
     }
 }
 

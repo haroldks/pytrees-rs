@@ -170,9 +170,7 @@ impl DataReader {
 
 #[cfg(test)]
 mod data_reader_test {
-    use crate::cover::Cover;
     use crate::reader::data_reader::DataReader;
-    use crate::reader::DataReaderError;
     use std::path::Path;
 
     #[test]

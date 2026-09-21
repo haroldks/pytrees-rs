@@ -6,13 +6,11 @@ use std::cmp::Ordering;
 use std::ops::Sub;
 
 pub struct SparseBitset {
-    nb_words: usize,
     words: Vec<ReversibleU64>,
     non_zero_words: Vec<usize>,
     nb_non_zero: ReversibleUsize,
 
     state_manager: StateManager,
-    mask: u64,
 }
 
 #[derive(Debug)]
@@ -52,12 +50,10 @@ impl SparseBitset {
         state_manager.save_state();
 
         Self {
-            nb_words,
             words,
             non_zero_words,
             nb_non_zero,
             state_manager,
-            mask,
         }
     }
 
@@ -275,7 +271,7 @@ mod sparse_test {
         cover.restore();
         println!("{:?}", cover.to_vec());
 
-        let diff = &cover - shallow_cover;
+        let _ = &cover - shallow_cover;
 
         // let shallow : ShallowBitset = (&cover).into();
         // println!("shallow : {:?}", shallow)

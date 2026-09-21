@@ -6,9 +6,7 @@ use dtrees_rs::algorithms::common::heuristics::{
 use dtrees_rs::algorithms::common::types::{SearchHeuristic, SearchStepStrategy};
 use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
 use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
-use dtrees_rs::algorithms::optimal::rules::{
-    DiscrepancyRule, Exponential, Luby, Monotonic, StepStrategy,
-};
+use dtrees_rs::algorithms::optimal::rules::{DiscrepancyRule, Exponential, Luby, Monotonic};
 use dtrees_rs::algorithms::optimal::Reason;
 use dtrees_rs::algorithms::TreeSearchAlgorithm;
 use dtrees_rs::caching::Trie;

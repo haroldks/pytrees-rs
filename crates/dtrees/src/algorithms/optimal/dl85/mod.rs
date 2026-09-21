@@ -43,7 +43,6 @@ where
     tree: Tree,
     root_candidates: Vec<usize>,
     gain_gap: f64,
-    gain_limit: f64,
 }
 
 impl<C, D, E, H> TreeSearchAlgorithm for DL85<C, D, E, H>
@@ -101,7 +100,6 @@ where
             tree: Tree::default(),
             root_candidates: vec![],
             gain_gap: 0.0,
-            gain_limit: 0.0,
         }
     }
 
@@ -819,7 +817,7 @@ mod dl85_test {
     use crate::algorithms::common::heuristics::NoHeuristic;
     use crate::algorithms::common::types::OptimalDepth2Policy;
     use crate::algorithms::optimal::depth2::ErrorMinimizer;
-    use crate::algorithms::optimal::dl85::{DL85Builder, DL85};
+    use crate::algorithms::optimal::dl85::DL85Builder;
     use crate::algorithms::TreeSearchAlgorithm;
     use crate::caching::Trie;
     use crate::reader::data_reader::DataReader;

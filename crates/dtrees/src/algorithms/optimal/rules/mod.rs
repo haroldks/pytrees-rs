@@ -1,3 +1,5 @@
+// Composite rules (and, or, not) are written but not exported or used yet.
+#[allow(dead_code)]
 mod composite;
 mod core;
 mod manager;
