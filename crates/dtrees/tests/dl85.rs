@@ -152,3 +152,23 @@ dl85_ignored_test_suite!(test_d3,
     letter: 1, 3, 369.0;
     lymph: 1, 3, 12.0;
 );
+
+#[test]
+fn a_search_built_without_a_time_limit_runs() -> Result<(), Box<dyn std::error::Error>> {
+    // The builder used to default to a zero-second limit, so a search built
+    // without calling max_time stopped before its first pass.
+    let mut cover = DataReader::default().read_file(Path::new("test_data/anneal.txt"))?;
+    let error_fn = Box::<NativeError>::default();
+    let mut algo = DL85Builder::default()
+        .max_depth(2)
+        .min_support(1)
+        .specialization(OptimalDepth2Policy::Enabled)
+        .cache(Box::<Trie>::default())
+        .heuristic(Box::<NoHeuristic>::default())
+        .depth2_search(Box::new(ErrorMinimizer::new(error_fn.clone())))
+        .error_function(error_fn)
+        .build()?;
+    algo.fit(&mut cover)?;
+    assert_eq!(algo.statistics().tree_error, 137.0);
+    Ok(())
+}

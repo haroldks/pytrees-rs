@@ -45,7 +45,7 @@ where
             heuristic_fn: None,
             nodes_rules: RuleManager::new(),
             search_rules: RuleManager::new(),
-            time_rule: TimeLimitRule::new(0.0),
+            time_rule: TimeLimitRule::default(),
         };
         builder.default_rules()
     }
