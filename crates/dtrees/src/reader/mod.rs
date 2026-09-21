@@ -3,7 +3,7 @@ pub mod data_reader;
 
 use std::error::Error;
 use std::fmt;
-use std::io::{Error as IoError};
+use std::io::Error as IoError;
 use std::path::Path;
 
 #[derive(Debug, Clone, Copy, PartialEq)]

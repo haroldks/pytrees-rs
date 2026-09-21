@@ -1,7 +1,7 @@
-use rustc_hash::FxHashMap;
 use crate::caching::entry::{CacheEntry, CacheEntryUpdater};
 use crate::caching::helpers::{CacheKey, Index};
 use crate::caching::Caching;
+use rustc_hash::FxHashMap;
 
 #[derive(Debug)]
 struct TrieNode {

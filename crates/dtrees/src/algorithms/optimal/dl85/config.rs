@@ -1,8 +1,8 @@
-use serde::{Deserialize, Serialize};
 use crate::algorithms::common::config::BaseSearchConfig;
 use crate::algorithms::common::types::{
     BranchingPolicy, CacheInitStrategy, LowerBoundPolicy, NodeDataType, OptimalDepth2Policy,
 };
+use serde::{Deserialize, Serialize};
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct DL85Config {

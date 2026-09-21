@@ -4,7 +4,7 @@ use crate::algorithms::common::types::{
     BranchingChoice, BranchingPolicy, FitError, LowerBoundPolicy, NodeDataType, RuleType,
     SearchResult, SearchStatistics,
 };
-use crate::algorithms::optimal::depth2::{OptimalDepth2Tree};
+use crate::algorithms::optimal::depth2::OptimalDepth2Tree;
 use crate::algorithms::optimal::dl85::config::DL85Config;
 use crate::algorithms::optimal::rules::common::{SimilarityLowerBoundRule, TimeLimitRule};
 use crate::algorithms::optimal::rules::{
@@ -54,7 +54,6 @@ where
     H: Heuristic + ?Sized,
 {
     fn fit(&mut self, cover: &mut Cover) -> Result<(), FitError> {
-
         let mut result = SearchResult {
             reason: Reason::RuleReason,
             ..Default::default()
@@ -306,7 +305,9 @@ where
 
             if scores.len() > 1 {
                 branch_context.gain(parent_context.gain + (scores[0] - scores[position]));
-                if (self.statistics.restarts() <= 1 || self.gain_gap <= 0.0) && (self.gain_gap <= 0f64 || branch_context.gain < self.gain_gap) {
+                if (self.statistics.restarts() <= 1 || self.gain_gap <= 0.0)
+                    && (self.gain_gap <= 0f64 || branch_context.gain < self.gain_gap)
+                {
                     self.gain_gap = branch_context.gain;
                 }
             }
