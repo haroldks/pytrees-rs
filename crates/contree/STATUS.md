@@ -7,7 +7,7 @@ anytime numbers is in [`bench/anytime/README.md`](bench/anytime/README.md).
 ## In one paragraph
 
 The crate is now a Cargo workspace with a library (`contree`), a CLI
-(`con-tree`) and a Python package (`pytrees_continuous`) whose
+(`con-tree`) and Python bindings, now part of `pytrees`, whose
 `ConTreeClassifier` passes scikit-learn's `check_estimator`. Every solver is
 exact against brute-force enumeration: 0 misses on 1,440 cases for the
 exhaustive search and 720 per anytime variant, across both split selectors and
@@ -25,7 +25,7 @@ experiment notebooks stayed in the contree-rs repository.
 |---|---|
 | `crates/contree` | the library: `ConTree` (exhaustive), `ConTreeLds` (anytime), cache, pruning, depth-2 solver |
 | `crates/contree-cli` | the `con-tree` binary |
-| `crates/contree-py`, `crates/contree-py/python/pytrees_continuous` | PyO3 extension (abi3, Python ≥ 3.10) and the scikit-learn wrapper |
+| `crates/pytrees-py/src/contree.rs`, `python/pytrees/continuous.py` | Python bindings (in `pytrees._native`) and the scikit-learn wrapper |
 | `crates/contree/tests/baseline` | behavioural baseline: `capture.sh [--smoke]`, `compare.py`, `check_predictions.py` |
 | `crates/contree/tests/exact.rs` | brute-force exactness test, all solvers |
 | `crates/contree/examples` | `differential` (miss counts), `anytime`, `lds_passes`, `baseline` |
@@ -130,6 +130,5 @@ cargo run --release -p contree-rs --example differential   # miss counts, all so
 cargo build --release -p contree-rs --examples \
   && crates/contree/tests/baseline/capture.sh --smoke /tmp/b \
   && python3 crates/contree/tests/baseline/compare.py /tmp/b   # ~15 s; full matrix before merging
-maturin develop --release -m crates/contree-py/Cargo.toml \
-  && pytest crates/contree-py/python/tests
+maturin develop --release && pytest python/tests
 ```

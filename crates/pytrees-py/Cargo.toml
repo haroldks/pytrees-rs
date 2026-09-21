@@ -12,9 +12,12 @@ crate-type = ["cdylib", "lib"]
 
 [dependencies]
 numpy = "0.26.0"
-pyo3 = { version = "0.26.0" }
-serde_json = "1.0"
+# abi3: one wheel per platform covers every Python from 3.10 on.
+pyo3 = { version = "0.26.0", features = ["abi3-py310"] }
+serde.workspace = true
+serde_json.workspace = true
 dtrees-rs = { path = "../dtrees" }
+contree.workspace = true
 
 [features]
 extension-module = ["pyo3/extension-module"]

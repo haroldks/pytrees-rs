@@ -52,9 +52,10 @@ use crate::common::enums::{ExposedBranchingPolicy, ExposedCacheInitStrategy, Exp
 use crate::common::types::{ExposedDiscrepancyRule, ExposedGainRule, ExposedPurityRule, ExposedRestartRule, ExposedTopKRule};
 use crate::optimal::PyDL85;
 
+mod common;
+mod contree;
 mod greedy;
 mod optimal;
-mod common;
 
 /// PyO3 module entry point for `pytrees._native`.
 ///
@@ -64,11 +65,13 @@ mod common;
 /// - `pytrees._native.odt`: Optimal decision tree algorithms
 /// - `pytrees._native.greedy`: Greedy decision tree algorithms
 /// - `pytrees._native.enums`: Configuration enumerations
+/// - `pytrees._native.contree`: ConTree, for continuous features
 #[pymodule]
 fn _native(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     odt(py, m)?;
     greed(py, m)?;
     enums(py, m)?;
+    contree::register(py, m)?;
     Ok(())
 }
 

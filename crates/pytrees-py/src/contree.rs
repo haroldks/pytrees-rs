@@ -87,7 +87,7 @@ struct State {
     fitted: Option<Fitted>,
 }
 
-#[pyclass(module = "pytrees_continuous._native")]
+#[pyclass(module = "pytrees._native.contree")]
 pub struct RawConTree {
     params: Params,
     fitted: Option<Fitted>,
@@ -502,15 +502,15 @@ impl RawConTree {
     }
 }
 
-/// Bumped whenever the layout of `tree_arrays` changes.
-#[pyfunction]
-fn native_version() -> &'static str {
-    env!("CARGO_PKG_VERSION")
-}
-
-#[pymodule]
-fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
+/// Adds the `contree` submodule to `pytrees._native`.
+pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
+    let module = PyModule::new(py, "contree")?;
     module.add_class::<RawConTree>()?;
-    module.add_function(wrap_pyfunction!(native_version, module)?)?;
+    parent.add_submodule(&module)?;
+    // Makes `from pytrees._native.contree import ...` work, and lets pickle
+    // find `RawConTree` by the module name above.
+    py.import("sys")?
+        .getattr("modules")?
+        .set_item("pytrees._native.contree", module)?;
     Ok(())
 }

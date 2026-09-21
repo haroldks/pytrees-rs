@@ -12,8 +12,8 @@ crates/contree/                                 the library      (crate `contree
 crates/contree/tests/baseline/                  behavioural regression harness
 crates/contree/bench/anytime/                   anytime benchmark
 crates/contree-cli/                             the `con-tree` binary
-crates/contree-py/                              the PyO3 extension module
-crates/contree-py/python/pytrees_continuous/    the scikit-learn estimator
+crates/pytrees-py/src/contree.rs                its Python bindings, in pytrees._native
+python/pytrees/continuous.py                    the scikit-learn estimator
 ```
 
 Paths below are relative to the repository root. The benchmark instances are
@@ -82,13 +82,13 @@ ran out of something first.
 
 ```bash
 pip install maturin
-maturin develop --release -m crates/contree-py/Cargo.toml   # or: maturin build
+maturin develop --release        # from the repository root; or: maturin build
 ```
 
 ```python
 from sklearn.datasets import load_iris
 from sklearn.model_selection import cross_val_score
-from pytrees_continuous import ConTreeClassifier
+from pytrees import ConTreeClassifier
 
 X, y = load_iris(return_X_y=True)
 
@@ -131,8 +131,8 @@ must classify its training set with exactly the error the search reported.
 ## Tests
 
 ```bash
-cargo test -p contree-rs -p contree-cli -p contree-py   # Rust
-pytest crates/contree-py/python/tests                   # Python, after `maturin develop`
+cargo test -p contree-rs -p contree-cli   # Rust
+pytest python/tests                       # Python, after `maturin develop`
 ```
 
 Four of them carry most of the weight:
@@ -145,7 +145,7 @@ Four of them carry most of the weight:
   random instances. It asserts the search never reports an error *below* what
   any tree of that shape can achieve, and pins how often it misses the optimum
   so the gap can shrink but not grow.
-- `python/tests/test_sklearn_api.py` — runs `check_estimator` in full, plus
+- `python/tests/test_contree_sklearn_api.py` — runs `check_estimator` in full, plus
   the contracts it does not cover: the reported error must match the
   predictions, labels must survive a round trip, the anytime callback must see
   monotonically improving trees.

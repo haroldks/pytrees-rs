@@ -9,6 +9,7 @@ Key Features
 ------------
 - **Optimal Decision Trees**: DL8.5 algorithm for globally optimal trees
 - **Greedy Algorithms**: LGDT variants for fast approximate solutions
+- **Continuous Features**: ConTree, optimal trees without binarising the data
 - **Rule-based Optimization**: Advanced stopping criteria and search control
 - **Scikit-learn Compatible**: Drop-in replacement for sklearn decision trees
 - **High Performance**: Rust backend with Python convenience
@@ -18,6 +19,7 @@ Main Classes
 - `DL85Classifier`: Optimal decision tree classifier using DL8.5 algorithm
 - `LGDTClassifier`: Greedy decision tree classifier using LGDT algorithm
 - `DL85Cluster`: Unsupervised clustering using optimal decision trees
+- `ConTreeClassifier`: Optimal decision tree classifier for continuous features
 - `DecisionTree`: Base class with common functionality
 
 Quick Start
@@ -52,3 +54,4 @@ from .base import DecisionTree
 from .exceptions import *
 from .supervised import LGDTClassifier, DL85Classifier
 from .unsupervised import DL85Cluster
+from .continuous import ConTreeClassifier

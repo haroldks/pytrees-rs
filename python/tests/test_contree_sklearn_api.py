@@ -14,7 +14,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils.estimator_checks import check_estimator
 
-from pytrees_continuous import ConTreeClassifier
+from pytrees import ConTreeClassifier
 
 
 @pytest.fixture(scope="module")

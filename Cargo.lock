@@ -121,17 +121,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "contree-py"
-version = "0.1.0"
-dependencies = [
- "contree-rs",
- "numpy",
- "pyo3",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "contree-rs"
 version = "0.1.0"
 dependencies = [
@@ -427,9 +416,11 @@ dependencies = [
 name = "pytrees-py"
 version = "1.0.3"
 dependencies = [
+ "contree-rs",
  "dtrees-rs",
  "numpy",
  "pyo3",
+ "serde",
  "serde_json",
 ]
 

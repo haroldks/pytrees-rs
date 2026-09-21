@@ -1,4 +1,4 @@
-"""A scikit-learn estimator over the Rust search."""
+"""ConTree: optimal decision trees over continuous features."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.utils.validation import check_is_fitted, validate_data
 
-from pytrees_continuous._native import RawConTree
+from pytrees._native.contree import RawConTree
 
 __all__ = ["ConTreeClassifier"]
 
@@ -77,7 +77,7 @@ class ConTreeClassifier(ClassifierMixin, BaseEstimator):
     Examples
     --------
     >>> from sklearn.datasets import load_iris
-    >>> from pytrees_continuous import ConTreeClassifier
+    >>> from pytrees import ConTreeClassifier
     >>> X, y = load_iris(return_X_y=True)
     >>> clf = ConTreeClassifier(max_depth=2).fit(X, y)
     >>> clf.status_

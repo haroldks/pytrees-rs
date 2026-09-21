@@ -5,8 +5,8 @@ import numpy as np
 import pytest
 from sklearn.exceptions import NotFittedError
 
-from pytrees_continuous import ConTreeClassifier
-from pytrees_continuous._native import RawConTree
+from pytrees import ConTreeClassifier
+from pytrees._native.contree import RawConTree
 
 
 def test_an_unknown_split_selection_is_a_value_error():
