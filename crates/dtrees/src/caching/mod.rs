@@ -24,9 +24,9 @@ pub trait Caching {
 
     fn contains(&self, key: &CacheKey) -> bool;
 
-    fn update_root(&mut self) -> Option<CacheEntryUpdater>;
+    fn update_root(&mut self) -> Option<CacheEntryUpdater<'_>>;
 
-    fn update_node(&mut self, key: &CacheKey) -> Option<CacheEntryUpdater>;
+    fn update_node(&mut self, key: &CacheKey) -> Option<CacheEntryUpdater<'_>>;
 
     fn size(&self) -> usize;
 

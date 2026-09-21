@@ -158,7 +158,7 @@ impl ConTreeLds {
         self.status
     }
 
-    pub fn partial_fit(&mut self, root_view: &DataView) -> bool {
+    pub fn partial_fit(&mut self, root_view: &DataView<'_>) -> bool {
         self.config.nb_runs += 1;
         let mut root_index = 0;
         let mut entry = Entry::default();
@@ -256,7 +256,7 @@ impl ConTreeLds {
     /// both the cache's second key and what the entry records: `derive_left`
     /// and `derive_right` both subtract one from the same parent, so the two
     /// were always the same number.
-    fn cache_child(&mut self, view: &DataView, child_depth: usize) -> (bool, usize, Entry) {
+    fn cache_child(&mut self, view: &DataView<'_>, child_depth: usize) -> (bool, usize, Entry) {
         let (is_new, index) = self.cache.insert(&view.bitset, child_depth);
         let depth = self.config.max_depth - child_depth;
         let mut entry = Entry::default();
@@ -277,7 +277,7 @@ impl ConTreeLds {
 
     fn expand_node_with_view(
         &mut self,
-        view: &DataView,
+        view: &DataView<'_>,
         config: &SearchConfig,
         current_best: &mut Entry,
         parent_index: usize,
@@ -441,7 +441,7 @@ impl ConTreeLds {
 
     fn expand_on_feature(
         &mut self,
-        view: &DataView,
+        view: &DataView<'_>,
         feature_index: usize,
         cache_index: usize,
         config: &SearchConfig,
@@ -721,7 +721,7 @@ impl ConTreeLds {
     /// Explore splits prioritized by gini quality while using pruner
     fn expand_on_feature_gini_priority(
         &mut self,
-        view: &DataView,
+        view: &DataView<'_>,
         feature_index: usize,
         cache_index: usize,
         config: &SearchConfig,
@@ -843,7 +843,7 @@ impl ConTreeLds {
     #[allow(clippy::too_many_arguments)]
     fn evaluate_split_gini_priority(
         &mut self,
-        view: &DataView,
+        view: &DataView<'_>,
         feature_index: usize,
         split_idx: usize,
         possible_splits: &[usize],
@@ -853,7 +853,7 @@ impl ConTreeLds {
         current_best: &mut Entry,
         cache_index: usize,
         upper_bound: usize,
-        pruner: &mut IntervalsPruner,
+        pruner: &mut IntervalsPruner<'_>,
         pruned: &mut [bool],
     ) -> bool {
         // Find current bounds

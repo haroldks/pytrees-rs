@@ -28,6 +28,25 @@ search_trail = "0.1.3"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 
+# Lints every crate opts into with `[lints] workspace = true`. They warn
+# rather than deny, so a lint added by a newer compiler cannot break a user's
+# build; CI runs clippy with -D warnings instead. Fix a warning rather than
+# silence it, and when silencing is right, say why next to the #[allow].
+[workspace.lints.rust]
+unsafe_code = "forbid"
+future_incompatible = { level = "warn", priority = -1 }
+nonstandard_style = { level = "warn", priority = -1 }
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+# Beyond the defaults: the ones the Rust best-practices guide singles out.
+dbg_macro = "warn"
+large_enum_variant = "warn"
+needless_collect = "warn"
+redundant_clone = "warn"
+unnecessary_wraps = "warn"
+
 [profile.release]
 lto = "fat"
 opt-level = 3

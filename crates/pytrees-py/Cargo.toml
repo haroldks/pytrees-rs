@@ -21,3 +21,6 @@ pyo3 = { workspace = true, features = ["abi3-py310"] }
 
 [features]
 extension-module = ["pyo3/extension-module"]
+
+[lints]
+workspace = true

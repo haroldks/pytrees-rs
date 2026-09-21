@@ -178,7 +178,7 @@ impl ConTree {
     /// both the cache's second key and what the entry records: `derive_left`
     /// and `derive_right` both subtract one from the same parent, so the two
     /// were always the same number.
-    fn cache_child(&mut self, view: &DataView, child_depth: usize) -> (bool, usize, Entry) {
+    fn cache_child(&mut self, view: &DataView<'_>, child_depth: usize) -> (bool, usize, Entry) {
         let (is_new, index) = self.cache.insert(&view.bitset, child_depth);
         let depth = self.config.max_depth - child_depth;
         let mut entry = Entry::default();
@@ -199,7 +199,7 @@ impl ConTree {
 
     fn expand_node_with_view(
         &mut self,
-        view: &DataView,
+        view: &DataView<'_>,
         config: &SearchConfig,
         current_best: &mut Entry,
         parent_index: usize,
@@ -326,7 +326,7 @@ impl ConTree {
 
     fn expand_on_feature(
         &mut self,
-        view: &DataView,
+        view: &DataView<'_>,
         feature_index: usize,
         cache_index: usize,
         config: &SearchConfig,
@@ -615,7 +615,7 @@ impl ConTree {
 
     fn expand_on_feature_gini_priority(
         &mut self,
-        view: &DataView,
+        view: &DataView<'_>,
         feature_index: usize,
         cache_index: usize,
         config: &SearchConfig,

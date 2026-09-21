@@ -139,7 +139,7 @@ impl GenericConTree {
     ///
     /// The exhaustive solver has no notion of a partial fit, so it runs to
     /// completion and reports that it is done.
-    pub fn partial_fit(&mut self, view: &DataView) -> Result<bool, SearchError> {
+    pub fn partial_fit(&mut self, view: &DataView<'_>) -> Result<bool, SearchError> {
         match self {
             GenericConTree::Normal(_) => Ok(true),
             GenericConTree::LDS(solver) => Ok(solver.partial_fit(view)),

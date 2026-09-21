@@ -74,7 +74,7 @@ impl RuleManager {
     pub fn get_rule_states(&self) -> Vec<(String, String)> {
         self.rules
             .iter()
-            .map(|rule| (rule.description().to_string(), format!("{}", rule.state())))
+            .map(|rule| (rule.description(), format!("{}", rule.state())))
             .collect()
     }
 

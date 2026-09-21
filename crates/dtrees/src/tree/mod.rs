@@ -258,11 +258,11 @@ impl Tree {
         self.get_node(index).and_then(|node| node.value.test)
     }
 
-    pub fn update_node(&mut self, index: usize) -> Option<NodeUpdater> {
+    pub fn update_node(&mut self, index: usize) -> Option<NodeUpdater<'_>> {
         self.get_node_mut(index).map(NodeUpdater::new)
     }
 
-    pub fn update_root(&mut self) -> Option<NodeUpdater> {
+    pub fn update_root(&mut self) -> Option<NodeUpdater<'_>> {
         self.get_node_mut(0).map(NodeUpdater::new)
     }
 

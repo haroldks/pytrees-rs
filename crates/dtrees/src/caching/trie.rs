@@ -89,12 +89,12 @@ impl Caching for Trie {
         self.node(key).is_some()
     }
 
-    fn update_root(&mut self) -> Option<CacheEntryUpdater> {
+    fn update_root(&mut self) -> Option<CacheEntryUpdater<'_>> {
         self.get_node_mut(self.root_index)
             .map(|node| CacheEntryUpdater::new(&mut node.entry))
     }
 
-    fn update_node(&mut self, key: &CacheKey) -> Option<CacheEntryUpdater> {
+    fn update_node(&mut self, key: &CacheKey) -> Option<CacheEntryUpdater<'_>> {
         match key {
             CacheKey::Index(index) => self
                 .get_node_mut(*index)

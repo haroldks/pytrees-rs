@@ -73,7 +73,7 @@
 //         }
 //     }
 //
-//     fn update_root(&mut self) -> Option<CacheEntryUpdater> {
+//     fn update_root(&mut self) -> Option<CacheEntryUpdater<'_>> {
 //         if let Some(root) = self.root_entry.as_mut() {
 //             Some(CacheEntryUpdater::new(root))
 //         } else {
@@ -81,7 +81,7 @@
 //         }
 //     }
 //
-//     fn update_node(&mut self, key: CacheKey) -> Option<CacheEntryUpdater> {
+//     fn update_node(&mut self, key: CacheKey) -> Option<CacheEntryUpdater<'_>> {
 //         match key {
 //             CacheKey::Index(idx) => {
 //                 // Find by hash

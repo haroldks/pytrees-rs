@@ -62,7 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             Res {
                 name: file.to_string(),
-                method: method.clone(),
+                method,
                 depth,
                 support,
                 metric: Vec::with_capacity(100),
@@ -78,7 +78,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(res) => res,
         None => Res {
             name: file.to_string(),
-            method: method.clone(),
+            method,
             depth,
             support,
             metric: Vec::with_capacity(100),

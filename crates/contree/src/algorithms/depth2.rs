@@ -78,7 +78,7 @@ pub struct ConTreeDepth2;
 impl ConTreeDepth2 {
     pub fn fit(
         &self,
-        view: &DataView,
+        view: &DataView<'_>,
         search_config: &SearchConfig,
         entry: &mut Entry,
         upper_bound: usize,
@@ -119,7 +119,7 @@ impl ConTreeDepth2 {
     #[allow(clippy::too_many_arguments)]
     fn expand_feature_subtree(
         &self,
-        view: &DataView,
+        view: &DataView<'_>,
         feature: usize,
         config: &SearchConfig,
         entry: &mut Entry,
@@ -261,7 +261,7 @@ impl ConTreeDepth2 {
     #[allow(clippy::too_many_arguments)]
     fn get_leaves_score(
         &self,
-        view: &DataView,
+        view: &DataView<'_>,
         feature: usize,
         split_point: usize,
         threshold_value: f64,
@@ -434,7 +434,7 @@ impl ConTreeDepth2 {
     #[allow(clippy::too_many_arguments)]
     fn process_depth_one_feature<const IS_SAME_FEATURE: bool>(
         &self,
-        view: &DataView,
+        view: &DataView<'_>,
         _feature: usize,
         split_point: usize,
         current_feature_index: usize,
