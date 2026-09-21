@@ -52,6 +52,5 @@ For more information, see the individual class documentation and examples.
 
 from .base import DecisionTree
 from .exceptions import *
-from .supervised import LGDTClassifier, DL85Classifier
+from .supervised import ConTreeClassifier, DL85Classifier, LGDTClassifier
 from .unsupervised import DL85Cluster
-from .continuous import ConTreeClassifier

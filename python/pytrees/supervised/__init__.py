@@ -1,2 +1,3 @@
+from .contree import ConTreeClassifier
+from .dl85 import DL85Classifier
 from .lgdt import LGDTClassifier
-from .classifier import DL85Classifier

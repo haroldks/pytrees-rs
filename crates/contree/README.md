@@ -13,7 +13,7 @@ crates/contree/tests/baseline/                  behavioural regression harness
 crates/contree/bench/anytime/                   anytime benchmark
 crates/contree-cli/                             the `con-tree` binary
 crates/pytrees-py/src/contree.rs                its Python bindings, in pytrees._native
-python/pytrees/continuous.py                    the scikit-learn estimator
+python/pytrees/supervised/contree.py            the scikit-learn estimator
 ```
 
 Paths below are relative to the repository root. The benchmark instances are

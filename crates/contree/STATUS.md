@@ -25,7 +25,7 @@ experiment notebooks stayed in the contree-rs repository.
 |---|---|
 | `crates/contree` | the library: `ConTree` (exhaustive), `ConTreeLds` (anytime), cache, pruning, depth-2 solver |
 | `crates/contree-cli` | the `con-tree` binary |
-| `crates/pytrees-py/src/contree.rs`, `python/pytrees/continuous.py` | Python bindings (in `pytrees._native`) and the scikit-learn wrapper |
+| `crates/pytrees-py/src/contree.rs`, `python/pytrees/supervised/contree.py` | Python bindings (in `pytrees._native`) and the scikit-learn wrapper |
 | `crates/contree/tests/baseline` | behavioural baseline: `capture.sh [--smoke]`, `compare.py`, `check_predictions.py` |
 | `crates/contree/tests/exact.rs` | brute-force exactness test, all solvers |
 | `crates/contree/examples` | `differential` (miss counts), `anytime`, `lds_passes`, `baseline` |
