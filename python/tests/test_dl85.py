@@ -12,7 +12,7 @@ from sklearn.base import clone
 from sklearn.model_selection import GridSearchCV, cross_val_score
 
 from pytrees import DL85Classifier, LGDTClassifier
-from pytrees.common import ExposedGainRule, ExposedLowerBoundPolicy
+from pytrees.rules import GainRule
 
 
 def known_bug(reason):
@@ -60,7 +60,6 @@ def test_fit_returns_the_estimator(anneal):
     assert clf.fit(X, y) is clf
 
 
-@known_bug("the Exposed* enum defaults cannot be deep-copied")
 def test_it_can_be_cloned():
     clone(DL85Classifier(max_depth=2))
 
@@ -76,20 +75,17 @@ def test_set_params_changes_the_search(anneal):
 
 @known_bug("__init__ overwrites the policies when a rule is given")
 def test_init_keeps_the_parameters_as_given():
-    clf = DL85Classifier(
-        gain=ExposedGainRule(), lower_bound_policy=ExposedLowerBoundPolicy.Similarity
-    )
-    assert clf.get_params()["lower_bound_policy"] == ExposedLowerBoundPolicy.Similarity
+    clf = DL85Classifier(gain=GainRule(), similarity_lb=True)
+    assert clf.get_params()["similarity_lb"] is True
 
 
-@known_bug("clone fails, and cross-validation clones the estimator")
 def test_it_works_under_cross_validation(anneal):
     X, y = anneal
     scores = cross_val_score(DL85Classifier(max_depth=2, min_sup=5), X, y, cv=3)
     assert scores.mean() > 0.7
 
 
-@known_bug("clone fails, and set_params would be ignored anyway")
+@known_bug("the native object is built in __init__, so set_params is ignored")
 def test_grid_search_actually_varies_the_depth(anneal):
     X, y = anneal
     search = GridSearchCV(DL85Classifier(min_sup=5), {"max_depth": [1, 3]}, cv=3).fit(

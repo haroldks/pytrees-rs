@@ -40,7 +40,6 @@ def test_fit_returns_the_estimator(anneal):
     assert clf.fit(X, y) is clf
 
 
-@known_bug("the ExposedSearchStrategy default cannot be deep-copied")
 def test_it_can_be_cloned():
     clone(LGDTClassifier(max_depth=2))
 

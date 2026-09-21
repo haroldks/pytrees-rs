@@ -1,11 +1,13 @@
 pub mod builder;
 
+use builder::lgdt_learner;
+
+use crate::common::create_cover_from_numpy;
+use crate::common::options;
+use crate::common::types::SearchOutput;
 use numpy::PyReadonlyArrayDyn;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use crate::common::create_cover_from_numpy;
-use crate::common::enums::ExposedSearchStrategy;
-use crate::common::types::SearchOutput;
 
 /// Less Greedy Decision Tree (LGDT) construction function.
 ///
@@ -20,7 +22,7 @@ use crate::common::types::SearchOutput;
 ///
 /// - `input`: Feature matrix as NumPy array of shape (n_samples, n_features)
 /// - `target`: Target vector as NumPy array of shape (n_samples,)
-/// - `search_strategy`: The search strategy to use for tree construction
+/// - `criterion`: `"error"` or `"information_gain"`, what the depth-2 lookahead optimises
 /// - `min_sup`: Minimum support (number of samples) required for a split
 /// - `max_depth`: Maximum depth allowed for the constructed tree
 ///
@@ -46,7 +48,6 @@ use crate::common::types::SearchOutput;
 /// ```python
 /// import numpy as np
 /// from pytrees._native.greedy import lgdt
-/// from pytrees.common import ExposedSearchStrategy
 ///
 /// # Generate sample data
 /// X = np.random.rand(1000, 10)
@@ -56,7 +57,7 @@ use crate::common::types::SearchOutput;
 /// result = lgdt(
 ///     input=X,
 ///     target=y,
-///     search_strategy=ExposedSearchStrategy.LGDTErrorMinimizer,
+///     criterion="error",
 ///     min_sup=10,
 ///     max_depth=5
 /// )
@@ -70,7 +71,7 @@ use crate::common::types::SearchOutput;
 pub(crate) fn search_lgdt(
     input: PyReadonlyArrayDyn<f64>,
     target: Option<PyReadonlyArrayDyn<f64>>,
-    search_strategy: ExposedSearchStrategy,
+    criterion: &str,
     min_sup: usize,
     max_depth: usize,
 ) -> PyResult<SearchOutput> {
@@ -89,7 +90,7 @@ pub(crate) fn search_lgdt(
     }
 
     // Build and execute the LGDT algorithm
-    let mut builder = search_strategy.to_lgdt_builder(min_sup, max_depth)?;
+    let mut builder = lgdt_learner(options::lgdt_criterion(criterion)?, min_sup, max_depth)?;
 
     builder.fit_and_get_result(&mut cover)
 }

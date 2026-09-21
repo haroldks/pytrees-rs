@@ -1,20 +1,20 @@
-pub mod types;
 pub mod errors;
-pub mod enums;
+pub mod options;
+pub mod rules;
+pub mod types;
 
-use std::collections::HashSet;
-use numpy::PyReadonlyArrayDyn;
-use pyo3::PyResult;
-use pyo3::exceptions::PyValueError;
 use dtrees_rs::bitsets::{BitCollection, Bitset, BitsetInit};
 use dtrees_rs::cover::Cover;
-
+use numpy::PyReadonlyArrayDyn;
+use pyo3::exceptions::PyValueError;
+use pyo3::PyResult;
+use std::collections::HashSet;
 
 pub(crate) fn create_cover_from_numpy(
     input: PyReadonlyArrayDyn<f64>,
     target: Option<&PyReadonlyArrayDyn<f64>>,
 ) -> PyResult<Cover> {
-    let input_array = input.as_array().map(|&x| x as usize );
+    let input_array = input.as_array().map(|&x| x as usize);
     let num_samples = input_array.shape()[0];
     let num_features = input_array.shape()[1];
 
@@ -36,10 +36,11 @@ pub(crate) fn create_cover_from_numpy(
             let target_array = target_array.as_array().map(|&x| x as usize);
 
             if target_array.len() != num_samples {
-                return Err(PyValueError::new_err(
-                    format!("Target length ({}) doesn't match input samples ({})",
-                            target_array.len(), num_samples)
-                ));
+                return Err(PyValueError::new_err(format!(
+                    "Target length ({}) doesn't match input samples ({})",
+                    target_array.len(),
+                    num_samples
+                )));
             }
 
             let mut unique_labels = HashSet::new();
@@ -57,7 +58,7 @@ pub(crate) fn create_cover_from_numpy(
             }
 
             labels
-        },
+        }
         None => vec![],
     };
 

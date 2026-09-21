@@ -49,7 +49,6 @@ print(f"Greedy accuracy: {greedy_clf.accuracy_}")
 For more information, see the individual class documentation and examples.
 """
 
-from .common import *
 from .base import DecisionTree
 from .exceptions import *
 from .supervised import LGDTClassifier, DL85Classifier

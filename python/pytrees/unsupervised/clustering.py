@@ -6,7 +6,6 @@ from .. import DecisionTree, SearchFailedError
 from sklearn.base import BaseEstimator, ClusterMixin
 from sklearn.utils import check_array, assert_all_finite
 from pytrees._native.odt import PyDL85
-from pytrees._native.enums import *
 
 
 class DL85Cluster(BaseEstimator, ClusterMixin, DecisionTree):
@@ -17,9 +16,9 @@ class DL85Cluster(BaseEstimator, ClusterMixin, DecisionTree):
         max_error=0.0,
         max_time=600.0,
         always_sort=True,
-        lower_bound_policy=ExposedLowerBoundPolicy.Similarity,
-        branching_policy=ExposedBranchingPolicy.Dynamic,
-        heuristic=ExposedHeuristic.NoHeuristic,
+        similarity_lb=True,
+        dynamic_branching=True,
+        heuristic="none",
         discrepancy=None,
         gain=None,
         topk=None,
@@ -33,10 +32,8 @@ class DL85Cluster(BaseEstimator, ClusterMixin, DecisionTree):
         self.max_error = max_error
         self.max_time = max_time
         self.always_sort = always_sort
-        self.node_data_type = ExposedNodeDataType.Tids
-        self.depth2_policy = ExposedDepth2Policy.Disabled
-        self.lower_bound_policy = lower_bound_policy
-        self.branching_policy = branching_policy
+        self.similarity_lb = similarity_lb
+        self.dynamic_branching = dynamic_branching
         self.heuristic = heuristic
         self.discrepancy = discrepancy
         self.gain = gain
@@ -52,10 +49,12 @@ class DL85Cluster(BaseEstimator, ClusterMixin, DecisionTree):
             time_limit=self.max_time,
             always_sort=self.always_sort,
             heuristic=self.heuristic,
-            depth2_policy=self.depth2_policy,
-            lower_bound=self.lower_bound_policy,
-            branching_policy=self.branching_policy,
-            data_type=self.node_data_type,
+            # The error of a cluster depends on its rows, not on class
+            # counts, and the depth-2 solver only knows class counts.
+            fast_d2=False,
+            similarity_lb=self.similarity_lb,
+            dynamic_branching=self.dynamic_branching,
+            error_function_input="indices",
             discrepancy=self.discrepancy,
             gain=self.gain,
             topk=self.topk,

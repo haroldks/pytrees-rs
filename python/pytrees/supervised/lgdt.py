@@ -1,7 +1,6 @@
 import numpy as np
 
 from .. import DecisionTree, SearchFailedError
-from pytrees._native.enums import ExposedSearchStrategy
 from pytrees._native.greedy import lgdt
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils import check_X_y
@@ -29,11 +28,9 @@ class LGDTClassifier(BaseEstimator, ClassifierMixin, DecisionTree):
         Maximum depth of the decision tree. Controls tree complexity and
         prevents overfitting. Smaller depths result in faster construction.
 
-    search_strategy : ExposedSearchStrategy, default=LGDTErrorMinimizer
-        The search strategy to use for tree construction. Available options:
-
-        - LGDTErrorMinimizer: Focuses on minimizing classification error
-        - LGDTInfoGainMaximizer: Focuses on maximizing information gain
+    criterion : {"error", "information_gain"}, default="error"
+        What the depth-2 lookahead at each step optimises: the
+        misclassification error, or the information gain.
 
     Attributes
     ----------
@@ -55,13 +52,7 @@ class LGDTClassifier(BaseEstimator, ClassifierMixin, DecisionTree):
 
     Using different search strategies:
 
-    >>> from pytrees.common import ExposedSearchStrategy
-    >>>
-    >>> # Error minimizer strategy search for quality
-    >>> clf = LGDTClassifier(
-    ...     max_depth=4,
-    ...     search_strategy=ExposedSearchStrategy.LGDTInfoGainMaximizer
-    ... )
+    >>> clf = LGDTClassifier(max_depth=4, criterion="information_gain")
     >>> clf.fit(X, y)
     >>>
     """
@@ -70,7 +61,7 @@ class LGDTClassifier(BaseEstimator, ClassifierMixin, DecisionTree):
         self,
         min_sup=1,
         max_depth=2,
-        search_strategy=ExposedSearchStrategy.LGDTErrorMinimizer,
+        criterion="error",
     ):
         """
         Initialize an LGDTClassifier with specified parameters.
@@ -81,13 +72,13 @@ class LGDTClassifier(BaseEstimator, ClassifierMixin, DecisionTree):
             Minimum support required for splits.
         max_depth : int, default=2
             Maximum tree depth.
-        search_strategy : ExposedSearchStrategy, default=LGDTErrorMinimizer
-            Search strategy for tree construction.
+        criterion : {"error", "information_gain"}, default="error"
+            What the depth-2 lookahead optimises.
         """
         super().__init__()
         self.min_sup = min_sup
         self.max_depth = max_depth
-        self.search_strategy = search_strategy
+        self.criterion = criterion
 
     def fit(self, X, y):
         """
@@ -134,7 +125,7 @@ class LGDTClassifier(BaseEstimator, ClassifierMixin, DecisionTree):
             self.results = lgdt(
                 X,
                 y,
-                self.search_strategy,
+                self.criterion,
                 self.min_sup,
                 self.max_depth,
             )

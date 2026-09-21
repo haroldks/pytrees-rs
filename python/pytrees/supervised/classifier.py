@@ -4,7 +4,6 @@ from .. import DecisionTree, SearchFailedError
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils import check_array, check_X_y, assert_all_finite
 from pytrees._native.odt import PyDL85
-from pytrees._native.enums import *
 
 
 class DL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
@@ -27,9 +26,9 @@ class DL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
         Maximum depth of the decision tree. Controls tree complexity and
         prevents overfitting. Depth 1 creates decision stumps.
 
-    max_error : float, default=inf
-        Maximum acceptable error for early termination. The algorithm stops
-        when a tree with error <= max_error is found.
+    max_error : float or None, default=None
+        Stop as soon as a tree with at most this error is found. ``None``
+        searches for the optimum.
 
     max_time : float, default=600.0
         Maximum time limit in seconds for the search. Prevents infinite
@@ -38,39 +37,44 @@ class DL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
     always_sort : bool, default=True
         Whether to always sort features based on heuristic at each node
 
-    node_data_type : ExposedNodeDataType, default=ClassSupports
-        Type of data used to compute the error.
+    heuristic : {"none", "gini", "information_gain", "weighted_entropy"}, default="none"
+        Order in which the features are tried at each node.
 
-    depth2_policy : ExposedDepth2Policy, default=Enabled
-        Depth-2 specialization policy for improved performance on depth-2 trees.
+    fast_d2 : bool, default=True
+        Solve depth-2 subtrees with the specialised exact solver.
 
-    lower_bound_policy : ExposedLowerBoundPolicy, default=Similarity
-        Strategy for computing lower bounds during search. Helps prune
-        unpromising branches early.
+    similarity_lb : bool, default=True
+        Use similarity lower bounds to prune branches early. Turned off when
+        any rule is given.
 
-    branching_policy : ExposedBranchingPolicy, default=Dynamic
-        Branching strategy for tree construction. Affects search order.
+    dynamic_branching : bool, default=True
+        Choose the branch to explore first dynamically. Turned off when any
+        rule is given.
 
-    heuristic : ExposedHeuristic, default=Disabled
-        Heuristic function for guiding the search.
+    error_function_input : {"class_counts", "indices"}, default="class_counts"
+        What ``error_function`` receives at each node: the count of each class,
+        or the indices of the rows in the node. ``"indices"`` needs an
+        ``error_function``.
 
-    discrepancy : ExposedDiscrepancyRule, optional
-        Limited discrepancy search rule for controlling exploration.
+    discrepancy : pytrees.rules.DiscrepancyRule, optional
+        Limited discrepancy search.
 
-    gain : ExposedGainRule, optional
-        Information gain-based stopping rule for pruning.
+    gain : pytrees.rules.GainRule, optional
+        Skip splits with too little information gain.
 
-    topk : ExposedTopKRule, optional
-        Top-K search limitation rule.
+    topk : pytrees.rules.TopKRule, optional
+        Explore only the most promising features at each node.
 
-    restart : ExposedRestartRule, optional
-        Time-based restart rule for anytime behavior.
+    restart : pytrees.rules.RestartRule, optional
+        Restart the search periodically with relaxed rules.
 
-    purity : ExposedPurityRule, optional
-        Node purity-based stopping rule.
+    purity : pytrees.rules.PurityRule, optional
+        Stop splitting nodes that are pure enough.
 
     error_function : callable, optional
-        Custom Python error function for specialized loss functions.
+        ``error_function(data) -> (error, prediction)``, called at each leaf
+        with what ``error_function_input`` selects. Replaces the built-in
+        misclassification error.
 
     Attributes
     ----------
@@ -95,14 +99,13 @@ class DL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
 
     Advanced usage with rules and heuristics:
 
-    >>> from pytrees.common import ExposedGainRule, ExposedPurityRule
-    >>> from pytrees.common import ExposedHeuristic
+    >>> from pytrees.rules import GainRule, PurityRule
     >>> clf = DL85Classifier(
     ...     max_depth=4,
     ...     min_sup=10,
-    ...     heuristic=ExposedHeuristic.InformationGain,
-    ...     gain=ExposedGainRule(min_gain=0.01),
-    ...     purity=ExposedPurityRule(min_purity=0.9)
+    ...     heuristic="information_gain",
+    ...     gain=GainRule(min_gain=0.01),
+    ...     purity=PurityRule(min_purity=0.9)
     ... )
     >>> clf.fit(X, y)
     """
@@ -111,14 +114,14 @@ class DL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
         self,
         min_sup=1,
         max_depth=1,
-        max_error=float("inf"),
+        max_error=None,
         max_time=600.0,
         always_sort=True,
-        node_data_type=ExposedNodeDataType.ClassSupports,
-        depth2_policy=ExposedDepth2Policy.Enabled,
-        lower_bound_policy=ExposedLowerBoundPolicy.Similarity,
-        branching_policy=ExposedBranchingPolicy.Dynamic,
-        heuristic=ExposedHeuristic.NoHeuristic,
+        heuristic="none",
+        fast_d2=True,
+        similarity_lb=True,
+        dynamic_branching=True,
+        error_function_input="class_counts",
         discrepancy=None,
         gain=None,
         topk=None,
@@ -138,11 +141,11 @@ class DL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
         self.max_error = max_error
         self.max_time = max_time
         self.always_sort = always_sort
-        self.node_data_type = node_data_type
-        self.depth2_policy = depth2_policy
-        self.lower_bound_policy = lower_bound_policy
-        self.branching_policy = branching_policy
         self.heuristic = heuristic
+        self.fast_d2 = fast_d2
+        self.similarity_lb = similarity_lb
+        self.dynamic_branching = dynamic_branching
+        self.error_function_input = error_function_input
         self.discrepancy = discrepancy
         self.gain = gain
         self.topk = topk
@@ -163,8 +166,8 @@ class DL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
                 self.purity,
             ]
         ):
-            self.lower_bound_policy = ExposedLowerBoundPolicy.Disabled
-            self.branching_policy = ExposedBranchingPolicy.Default
+            self.similarity_lb = False
+            self.dynamic_branching = False
 
         # Initialize the underlying Rust implementation
         self.__obj = PyDL85(
@@ -174,10 +177,10 @@ class DL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
             time_limit=self.max_time,
             always_sort=self.always_sort,
             heuristic=self.heuristic,
-            depth2_policy=self.depth2_policy,
-            lower_bound=self.lower_bound_policy,
-            branching_policy=self.branching_policy,
-            data_type=self.node_data_type,
+            fast_d2=self.fast_d2,
+            similarity_lb=self.similarity_lb,
+            dynamic_branching=self.dynamic_branching,
+            error_function_input=self.error_function_input,
             discrepancy=self.discrepancy,
             gain=self.gain,
             topk=self.topk,
