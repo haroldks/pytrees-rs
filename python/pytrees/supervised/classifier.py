@@ -1,7 +1,7 @@
 import numpy as np
 from ..base import TreeClassifier, validate_binary_classification
 from sklearn.base import BaseEstimator, ClassifierMixin
-from pytrees._native.odt import PyDL85
+from .._dl85 import dl85_search
 
 
 class DL85Classifier(ClassifierMixin, TreeClassifier, BaseEstimator):
@@ -194,26 +194,10 @@ class DL85Classifier(ClassifierMixin, TreeClassifier, BaseEstimator):
                 'error_function_input="indices" needs an error_function: the '
                 "built-in error only understands class counts"
             )
-        rules = (self.discrepancy, self.gain, self.topk, self.restart, self.purity)
-        # The rules relax the search pass by pass, which the similarity bounds
-        # and dynamic branching do not take into account.
-        bounded = any(rule is not None for rule in rules)
-        return PyDL85(
-            min_sup=self.min_sup,
-            max_depth=self.max_depth,
-            max_error=self.max_error,
-            time_limit=self.max_time,
-            always_sort=self.always_sort,
-            heuristic=self.heuristic,
+        return dl85_search(
+            self,
             fast_d2=self.fast_d2,
-            similarity_lb=self.similarity_lb and not bounded,
-            dynamic_branching=self.dynamic_branching and not bounded,
             error_function_input=self.error_function_input,
-            discrepancy=self.discrepancy,
-            gain=self.gain,
-            topk=self.topk,
-            restart=self.restart,
-            purity=self.purity,
             error_function=self.error_function,
         )
 

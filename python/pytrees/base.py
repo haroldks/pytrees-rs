@@ -55,6 +55,11 @@ class DecisionTree:
 
     def _leaf_values(self, X):
         """The value of the leaf each row of ``X`` reaches."""
+        leaves = self._leaves(X)  # checks that the model is fitted first
+        return self.tree_["value"][leaves]
+
+    def _leaves(self, X):
+        """The node index of the leaf each row of ``X`` reaches."""
         check_is_fitted(self, "tree_")
         if self.tree_ is None:
             raise TreeNotFoundError(
@@ -71,16 +76,16 @@ class DecisionTree:
         while True:
             internal = tree["children_left"][node] != -1
             if not internal.any():
-                return tree["value"][node]
+                return node
             at, where = node[internal], rows[internal]
             goes_left = X[where, tree["feature"][at]] < tree["threshold"][at]
             node[internal] = np.where(
                 goes_left, tree["children_left"][at], tree["children_right"][at]
             )
 
-    def _leaf_label(self, value):
-        """A leaf's record field in ``to_dot``."""
-        return f"{{value|{value:g}}}"
+    def _leaf_label(self, node):
+        """The record field ``to_dot`` shows for the leaf at ``node``."""
+        return f"{{value|{self.tree_['value'][node]:g}}}"
 
     def to_dot(self):
         """The fitted tree in Graphviz DOT format.
@@ -97,7 +102,7 @@ class DecisionTree:
                 error = f"{{error|{tree['error'][node]:g}}}"
                 left = tree["children_left"][node]
                 if left == -1:
-                    leaf = self._leaf_label(tree["value"][node])
+                    leaf = self._leaf_label(node)
                     lines.append(f'{node} [label="{{{leaf}|{error}}}"];')
                 else:
                     test = f"{{feature|{tree['feature'][node]}}}"
@@ -118,5 +123,5 @@ class TreeClassifier(DecisionTree):
         values = self._leaf_values(X)
         return self.classes_.take(values.astype(np.intp))
 
-    def _leaf_label(self, value):
-        return f"{{class|{self.classes_[int(value)]}}}"
+    def _leaf_label(self, node):
+        return f"{{class|{self.classes_[int(self.tree_['value'][node])]}}}"
