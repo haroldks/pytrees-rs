@@ -56,7 +56,6 @@ def test_an_invalid_support_is_a_value_error_that_says_why(anneal):
         LGDTClassifier(min_sup=0).fit(X, y)
 
 
-@known_bug("at depth 2 or less, the Rust search prints the tree on stdout")
 def test_fit_prints_nothing(anneal, capfd):
     X, y = anneal
     LGDTClassifier(max_depth=2).fit(X, y)

@@ -28,7 +28,6 @@ where
             self.tree =
                 self.search
                     .fit(self.config.min_support, self.config.max_depth, cover, None)?;
-            self.tree.print();
             return Ok(());
         }
 
