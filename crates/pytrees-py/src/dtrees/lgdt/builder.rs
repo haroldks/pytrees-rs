@@ -1,5 +1,5 @@
-use crate::common::options::LgdtCriterion;
-use crate::common::types::SearchOutput;
+use crate::dtrees::options::LgdtCriterion;
+use crate::dtrees::output::SearchOutput;
 use dtrees_rs::algorithms::common::errors::NativeError;
 use dtrees_rs::algorithms::common::types::{SearchStatistics, SearchStrategy};
 use dtrees_rs::algorithms::greedy::{LGDTBuilder, LGDT};

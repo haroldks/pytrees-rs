@@ -12,13 +12,11 @@
 use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
 
-use crate::greedy::search_lgdt;
-use crate::optimal::PyDL85;
+use crate::dtrees::dl85::PyDL85;
+use crate::dtrees::lgdt::search_lgdt;
 
-mod common;
 mod contree;
-mod greedy;
-mod optimal;
+mod dtrees;
 
 #[pymodule]
 fn _native(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {

@@ -2,9 +2,9 @@ pub mod builder;
 
 use builder::lgdt_learner;
 
-use crate::common::create_cover_from_numpy;
-use crate::common::options;
-use crate::common::types::SearchOutput;
+use crate::dtrees::data::create_cover_from_numpy;
+use crate::dtrees::options;
+use crate::dtrees::output::SearchOutput;
 use numpy::PyReadonlyArrayDyn;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;

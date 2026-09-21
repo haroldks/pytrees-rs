@@ -1,8 +1,3 @@
-pub mod errors;
-pub mod options;
-pub mod rules;
-pub mod types;
-
 use dtrees_rs::bitsets::{BitCollection, Bitset, BitsetInit};
 use dtrees_rs::cover::Cover;
 use numpy::PyReadonlyArrayDyn;

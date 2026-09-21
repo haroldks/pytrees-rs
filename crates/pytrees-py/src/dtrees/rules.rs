@@ -9,7 +9,7 @@ use dtrees_rs::algorithms::optimal::rules::common::TimeLimitRule;
 use dtrees_rs::algorithms::optimal::rules::{DiscrepancyRule, GainRule, PurityRule, TopkRule};
 use pyo3::prelude::*;
 
-use crate::common::options;
+use crate::dtrees::options;
 
 #[derive(FromPyObject)]
 pub(crate) struct DiscrepancySpec {

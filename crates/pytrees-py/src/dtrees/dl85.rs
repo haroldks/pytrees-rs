@@ -1,8 +1,8 @@
-use crate::common::create_cover_from_numpy;
-use crate::common::errors::{raise_stored, ErrorSlot, PythonError};
-use crate::common::options;
-use crate::common::rules::{DiscrepancySpec, GainSpec, PuritySpec, RestartSpec, TopKSpec};
-use crate::common::types::SearchOutput;
+use crate::dtrees::data::create_cover_from_numpy;
+use crate::dtrees::errors::{raise_stored, ErrorSlot, PythonError};
+use crate::dtrees::options;
+use crate::dtrees::rules::{DiscrepancySpec, GainSpec, PuritySpec, RestartSpec, TopKSpec};
+use crate::dtrees::output::SearchOutput;
 use dtrees_rs::algorithms::common::errors::{ErrorWrapper, NativeError};
 use dtrees_rs::algorithms::common::heuristics::Heuristic;
 use dtrees_rs::algorithms::common::types::{
