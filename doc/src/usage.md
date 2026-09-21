@@ -43,8 +43,6 @@ Options:
           Lower bound heuristic strategy [default: none] [possible values: similarity, none]
   -b, --branching <BRANCHING>
           Branching type [default: none] [possible values: dynamic, none]
-      --cache <CACHE_TYPE>
-          [default: trie] [possible values: trie, hashmap]
       --cache-init-size <CACHE_INIT_SIZE>
           Cache init size Represents the reserved starting size of the cache [default: 0]
       --init-strategy <INIT_STRATEGY>

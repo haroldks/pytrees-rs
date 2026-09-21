@@ -122,13 +122,6 @@ pub enum NodeDataType {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
-pub enum CacheType {
-    Trie,
-    Hashmap,
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
-#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 pub enum CacheInitStrategy {
     DynamicAllocation,
     UserAllocation,

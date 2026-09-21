@@ -1,7 +1,6 @@
 use clap::{arg, Parser, Subcommand};
 use dtrees_rs::algorithms::common::types::{
-    BranchingPolicy, CacheType, LowerBoundPolicy, OptimalDepth2Policy, SearchHeuristic,
-    SearchStrategy,
+    BranchingPolicy, LowerBoundPolicy, OptimalDepth2Policy, SearchHeuristic, SearchStrategy,
 };
 use std::path::PathBuf;
 
@@ -52,9 +51,6 @@ pub enum ArgCommand {
         /// Branching type
         #[arg(short, long, value_enum, default_value_t = BranchingPolicy::Default)]
         branching_policy: BranchingPolicy,
-
-        #[arg(long="cache", value_enum, default_value_t = CacheType::Trie)]
-        cache_type: CacheType,
 
         /// Sorting heuristic
         #[arg(long, value_enum, default_value_t = SearchHeuristic::NoHeuristic)]

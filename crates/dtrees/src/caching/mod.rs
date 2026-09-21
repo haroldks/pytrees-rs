@@ -2,10 +2,6 @@ use crate::caching::entry::CacheEntryUpdater;
 
 mod entry;
 mod helpers;
-// The key of the hashmap cache in map.rs, which is not implemented yet.
-#[allow(dead_code)]
-mod key;
-mod map;
 mod trie;
 pub use entry::CacheEntry;
 pub use helpers::{CacheKey, Index, SearchPath};

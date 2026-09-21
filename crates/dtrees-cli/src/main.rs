@@ -1,9 +1,7 @@
 use clap::Parser;
 use dtrees_rs::algorithms::common::errors::NativeError;
 use dtrees_rs::algorithms::common::heuristics::Heuristic;
-use dtrees_rs::algorithms::common::types::{
-    CacheType, NodeDataType, SearchStatistics, SearchStrategy,
-};
+use dtrees_rs::algorithms::common::types::{NodeDataType, SearchStatistics, SearchStrategy};
 use dtrees_rs::algorithms::greedy::LGDTBuilder;
 use dtrees_rs::algorithms::optimal::depth2::{
     ErrorMinimizer, InfoGainMaximizer, OptimalDepth2Tree,
@@ -104,7 +102,6 @@ fn run(app: MainApp) -> Result<(), Box<dyn std::error::Error>> {
             depth2_policy,
             lower_bound_policy,
             branching_policy,
-            cache_type,
             heuristic,
             max_error,
             timeout,
@@ -113,12 +110,7 @@ fn run(app: MainApp) -> Result<(), Box<dyn std::error::Error>> {
             let timeout = timeout.unwrap_or(f64::INFINITY);
 
             let heuristic_fn: Box<dyn Heuristic> = heuristic.into();
-            let cache: Box<dyn Caching> = match cache_type {
-                CacheType::Trie => Box::<Trie>::default(),
-                CacheType::Hashmap => {
-                    return Err("the hashmap cache is not implemented yet; use trie".into());
-                }
-            };
+            let cache: Box<dyn Caching> = Box::<Trie>::default();
 
             let depth2_search = Box::<ErrorMinimizer<NativeError>>::default();
             let error_fn = Box::<NativeError>::default();
