@@ -9,10 +9,11 @@ import pickle
 import numpy as np
 import pytest
 from sklearn.base import clone
+from sklearn.exceptions import NotFittedError
 from sklearn.model_selection import GridSearchCV, cross_val_score
 
 from pytrees import DL85Classifier, LGDTClassifier
-from pytrees.rules import GainRule
+from pytrees.rules import DiscrepancyRule, GainRule
 
 
 def known_bug(reason):
@@ -53,7 +54,6 @@ def test_it_is_never_worse_than_the_greedy_tree_of_the_same_depth(anneal):
 # --- scikit-learn contracts ----------------------------------------------
 
 
-@known_bug("fit returns None")
 def test_fit_returns_the_estimator(anneal):
     X, y = anneal
     clf = DL85Classifier(max_depth=1)
@@ -64,7 +64,6 @@ def test_it_can_be_cloned():
     clone(DL85Classifier(max_depth=2))
 
 
-@known_bug("the native object is built in __init__, so set_params is ignored")
 def test_set_params_changes_the_search(anneal):
     X, y = anneal
     clf = DL85Classifier(max_depth=1, min_sup=1)
@@ -73,7 +72,6 @@ def test_set_params_changes_the_search(anneal):
     assert errors(clf, X, y) == 112
 
 
-@known_bug("__init__ overwrites the policies when a rule is given")
 def test_init_keeps_the_parameters_as_given():
     clf = DL85Classifier(gain=GainRule(), similarity_lb=True)
     assert clf.get_params()["similarity_lb"] is True
@@ -85,7 +83,6 @@ def test_it_works_under_cross_validation(anneal):
     assert scores.mean() > 0.7
 
 
-@known_bug("the native object is built in __init__, so set_params is ignored")
 def test_grid_search_actually_varies_the_depth(anneal):
     X, y = anneal
     search = GridSearchCV(DL85Classifier(min_sup=5), {"max_depth": [1, 3]}, cv=3).fit(
@@ -107,7 +104,6 @@ def test_a_fitted_model_survives_pickling(anneal):
 # --- Labels --------------------------------------------------------------
 
 
-@known_bug("there is no classes_, and predict returns a list")
 def test_it_exposes_classes_and_predicts_an_array(anneal):
     X, y = anneal
     clf = DL85Classifier(max_depth=2)
@@ -116,7 +112,6 @@ def test_it_exposes_classes_and_predicts_an_array(anneal):
     assert isinstance(clf.predict(X), np.ndarray)
 
 
-@known_bug("labels outside 0..k-1 make the Rust side panic")
 def test_labels_do_not_have_to_start_at_zero(anneal):
     X, y = anneal
     clf = DL85Classifier(max_depth=2)
@@ -124,7 +119,6 @@ def test_labels_do_not_have_to_start_at_zero(anneal):
     assert set(np.unique(clf.predict(X))) <= {1, 2}
 
 
-@known_bug("labels must be numeric")
 def test_labels_can_be_strings(anneal):
     X, y = anneal
     labels = np.where(y == 0, "no", "yes")
@@ -136,14 +130,12 @@ def test_labels_can_be_strings(anneal):
 # --- Errors --------------------------------------------------------------
 
 
-@known_bug("non-binary values are silently truncated to integers")
 def test_non_binary_features_are_a_value_error(anneal):
     X, y = anneal
     with pytest.raises(ValueError, match="binary"):
         DL85Classifier(max_depth=2).fit(X * 3.5, y)
 
 
-@known_bug("an exception in the error function becomes a Rust panic")
 def test_an_exception_in_a_custom_error_function_reaches_the_caller(anneal):
     X, y = anneal
 
@@ -154,9 +146,36 @@ def test_an_exception_in_a_custom_error_function_reaches_the_caller(anneal):
         DL85Classifier(max_depth=2, error_function=failing).fit(X, y)
 
 
-@known_bug("partial_fit checks has_data the wrong way round")
-def test_partial_fit_runs_after_load_data(anneal):
+@pytest.mark.parametrize("estimator", [DL85Classifier, LGDTClassifier])
+def test_predicting_before_fitting_is_a_not_fitted_error(anneal, estimator):
+    X, _ = anneal
+    with pytest.raises(NotFittedError):
+        estimator().predict(X)
+
+
+def test_indices_without_an_error_function_is_a_value_error(anneal):
     X, y = anneal
-    clf = DL85Classifier(max_depth=2)
-    clf.load_data(X, y)
-    clf.partial_fit()
+    with pytest.raises(ValueError, match="needs an error_function"):
+        DL85Classifier(error_function_input="indices").fit(X, y)
+
+
+# --- Anytime search ------------------------------------------------------
+
+
+def test_fit_anytime_reports_only_improvements_and_ends_at_the_optimum(anneal):
+    X, y = anneal
+    seen = []
+    clf = DL85Classifier(max_depth=3, min_sup=1, discrepancy=DiscrepancyRule())
+    clf.fit_anytime(X, y, lambda error, seconds, status: seen.append(error))
+    assert seen == sorted(set(seen), reverse=True)
+    assert seen[-1] == errors(clf, X, y) == 112
+
+
+def test_an_exception_in_the_callback_reaches_the_caller(anneal):
+    X, y = anneal
+
+    def failing(error, seconds, status):
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        DL85Classifier(max_depth=2).fit_anytime(X, y, failing)

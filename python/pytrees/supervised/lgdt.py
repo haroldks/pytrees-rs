@@ -1,9 +1,8 @@
 import numpy as np
 
-from .. import DecisionTree, SearchFailedError
+from ..base import DecisionTree, validate_binary_classification
 from pytrees._native.greedy import lgdt
 from sklearn.base import BaseEstimator, ClassifierMixin
-from sklearn.utils import check_X_y
 
 
 class LGDTClassifier(BaseEstimator, ClassifierMixin, DecisionTree):
@@ -63,72 +62,35 @@ class LGDTClassifier(BaseEstimator, ClassifierMixin, DecisionTree):
         max_depth=2,
         criterion="error",
     ):
-        """
-        Initialize an LGDTClassifier with specified parameters.
-
-        Parameters
-        ----------
-        min_sup : int, default=1
-            Minimum support required for splits.
-        max_depth : int, default=2
-            Maximum tree depth.
-        criterion : {"error", "information_gain"}, default="error"
-            What the depth-2 lookahead optimises.
-        """
-        super().__init__()
+        # Stored verbatim: see DL85Classifier.__init__.
         self.min_sup = min_sup
         self.max_depth = max_depth
         self.criterion = criterion
 
     def fit(self, X, y):
-        """
-        Fit the LGDT classifier using greedy tree construction.
-
-        This method constructs a decision tree using the specified greedy
-        algorithm, which makes locally optimal choices at each step to
-        build the tree efficiently.
+        """Build the tree greedily and return ``self``.
 
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
-            Training data. Can handle both binary and continuous features,
-            though binary features may provide better performance.
-
+            Binary features: every value must be 0 or 1.
         y : array-like of shape (n_samples,)
-            Target values (class labels).
-
-        Returns
-        -------
-        self : LGDTClassifier
-            Returns self for method chaining.
-
-        Raises
-        ------
-        SearchFailedError
-            If the greedy algorithm fails during tree construction due to
-            invalid data, memory issues, or other computational problems.
-
-        Examples
-        --------
-        Basic fitting:
-
-        >>> clf = LGDTClassifier(max_depth=3, min_sup=5)
-        >>> clf.fit(X_train, y_train)
-        >>> print(f"Tree constructed in {clf.results.duration:.3f} seconds")
-        >>> print(f"Training error: {clf.tree_error_}")
-
+            Class labels, of any type ``np.unique`` accepts.
         """
-        y = y.astype(np.float64)
-        X, y = check_X_y(X, y, dtype=np.float64, y_numeric=True)
+        X, self.classes_, encoded = validate_binary_classification(self, X, y)
+        self.results = lgdt(
+            X,
+            encoded.astype(np.float64),
+            self.criterion,
+            self.min_sup,
+            self.max_depth,
+        )
+        self.refresh_stats()
+        return self
 
-        try:
-            self.results = lgdt(
-                X,
-                y,
-                self.criterion,
-                self.min_sup,
-                self.max_depth,
-            )
-            self.refresh_stats()
-        except Exception as e:
-            raise SearchFailedError
+    def predict(self, X):
+        """Classify each row of ``X``."""
+        # The base class checks that the model is fitted before anything
+        # reads classes_.
+        encoded = np.asarray(super().predict(X), dtype=np.intp)
+        return self.classes_.take(encoded)

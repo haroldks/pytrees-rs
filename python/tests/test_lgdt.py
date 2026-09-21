@@ -33,7 +33,6 @@ def test_its_result_on_anneal_does_not_drift(anneal):
     assert errors(clf, X, y) == 119
 
 
-@known_bug("fit returns None")
 def test_fit_returns_the_estimator(anneal):
     X, y = anneal
     clf = LGDTClassifier(max_depth=1)
@@ -44,7 +43,6 @@ def test_it_can_be_cloned():
     clone(LGDTClassifier(max_depth=2))
 
 
-@known_bug("labels outside 0..k-1 make the Rust side panic")
 def test_labels_do_not_have_to_start_at_zero(anneal):
     X, y = anneal
     clf = LGDTClassifier(max_depth=2)
@@ -52,7 +50,6 @@ def test_labels_do_not_have_to_start_at_zero(anneal):
     assert set(np.unique(clf.predict(X))) <= {1, 2}
 
 
-@known_bug("every error becomes a SearchFailedError with no message")
 def test_an_invalid_support_is_a_value_error_that_says_why(anneal):
     X, y = anneal
     with pytest.raises(ValueError, match="min_sup"):

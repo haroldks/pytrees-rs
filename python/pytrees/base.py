@@ -1,8 +1,30 @@
 import uuid
 import json
+
+import numpy as np
 from sklearn.utils import check_array
-from sklearn.exceptions import NotFittedError
-from .exceptions import TreeNotFoundError, SearchFailedError
+from sklearn.utils.multiclass import check_classification_targets
+from sklearn.utils.validation import check_is_fitted, validate_data
+
+from .exceptions import TreeNotFoundError
+
+
+def validate_binary_classification(estimator, X, y):
+    """Check ``X`` and ``y`` for a binary-feature classifier.
+
+    Returns ``X`` as float64, the classes, and ``y`` encoded as indices into
+    them: the Rust side needs labels 0..k-1, and this is what lets users pass
+    any labels at all.
+    """
+    X, y = validate_data(estimator, X, y, dtype=np.float64, ensure_all_finite=True)
+    check_classification_targets(y)
+    if not np.isin(X, (0.0, 1.0)).all():
+        raise ValueError(
+            f"{type(estimator).__name__} needs binary features: every value "
+            "of X must be 0 or 1"
+        )
+    classes, encoded = np.unique(y, return_inverse=True)
+    return X, classes, encoded
 
 
 class DecisionTree:
@@ -120,8 +142,6 @@ class DecisionTree:
             If the model has not been fitted yet.
         TreeNotFoundError
             If no valid tree was found during training.
-        SearchFailedError
-            If the underlying algorithm failed during training.
 
         Examples
         --------
@@ -130,24 +150,12 @@ class DecisionTree:
         >>> predictions = clf.predict(X_test)
         >>> print(f"Predicted classes: {predictions}")
         """
-        # Check if fit has been called
-        if self.is_fitted_ is False:
-            raise NotFittedError(
-                "Call fit method first" % {"name": type(self).__name__}
-            )
-
+        check_is_fitted(self, "tree_")
         if self.tree_ is None:
             raise TreeNotFoundError(
                 "predict(): ",
                 "Tree not found during training by DL8.5 - "
                 "Check fitting message for more info.",
-            )
-
-        if hasattr(self, "tree_") is False:
-            raise SearchFailedError(
-                "PredictionError: ",
-                "DL8.5 training has failed. Please contact the developers "
-                "if the problem is in the scope supported by the tool.",
             )
 
         # Input validation

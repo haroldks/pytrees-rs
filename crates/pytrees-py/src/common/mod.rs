@@ -49,7 +49,15 @@ pub(crate) fn create_cover_from_numpy(
                 unique_labels.insert(label);
             }
 
+            // Each label indexes a bitset, so they must be exactly 0..k-1.
+            // The Python layer encodes them that way; this guards the rest.
             let num_labels = unique_labels.len();
+            if let Some(&label) = unique_labels.iter().find(|&&label| label >= num_labels) {
+                return Err(PyValueError::new_err(format!(
+                    "labels must be encoded as 0..{}, found {label}",
+                    num_labels.saturating_sub(1)
+                )));
+            }
             let mut labels = vec![Bitset::new(BitsetInit::Empty(num_samples)); num_labels];
 
             for sample_idx in 0..num_samples {

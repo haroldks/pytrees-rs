@@ -1,5 +1,5 @@
 use crate::common::create_cover_from_numpy;
-use crate::common::errors::PythonError;
+use crate::common::errors::{raise_stored, ErrorSlot, PythonError};
 use crate::common::options;
 use crate::common::rules::{DiscrepancySpec, GainSpec, PuritySpec, RestartSpec, TopKSpec};
 use crate::common::types::SearchOutput;
@@ -11,10 +11,9 @@ use dtrees_rs::algorithms::common::types::{
 use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
 use dtrees_rs::algorithms::optimal::dl85::config::DL85Config;
 use dtrees_rs::algorithms::optimal::dl85::{DL85Builder, DL85};
-use dtrees_rs::algorithms::optimal::rules::Rule;
+use dtrees_rs::algorithms::optimal::rules::{Reason, Rule};
 use dtrees_rs::algorithms::TreeSearchAlgorithm;
 use dtrees_rs::caching::Trie;
-use dtrees_rs::cover::Cover;
 use numpy::PyReadonlyArrayDyn;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -26,15 +25,19 @@ use pyo3::prelude::*;
 pub struct PyDL85 {
     learner: DL85<Trie, ErrorMinimizer<dyn ErrorWrapper>, dyn ErrorWrapper, dyn Heuristic>,
     config: DL85Config,
-    cover: Cover,
     statistics: SearchOutput,
-    has_data: bool,
+    /// The first exception the caller's error function raised, if any.
+    failure: ErrorSlot,
 }
 
 /// Wraps the caller's error function, or uses the built-in one.
-fn wrap_error_function(py: Python<'_>, function: &Option<Py<PyAny>>) -> Box<dyn ErrorWrapper> {
+fn wrap_error_function(
+    py: Python<'_>,
+    function: &Option<Py<PyAny>>,
+    failure: &ErrorSlot,
+) -> Box<dyn ErrorWrapper> {
     match function {
-        Some(function) => Box::new(PythonError::new(function.clone_ref(py))),
+        Some(function) => Box::new(PythonError::new(function.clone_ref(py), failure.clone())),
         None => Box::<NativeError>::default(),
     }
 }
@@ -81,6 +84,7 @@ impl PyDL85 {
         error_function: Option<Py<PyAny>>,
     ) -> PyResult<Self> {
         let heuristic = options::heuristic(heuristic)?;
+        let failure = ErrorSlot::default();
         let data_type = options::error_function_input(error_function_input)?;
 
         let mut node_rules: Vec<Box<dyn Rule>> = vec![];
@@ -128,10 +132,11 @@ impl PyDL85 {
             .depth2_search(Box::new(ErrorMinimizer::new(wrap_error_function(
                 py,
                 &error_function,
+                &failure,
             ))))
             .add_search_rules(search_rules)
             .add_node_rules(node_rules)
-            .error_function(wrap_error_function(py, &error_function))
+            .error_function(wrap_error_function(py, &error_function, &failure))
             .build()
             .map_err(|e| PyValueError::new_err(format!("invalid DL8.5 configuration: {e:?}")))?;
 
@@ -139,119 +144,61 @@ impl PyDL85 {
         Ok(Self {
             learner,
             config,
-            cover: Cover::new(vec![], vec![], 0),
             statistics: SearchOutput::default(),
-            has_data: false,
+            failure,
         })
     }
 
-    /// Loads training data into the classifier.
-    ///
-    /// This method converts NumPy arrays into the internal Cover representation
-    /// used by the DL8.5 algorithm.
-    ///
-    /// # Parameters
-    ///
-    /// - `input`: Feature matrix as a NumPy array of shape (n_samples, n_features)
-    /// - `target`: Optional target vector as a NumPy array of shape (n_samples,)
-    ///            If None, assumes unsupervised learning or error_function is not None
-    ///
-    /// # Errors
-    ///
-    /// Returns `PyValueError` if:
-    /// - Input arrays have incompatible shapes
-    /// - Data contains invalid values (NaN, infinite)
-    /// - Memory allocation fails during conversion
-    ///
-    /// # Example
-    ///
-    /// ```python
-    /// import numpy as np
-    /// from pytrees._native.odt import PyDL85
-    ///
-    /// X = np.array([[1, 0], [0, 1], [1, 1], [0, 0]])
-    /// y = np.array([1, 1, 0, 0])
-    /// classifier = PyDL85(max_depth=3, min_sup=5)
-    /// classifier.load_data(X, y)
-    /// ```
-    pub fn load_data(
+    /// Runs the search to completion, or until the time limit.
+    #[pyo3(signature = (input, target=None))]
+    fn fit(
         &mut self,
         input: PyReadonlyArrayDyn<f64>,
         target: Option<PyReadonlyArrayDyn<f64>>,
     ) -> PyResult<()> {
-        let cover = create_cover_from_numpy(input, target.as_ref())?;
-        self.cover = cover;
-        self.has_data = true;
-        Ok(())
-    }
-
-    /// Performs incremental fitting on pre-loaded data.
-    ///
-    /// This method continues the search from the current state, useful for
-    /// implementing iterative or time-bounded optimization strategies.
-    ///
-    /// # Errors
-    ///
-    /// Returns `PyValueError` if no data has been loaded via `load_data()`.
-    ///
-    /// # Example
-    ///
-    /// ```python
-    /// # Load data first
-    /// classifier.load_data(X_train, y_train)
-    ///
-    /// # Perform incremental fitting
-    /// classifier.partial_fit()
-    /// ```
-    pub fn partial_fit(&mut self) -> PyResult<()> {
-        if self.has_data {
-            return Err(PyValueError::new_err(
-                "Load data before using partial fit or use fit directly.",
-            ));
-        }
-
-        self.learner.partial_fit(&mut self.cover);
+        let mut cover = create_cover_from_numpy(input, target.as_ref())?;
+        let outcome = self.learner.fit(&mut cover);
+        raise_stored(&self.failure)?;
+        outcome.map_err(|err| PyValueError::new_err(format!("DL8.5 failed: {err:?}")))?;
         self.update_stats();
         Ok(())
     }
 
-    /// Fits the model to the provided training data.
+    /// Runs the search one pass at a time, as `fit` does, and calls
+    /// `callback(error, seconds, status)` whenever a pass improves the tree.
     ///
-    /// This is the main training method that loads data and performs the complete
-    /// DL8.5 search to find the optimal decision tree.
-    ///
-    /// # Parameters
-    ///
-    /// - `input`: Feature matrix as a NumPy array of shape (n_samples, n_features)
-    /// - `target`: Optional target vector as a NumPy array of shape (n_samples,)
-    ///
-    /// # Errors
-    ///
-    /// Returns `PyValueError` if:
-    /// - Data loading fails (see `load_data` for details)
-    /// - Algorithm execution encounters an error
-    /// - Search is interrupted or times out
-    ///
-    /// # Example
-    ///
-    /// ```python
-    /// import numpy as np
-    ///
-    /// X = np.random.rand(100, 5)
-    /// y = np.random.randint(0, 2, 100)
-    ///
-    /// classifier.fit(X, y)
-    /// print(f"Training completed with error: {classifier.stats.error}")
-    /// ```
-    pub fn fit(
+    /// Passes only differ when rules bound them: each pass relaxes the rules
+    /// until one runs unbounded. `status` is `"budget_exhausted"` while a
+    /// rule still bounds the search, then `"optimal"`, or `"time_limit"`.
+    #[pyo3(signature = (input, target, callback))]
+    fn fit_anytime(
         &mut self,
+        py: Python<'_>,
         input: PyReadonlyArrayDyn<f64>,
         target: Option<PyReadonlyArrayDyn<f64>>,
+        callback: Py<PyAny>,
     ) -> PyResult<()> {
-        self.load_data(input, target).expect("Failed to load data");
-        self.learner
-            .fit(&mut self.cover)
-            .map_err(|x| PyValueError::new_err(format!("Failed to fit due to {:?}", x)))?;
+        let mut cover = create_cover_from_numpy(input, target.as_ref())?;
+        let mut best = f64::INFINITY;
+        loop {
+            let result = self.learner.partial_fit(&mut cover);
+            raise_stored(&self.failure)?;
+            let status = if self.learner.time_is_exhausted() {
+                "time_limit"
+            } else if result.reason == Reason::RuleReason {
+                "budget_exhausted"
+            } else {
+                "optimal"
+            };
+            let error = self.learner.error();
+            if error < best {
+                best = error;
+                callback.call1(py, (error, self.learner.elapsed_seconds(), status))?;
+            }
+            if status != "budget_exhausted" {
+                break;
+            }
+        }
         self.update_stats();
         Ok(())
     }

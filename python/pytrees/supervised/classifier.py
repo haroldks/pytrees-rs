@@ -1,8 +1,7 @@
 import json
 import numpy as np
-from .. import DecisionTree, SearchFailedError
+from ..base import DecisionTree, validate_binary_classification
 from sklearn.base import BaseEstimator, ClassifierMixin
-from sklearn.utils import check_array, check_X_y, assert_all_finite
 from pytrees._native.odt import PyDL85
 
 
@@ -129,13 +128,9 @@ class DL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
         purity=None,
         error_function=None,
     ):
-        """
-        Initialize a DL85Classifier with specified parameters.
-
-        Sets up the underlying PyDL85 Rust implementation with the provided
-        configuration and initializes the Python wrapper state.
-        """
-        super().__init__()
+        # Stored verbatim, with no validation: get_params, clone and
+        # GridSearchCV all read a parameter back exactly as it was passed.
+        # The search itself is only built in fit.
         self.min_sup = min_sup
         self.max_depth = max_depth
         self.max_error = max_error
@@ -153,24 +148,56 @@ class DL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
         self.purity = purity
         self.error_function = error_function
 
-        self.results = None
+    def fit(self, X, y):
+        """Search for the optimal tree and return ``self``.
 
-        # Disable certain optimizations when rules are used
-        if any(
-            rule is not None
-            for rule in [
-                self.discrepancy,
-                self.gain,
-                self.topk,
-                self.restart,
-                self.purity,
-            ]
-        ):
-            self.similarity_lb = False
-            self.dynamic_branching = False
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Binary features: every value must be 0 or 1.
+        y : array-like of shape (n_samples,)
+            Class labels, of any type ``np.unique`` accepts.
+        """
+        X, self.classes_, encoded = validate_binary_classification(self, X, y)
+        native = self._native_search()
+        native.fit(X, encoded.astype(np.float64))
+        self._store(native)
+        return self
 
-        # Initialize the underlying Rust implementation
-        self.__obj = PyDL85(
+    def fit_anytime(self, X, y, callback):
+        """Fit pass by pass, calling ``callback`` when a pass improves the tree.
+
+        The passes differ only when rules bound the search (``discrepancy``,
+        ``gain``, ``topk``, ``restart``): each pass relaxes them until one
+        runs unbounded. ``callback(error, seconds, status)`` receives the
+        training error, the time spent so far, and ``"budget_exhausted"``
+        while a rule still bounds the search, then ``"optimal"`` or
+        ``"time_limit"``. Returns ``self``.
+        """
+        X, self.classes_, encoded = validate_binary_classification(self, X, y)
+        native = self._native_search()
+        native.fit_anytime(X, encoded.astype(np.float64), callback)
+        self._store(native)
+        return self
+
+    def predict(self, X):
+        """Classify each row of ``X``."""
+        # The base class checks that the model is fitted before anything
+        # reads classes_.
+        encoded = np.asarray(super().predict(X), dtype=np.intp)
+        return self.classes_.take(encoded)
+
+    def _native_search(self):
+        if self.error_function_input == "indices" and self.error_function is None:
+            raise ValueError(
+                'error_function_input="indices" needs an error_function: the '
+                "built-in error only understands class counts"
+            )
+        rules = (self.discrepancy, self.gain, self.topk, self.restart, self.purity)
+        # The rules relax the search pass by pass, which the similarity bounds
+        # and dynamic branching do not take into account.
+        bounded = any(rule is not None for rule in rules)
+        return PyDL85(
             min_sup=self.min_sup,
             max_depth=self.max_depth,
             max_error=self.max_error,
@@ -178,8 +205,8 @@ class DL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
             always_sort=self.always_sort,
             heuristic=self.heuristic,
             fast_d2=self.fast_d2,
-            similarity_lb=self.similarity_lb,
-            dynamic_branching=self.dynamic_branching,
+            similarity_lb=self.similarity_lb and not bounded,
+            dynamic_branching=self.dynamic_branching and not bounded,
             error_function_input=self.error_function_input,
             discrepancy=self.discrepancy,
             gain=self.gain,
@@ -188,107 +215,8 @@ class DL85Classifier(BaseEstimator, ClassifierMixin, DecisionTree):
             purity=self.purity,
             error_function=self.error_function,
         )
-        self.config = json.loads(self.__obj.config)
 
-    def fit(self, X, y=None):
-        """
-        Fit the DL85 optimal decision tree classifier.
-
-        This method trains the optimal decision tree using the DL8.5 algorithm,
-        which guarantees finding the globally optimal tree within the specified
-        constraints.
-
-        Parameters
-        ----------
-        X : array-like of shape (n_samples, n_features)
-            Training data. Features should preferably be binary (0/1) for
-            best performance, though the algorithm can handle continuous
-            features through preprocessing.
-
-        y : array-like of shape (n_samples,), optional
-            Target values (class labels). If None, assumes unsupervised
-            learning mode or error function specified
-
-        Returns
-        -------
-        self : DL85Classifier
-            Returns self for method chaining.
-
-        Raises
-        ------
-        SearchFailedError
-            If the algorithm fails to find a solution within the given
-            constraints (time limit, memory, etc.).
-
-        Examples
-        --------
-        >>> clf = DL85Classifier(max_depth=3, min_sup=5)
-        >>> clf.fit(X_train, y_train)
-        >>> print(f"Training accuracy: {clf.accuracy_}")
-        >>> print(f"Tree error: {clf.tree_error_}")
-
-        Notes
-        -----
-        - The fitting process may take significant time for large datasets
-        - Use max_time parameter to limit computation time
-        - Monitor the statistics attribute for detailed search information
-        """
-        target_is_need = True if y is not None else False
-
-        if target_is_need:  # supervised learning
-            # Check that X and y have correct shape and raise ValueError if not
-            y = y.astype(np.float64)
-            X, y = check_X_y(X, y, dtype=np.float64, y_numeric=True)
-        else:  # unsupervised learning
-            # Check that X has correct shape and raise ValueError if not
-            assert_all_finite(X)
-            X = check_array(X, dtype="float64")
-
-        try:
-            self.__obj.fit(X, y)
-            self.results = self.__obj.stats
-            self.refresh_stats()
-        except Exception:
-            self.is_fitted_ = False
-            raise SearchFailedError
-
-    def load_data(self, X, y):
-        """
-        Load training data without immediately fitting.
-
-        This method allows for data loading followed by incremental fitting
-        using partial_fit(), which can be useful for implementing custom
-        training loops.
-
-        Parameters
-        ----------
-        X : array-like of shape (n_samples, n_features)
-            Training data features.
-
-        y : array-like of shape (n_samples,)
-            Training data labels.
-
-        Examples
-        --------
-        >>> clf = DL85Classifier(max_depth=3)
-        >>> clf.load_data(X_train, y_train)
-        >>> clf.partial_fit()  # Perform the actual training
-        """
-        self.__obj.load_data(X, y)
-
-    def partial_fit(self):
-        """
-        Perform incremental fitting on pre-loaded data.
-
-        This method continues or starts the optimization process on data
-        that was previously loaded using load_data(). Useful for implementing
-        or custom training procedures.
-
-        Examples
-        --------
-        >>> clf = DL85Classifier(max_depth=3)
-        >>> clf.load_data(X_train, y_train)
-        >>> clf.partial_fit()
-        >>> print(f"Current best error: {clf.results.error}")
-        """
-        self.__obj.partial_fit()
+    def _store(self, native):
+        self.results = native.stats
+        self.config = json.loads(native.config)
+        self.refresh_stats()
