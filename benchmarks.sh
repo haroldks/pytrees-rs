@@ -19,7 +19,7 @@ TIMEOUT=15  # seconds time limit
 SUPPORT=1
 DEPTHS=(4 5 6 7 8 9)  # Depths from 4 to 9
 NBTHREAD=20  # Default number of parallel jobs
-TEST_DATA_DIR="test_data"
+TEST_DATA_DIR="crates/dtrees/test_data"
 BASE_RESULT_DIR="results_new_imp"
 
 # Algorithm-specific parameters
@@ -91,7 +91,7 @@ run_benchmark() {
     local dataset_name=$(basename "$dataset")
 
     # Build command with algorithm-specific parameters
-    local cmd="cargo run --release --example $algo -- --input $dataset --depth $depth --support $SUPPORT --timeout $TIMEOUT --heuristic information-gain --result $output_dir --fast-d2 enabled"
+    local cmd="cargo run --release -p dtrees-rs --example $algo -- --input $dataset --depth $depth --support $SUPPORT --timeout $TIMEOUT --heuristic information-gain --result $output_dir --fast-d2 enabled"
 
     # Add algorithm-specific parameters
     case "$algo" in
