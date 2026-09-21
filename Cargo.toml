@@ -1,6 +1,26 @@
 [workspace]
 resolver = "2"
-members = ["crates/dtrees", "pytrees-rs"]
+members = ["crates/dtrees", "crates/contree", "pytrees-rs"]
+
+[workspace.package]
+edition = "2021"
+# The floor the contree crates are known to build on, declared rather than
+# pinned: a rust-toolchain.toml would force every contributor onto one exact
+# compiler for no reason.
+rust-version = "1.77"
+license = "MIT"
+repository = "https://github.com/haroldks/pytrees-rs"
+
+[workspace.dependencies]
+contree = { path = "crates/contree", package = "contree-rs" }
+
+clap = { version = "4.5.50", features = ["derive"] }
+coz = "0.1.3"
+float-cmp = "0.10.0"
+rand = "0.9.2"
+rustc-hash = "2.1.1"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
 
 [profile.release]
 lto = "fat"
