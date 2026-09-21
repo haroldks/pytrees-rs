@@ -7,8 +7,8 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 /// The tree as flat arrays, in the layout `RawConTree.tree_arrays` uses:
-/// node `i` tests `feature[i]` and sends a row left when its value is below
-/// `threshold[i]` (0.5 here, so 0 goes left and 1 right).
+/// node `i` tests `feature[i]` and sends a row left when its value is at most
+/// `threshold[i]` (0.5 here, so 0 goes left and 1 right), as in scikit-learn.
 /// `children_left[i] == -1` marks a leaf, which predicts `value[i]`. Nodes
 /// are numbered from the root, depth first; `value` is NaN where the search
 /// set no output, as on a root it found no tree for.

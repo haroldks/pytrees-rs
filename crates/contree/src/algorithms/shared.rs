@@ -16,6 +16,21 @@ use crate::caching::{Cache, Entry};
 use crate::common::PointSelector;
 use crate::tree::{NodeInfos, Tree, TreeNode};
 
+/// The threshold between two consecutive distinct values, `lower < upper`.
+///
+/// Rows go left when `x <= threshold`, so it has to hold that
+/// `lower <= threshold < upper`. The midpoint does, except that it can round
+/// up to `upper` when the two are adjacent doubles; scikit-learn falls back
+/// to `lower` then, and so does this.
+pub(crate) fn threshold_between(lower: f64, upper: f64) -> f64 {
+    let midpoint = (lower + upper) / 2.0;
+    if midpoint < upper {
+        midpoint
+    } else {
+        lower
+    }
+}
+
 /// Picks the split to probe inside an interval.
 pub(crate) fn select_point(selector: PointSelector, rng: &mut StdRng, bound: &Bound) -> usize {
     match selector {
@@ -97,5 +112,27 @@ fn expand_children(cache: &Cache, solution: &mut Tree, parent: usize, cache_inde
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::threshold_between;
+
+    #[test]
+    fn the_threshold_is_the_midpoint() {
+        assert_eq!(threshold_between(1.0, 2.0), 1.5);
+        assert_eq!(threshold_between(-3.0, 5.0), 1.0);
+    }
+
+    #[test]
+    fn between_adjacent_doubles_the_threshold_is_the_lower_one() {
+        // The midpoint of two adjacent doubles rounds to the one with an even
+        // mantissa. Here that is `upper`, and `x <= threshold` would then
+        // send `upper` left, against the split the search chose.
+        let lower = f64::from_bits(1.0_f64.to_bits() + 1);
+        let upper = f64::from_bits(lower.to_bits() + 1);
+        assert_eq!((lower + upper) / 2.0, upper);
+        assert_eq!(threshold_between(lower, upper), lower);
     }
 }

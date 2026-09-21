@@ -34,7 +34,8 @@ class DecisionTree:
     layout as ``ConTreeClassifier.tree_``:
 
     - ``children_left``, ``children_right``: child indices, ``-1`` at a leaf
-    - ``feature``: the feature node ``i`` tests; a row goes left when it is 0
+    - ``feature``: the feature node ``i`` tests; a row goes left when its
+      value is ``<= threshold``, as in scikit-learn
     - ``threshold``: 0.5 at every test, ``NaN`` at a leaf
     - ``value``: a leaf's prediction, ``NaN`` at a test
     - ``error``: the error of the subtree under each node
@@ -76,7 +77,7 @@ class DecisionTree:
             if not internal.any():
                 return node
             at, where = node[internal], rows[internal]
-            goes_left = X[where, tree["feature"][at]] < tree["threshold"][at]
+            goes_left = X[where, tree["feature"][at]] <= tree["threshold"][at]
             node[internal] = np.where(
                 goes_left, tree["children_left"][at], tree["children_right"][at]
             )

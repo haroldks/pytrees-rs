@@ -6,11 +6,12 @@ verified it: `Statistics.error` is a counter maintained by the search, while the
 tree is reconstructed separately from the cache afterwards. If they disagree,
 the tree handed to a user is not the tree that was optimized.
 
-It also pins the routing convention. `left = x < threshold` is implicit in
-`view.rs` (the sorted prefix `[0, split_point)` goes left) and in `depth2.rs`
-(`value() >= threshold` goes right), and is documented nowhere. Running this
-against the pre-refactor baseline established it empirically, so the Rust
-`predict` has a reference to match rather than an assumption to inherit.
+It also pins the routing convention, `left = x <= threshold`, as in
+scikit-learn. The search partitions by position (the sorted prefix
+`[0, split_point)` goes left, in `view.rs`) and places each threshold
+between the last value that goes left and the first that goes right
+(`shared::threshold_between`), so no training value sits on a threshold and
+this check is what ties the two together.
 
     crates/contree/tests/baseline/check_predictions.py [baseline-dir]
 """
@@ -39,7 +40,7 @@ def load(name: str) -> tuple[np.ndarray, np.ndarray]:
 
 def predict_one(node: dict, x: np.ndarray):
     while "leaf" not in node:
-        node = node["left"] if x[node["feature"]] < node["split"] else node["right"]
+        node = node["left"] if x[node["feature"]] <= node["split"] else node["right"]
     return node["leaf"]
 
 

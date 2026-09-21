@@ -410,11 +410,16 @@ impl ConTree {
             let threshold_value = if selected_point > 0 {
                 let previous = feature_column_ids[possible_index_split[selected_point - 1]];
                 let point = feature_column_ids[split_point];
-                (feature_column[previous].value() + feature_column[point].value()) / 2.0
+                shared::threshold_between(
+                    feature_column[previous].value(),
+                    feature_column[point].value(),
+                )
             } else {
                 let point = feature_column_ids[split_point];
-                (feature_column[point].value() + feature_column[feature_column_ids[0]].value())
-                    / 2.0
+                shared::threshold_between(
+                    feature_column[feature_column_ids[0]].value(),
+                    feature_column[point].value(),
+                )
             };
 
             let (left_view, right_view) = view.split(feature_index, split_point);
@@ -665,11 +670,16 @@ impl ConTree {
             let threshold_value = if split_idx > 0 {
                 let previous = feature_column_ids[possible_splits[split_idx - 1]];
                 let point = feature_column_ids[split_point];
-                (feature_column[previous].value() + feature_column[point].value()) / 2.0
+                shared::threshold_between(
+                    feature_column[previous].value(),
+                    feature_column[point].value(),
+                )
             } else {
                 let point = feature_column_ids[split_point];
-                (feature_column[point].value() + feature_column[feature_column_ids[0]].value())
-                    / 2.0
+                shared::threshold_between(
+                    feature_column[feature_column_ids[0]].value(),
+                    feature_column[point].value(),
+                )
             };
 
             let (left_view, right_view) = view.split(feature_index, split_point);

@@ -123,7 +123,8 @@ clf.fit_anytime(X, y, callback=lambda error, seconds, status:
 label first and the features after it, and labels must be a dense integer
 encoding `0..k`. `with_label_column` moves it.
 
-**A split routes left when `x[feature] < threshold`,** and right otherwise. This
+**A split routes left when `x[feature] <= threshold`,** and right otherwise, as in
+scikit-learn. This
 is the rule the search itself partitions by. `crates/contree/tests/baseline/check_predictions.py`
 and `crates/contree/tests/predict.rs` both pin it: every tree in the baseline
 must classify its training set with exactly the error the search reported.

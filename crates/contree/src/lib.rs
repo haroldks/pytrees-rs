@@ -8,7 +8,8 @@
 //!
 //! * **The label lives in column 0** of an input file, and labels must be the
 //!   dense integers `0..num_labels`.
-//! * **A split routes left when `x[feature] < threshold`**, right otherwise.
+//! * **A split routes left when `x[feature] <= threshold`**, right otherwise,
+//!   as in scikit-learn.
 
 pub mod algorithms;
 mod bitsets;

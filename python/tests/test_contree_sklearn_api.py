@@ -137,7 +137,7 @@ def test_the_tree_arrays_describe_the_same_tree_predict_walks(iris):
     def walk(x):
         node = 0
         while left[node] != -1:
-            node = left[node] if x[feature[node]] < threshold[node] else right[node]
+            node = left[node] if x[feature[node]] <= threshold[node] else right[node]
         return value[node]
 
     walked = clf.classes_.take([walk(row) for row in X])
@@ -234,3 +234,14 @@ def test_random_split_selection_is_reproducible_when_seeded(iris):
         for _ in range(2)
     ]
     assert trees[0] == trees[1]
+
+
+def test_a_value_equal_to_the_threshold_goes_left():
+    # The scikit-learn convention: left when x <= threshold.
+    X = np.array([[1.0], [2.0], [3.0], [4.0]])
+    y = np.array([0, 0, 1, 1])
+    clf = ConTreeClassifier(max_depth=1).fit(X, y)
+    threshold = clf.tree_["threshold"][0]
+    assert threshold == 2.5
+    assert clf.predict([[threshold]])[0] == 0
+    assert clf.predict([[np.nextafter(threshold, np.inf)]])[0] == 1

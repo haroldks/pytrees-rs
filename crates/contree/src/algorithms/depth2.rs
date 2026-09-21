@@ -1,4 +1,5 @@
 use crate::algorithms::interval_pruner::{Bound, IntervalsPruner};
+use crate::algorithms::shared::threshold_between;
 use crate::algorithms::support_feasible_splits;
 use crate::caching::Entry;
 use crate::common::{SearchConfig, Statistics};
@@ -173,11 +174,16 @@ impl ConTreeDepth2 {
             let threshold_value = if mid > 0 {
                 let previous = feature_column_ids[possible_split_indices[mid - 1]];
                 let point = feature_column_ids[split_point];
-                (feature_column[previous].value() + feature_column[point].value()) / 2.0
+                threshold_between(
+                    feature_column[previous].value(),
+                    feature_column[point].value(),
+                )
             } else {
                 let point = feature_column_ids[split_point];
-                (feature_column[point].value() + feature_column[feature_column_ids[0]].value())
-                    / 2.0
+                threshold_between(
+                    feature_column[feature_column_ids[0]].value(),
+                    feature_column[point].value(),
+                )
             };
 
             let mut left_tree = Tree::empty_tree(1);
@@ -273,7 +279,7 @@ impl ConTreeDepth2 {
         for i in 0..size {
             let data_point = &split_feature[feature_column_ids[i]];
             split_feature_split_indices[data_point.tid()] = data_point.unique_value_id();
-            if split_index.is_none() && data_point.value() >= threshold_value {
+            if split_index.is_none() && data_point.value() > threshold_value {
                 split_index = Some(data_point.unique_value_id());
             }
         }
@@ -564,7 +570,8 @@ impl ConTreeDepth2 {
             debug_assert!(tree.classification_score <= tree.size);
             tree.classification_score = total_score as usize;
             tree.best_feature_index = current_feature_index;
-            tree.best_threshold = (current_feature_data.value() + tree.previous_value) / 2.0;
+            tree.best_threshold =
+                threshold_between(tree.previous_value, current_feature_data.value());
 
             tree.best_left_label = Some(left_label);
             tree.best_right_label = Some(right_label);

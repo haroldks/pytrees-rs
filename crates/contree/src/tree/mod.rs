@@ -501,7 +501,7 @@ impl Tree {
     /// Classifies one instance.
     ///
     /// **Routing convention: a split sends an instance left when
-    /// `x[feature] < threshold`, and right otherwise.** This is the rule the
+    /// `x[feature] <= threshold`, and right otherwise,** as in scikit-learn. This is the rule the
     /// search itself partitions by; getting it backwards silently produces a
     /// tree whose reported error has nothing to do with its predictions.
     pub fn predict_one(&self, x: &[f64]) -> Result<usize, TreeError> {
@@ -591,7 +591,7 @@ impl Tree {
             });
         };
 
-        let next = if x[feature] < split {
+        let next = if x[feature] <= split {
             node.left
         } else {
             node.right

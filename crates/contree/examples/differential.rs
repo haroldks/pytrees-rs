@@ -61,7 +61,7 @@ fn brute_force(
             let threshold = (pair[0] + pair[1]) / 2.0;
             let (left, right): (Vec<usize>, Vec<usize>) = rows
                 .iter()
-                .partition(|&&r| values[r * n_features + feature] < threshold);
+                .partition(|&&r| values[r * n_features + feature] <= threshold);
             if left.len() < min_sup || right.len() < min_sup {
                 continue;
             }
