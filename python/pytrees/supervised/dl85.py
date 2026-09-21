@@ -80,9 +80,9 @@ class DL85Classifier(ClassifierMixin, TreeClassifier, BaseEstimator):
         The class labels seen during ``fit``.
     n_classes_ : int
     n_features_in_ : int
-    tree_ : dict of ndarray or None
-        The tree as flat arrays; see ``pytrees.base.DecisionTree``. ``None``
-        if the search found no tree.
+    tree_ : pytrees.tree.Tree or None
+        The fitted tree, in scikit-learn's layout; ``None`` if the search
+        found no tree.
     train_error_ : float
         Training error of the tree, as the error function measures it.
     statistics_ : dict
@@ -116,6 +116,8 @@ class DL85Classifier(ClassifierMixin, TreeClassifier, BaseEstimator):
     ... )
     >>> clf.fit(X, y)
     """
+
+    _binary_features = True
 
     def __init__(
         self,
@@ -202,6 +204,6 @@ class DL85Classifier(ClassifierMixin, TreeClassifier, BaseEstimator):
         )
 
     def _store(self, native):
-        self._set_tree(native)
+        self._store_dtrees_result(native)
         self.n_classes_ = len(self.classes_)
         self.status_ = native.status

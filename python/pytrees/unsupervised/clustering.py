@@ -5,6 +5,7 @@ from sklearn.utils.validation import validate_data
 
 from .._dl85 import dl85_search
 from ..base import DecisionTree, check_binary
+from ..tree import LEAF
 
 
 class DL85Cluster(ClusterMixin, DecisionTree, BaseEstimator):
@@ -34,7 +35,7 @@ class DL85Cluster(ClusterMixin, DecisionTree, BaseEstimator):
     error_function : callable, optional
         ``error_function(indices) -> (error, value)``, called with the row
         indices of a candidate cluster. Replaces the default distance to the
-        centroid; ``value`` is stored in ``tree_["value"]``.
+        centroid. ``value`` is ignored: a leaf holds its cluster number.
 
     Attributes
     ----------
@@ -42,8 +43,8 @@ class DL85Cluster(ClusterMixin, DecisionTree, BaseEstimator):
         The cluster of each training row.
     n_clusters_ : int
     n_features_in_ : int
-    tree_ : dict of ndarray or None
-        The tree as flat arrays; see ``pytrees.base.DecisionTree``.
+    tree_ : pytrees.tree.Tree or None
+        The fitted tree; each leaf's ``value`` is its cluster number.
     train_error_ : float
         The error of the clustering, as the error function measures it.
     status_ : str
@@ -57,6 +58,9 @@ class DL85Cluster(ClusterMixin, DecisionTree, BaseEstimator):
     >>> X = np.random.default_rng(0).integers(0, 2, size=(100, 6))
     >>> labels = DL85Cluster(max_depth=2, min_sup=5).fit_predict(X)
     """
+
+    _binary_features = True
+    _value_label = "cluster"
 
     def __init__(
         self,
@@ -124,26 +128,20 @@ class DL85Cluster(ClusterMixin, DecisionTree, BaseEstimator):
             error_function=error_function,
         )
         native.fit(X)
-        self._set_tree(native)
+        self._store_dtrees_result(native)
         self.status_ = native.status
         if self.tree_ is not None:
-            self.n_clusters_ = int((self.tree_["children_left"] == -1).sum())
+            # Clusters are numbered in the order their leaves appear in tree_.
+            leaf = self.tree_.children_left == LEAF
+            self.tree_.value = np.where(leaf, np.cumsum(leaf) - 1, LEAF)
+            self.n_clusters_ = self.tree_.n_leaves
             self.labels_ = self.predict(X)
         return self
 
     def predict(self, X):
         """The cluster of each row of ``X``, numbered 0 to ``n_clusters_ - 1``."""
-        leaves = self._leaves(X)
-        # Clusters are numbered in the order their leaves appear in tree_.
-        return np.searchsorted(
-            np.flatnonzero(self.tree_["children_left"] == -1), leaves
-        )
-
-    def _leaf_label(self, node):
-        cluster = np.searchsorted(
-            np.flatnonzero(self.tree_["children_left"] == -1), node
-        )
-        return f"{{cluster|{cluster}}}"
+        tree = self._fitted_tree()
+        return tree.value[tree.apply(self._check_X(X))]
 
 
 class _DistanceToCentroid:

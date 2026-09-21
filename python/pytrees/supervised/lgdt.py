@@ -37,9 +37,9 @@ class LGDTClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
         The class labels seen during ``fit``.
     n_classes_ : int
     n_features_in_ : int
-    tree_ : dict of ndarray or None
-        The tree as flat arrays; see ``pytrees.base.DecisionTree``. ``None``
-        if the search found no tree.
+    tree_ : pytrees.tree.Tree or None
+        The fitted tree, in scikit-learn's layout; ``None`` if the search
+        found no tree.
     train_error_ : float
         Training error of the tree, as the error function measures it.
     statistics_ : dict
@@ -61,6 +61,8 @@ class LGDTClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
     >>> clf = LGDTClassifier(max_depth=4, criterion="information_gain")
     >>> clf = clf.fit(X, y)
     """
+
+    _binary_features = True
 
     def __init__(
         self,
@@ -88,6 +90,6 @@ class LGDTClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
             criterion=self.criterion, min_sup=self.min_sup, max_depth=self.max_depth
         )
         native.fit(X, encoded.astype(np.int64))
-        self._set_tree(native)
+        self._store_dtrees_result(native)
         self.n_classes_ = len(self.classes_)
         return self

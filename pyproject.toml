@@ -8,7 +8,7 @@ description = "Optimal and greedy decision trees in Rust, with a scikit-learn AP
 readme = "README.md"
 requires-python = ">=3.10"
 dynamic = ["version"]
-dependencies = ["numpy>=1.23", "scikit-learn>=1.3"]
+dependencies = ["numpy>=1.23", "scipy>=1.8", "scikit-learn>=1.6"]
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",

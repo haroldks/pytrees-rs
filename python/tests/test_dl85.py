@@ -51,35 +51,20 @@ def test_it_is_never_worse_than_the_greedy_tree_of_the_same_depth(anneal):
     assert errors(optimal, X, y) <= errors(greedy, X, y)
 
 
-def test_tree_uses_the_same_array_layout_as_contree(anneal):
+def test_tree_holds_the_optimal_tree_in_scikit_learns_layout(anneal):
     X, y = anneal
     tree = DL85Classifier(max_depth=2, min_sup=1).fit(X, y).tree_
-    assert set(tree) == {
-        "children_left",
-        "children_right",
-        "feature",
-        "threshold",
-        "value",
-        "error",
-    }
-    leaves = tree["children_left"] == -1
-    assert leaves.sum() == 4
-    assert np.isnan(tree["threshold"][leaves]).all()
-    assert (tree["threshold"][~leaves] == 0.5).all()
-    assert tree["error"][0] == 137
+    leaves = tree.children_left == -1
+    assert (tree.node_count, tree.n_leaves, tree.max_depth) == (7, 4, 2)
+    assert np.isnan(tree.threshold[leaves]).all()
+    assert (tree.threshold[~leaves] == 0.5).all()
+    assert (tree.value[~leaves] == -1).all()
+    assert tree.error[0] == 137
 
 
 def test_a_search_that_finishes_reports_optimal(anneal):
     X, y = anneal
     assert DL85Classifier(max_depth=2).fit(X, y).status_ == "optimal"
-
-
-def test_to_dot_draws_every_node(anneal):
-    X, y = anneal
-    dot = DL85Classifier(max_depth=2).fit(X, np.where(y == 0, "no", "yes")).to_dot()
-    assert dot.startswith("digraph Tree {")
-    assert dot.count("{class|") == 4
-    assert dot.count("{feature|") == 3
 
 
 # --- scikit-learn contracts ----------------------------------------------

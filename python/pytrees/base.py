@@ -3,6 +3,7 @@ from sklearn.utils.multiclass import check_classification_targets
 from sklearn.utils.validation import check_is_fitted, validate_data
 
 from .exceptions import TreeNotFoundError
+from .tree import LEAF, Tree
 
 
 def validate_binary_classification(estimator, X, y):
@@ -27,100 +28,95 @@ def check_binary(estimator, X):
         )
 
 
-class DecisionTree:
-    """Behaviour shared by the estimators over binary features.
+def tree_from_native(native):
+    """The ``Tree`` of a fitted dtrees search, or ``None`` if it found none.
 
-    A fitted estimator holds its tree in ``tree_``, as flat arrays in the same
-    layout as ``ConTreeClassifier.tree_``:
-
-    - ``children_left``, ``children_right``: child indices, ``-1`` at a leaf
-    - ``feature``: the feature node ``i`` tests; a row goes left when its
-      value is ``<= threshold``, as in scikit-learn
-    - ``threshold``: 0.5 at every test, ``NaN`` at a leaf
-    - ``value``: a leaf's prediction, ``NaN`` at a test
-    - ``error``: the error of the subtree under each node
-
-    ``tree_`` is ``None`` when the search found no tree, for instance when
-    ``max_error`` is below the best error achievable.
+    Its leaves hold what the search output, as floats on the Rust side: class
+    indices for the classifiers.
     """
+    arrays = native.tree_arrays()
+    leaf = arrays["children_left"] == LEAF
+    if leaf[0] and np.isnan(arrays["value"][0]):
+        return None
+    value = np.where(leaf, np.nan_to_num(arrays["value"]), LEAF)
+    return Tree(
+        arrays["children_left"],
+        arrays["children_right"],
+        arrays["feature"],
+        arrays["threshold"],
+        value,
+        arrays["error"],
+        binary_features=True,
+    )
 
-    def _set_tree(self, native):
-        """Store the tree and statistics of a fitted native search."""
-        tree = native.tree_arrays()
-        found = tree["children_left"][0] != -1 or not np.isnan(tree["value"][0])
-        self.tree_ = tree if found else None
-        self.train_error_ = native.error
-        self.statistics_ = native.statistics
 
-    def _leaf_values(self, X):
-        """The value of the leaf each row of ``X`` reaches."""
-        leaves = self._leaves(X)  # checks that the model is fitted first
-        return self.tree_["value"][leaves]
+class DecisionTree:
+    """What every pytrees estimator does with its fitted ``tree_``, a
+    ``pytrees.tree.Tree``: find leaves, report paths, and draw it."""
 
-    def _leaves(self, X):
-        """The node index of the leaf each row of ``X`` reaches."""
+    # Set by the estimators over binary features, which check it on predict.
+    _binary_features = False
+    # How to_dot names what a leaf holds.
+    _value_label = "class"
+
+    def _fitted_tree(self):
         check_is_fitted(self, "tree_")
         if self.tree_ is None:
             raise TreeNotFoundError(
                 "the search found no tree, so there is nothing to predict with"
             )
+        return self.tree_
+
+    def _check_X(self, X):
         X = validate_data(
             self, X, dtype=np.float64, ensure_all_finite=True, reset=False
         )
-        check_binary(self, X)
-        tree = self.tree_
-        node = np.zeros(X.shape[0], dtype=np.intp)
-        rows = np.arange(X.shape[0])
-        # One step down per level, for every row that is not at a leaf yet.
-        while True:
-            internal = tree["children_left"][node] != -1
-            if not internal.any():
-                return node
-            at, where = node[internal], rows[internal]
-            goes_left = X[where, tree["feature"][at]] <= tree["threshold"][at]
-            node[internal] = np.where(
-                goes_left, tree["children_left"][at], tree["children_right"][at]
-            )
+        if self._binary_features:
+            check_binary(self, X)
+        return X
 
-    def _leaf_label(self, node):
-        """The record field ``to_dot`` shows for the leaf at ``node``."""
-        return f"{{value|{self.tree_['value'][node]:g}}}"
+    def _value_names(self):
+        """The names of the leaf values, for to_dot; ``None`` shows them as is."""
+        return None
 
-    def to_dot(self):
-        """The fitted tree in Graphviz DOT format.
+    def _store_dtrees_result(self, native):
+        """Keep the tree, error and statistics of a fitted RawDL85 or RawLGDT."""
+        self.tree_ = tree_from_native(native)
+        self.train_error_ = native.error
+        self.statistics_ = native.statistics
 
-        Tests read ``feature|<index>``, leaves ``class|<label>`` (``value``
-        for clustering) with their error. The edge labelled 0 is taken when
-        the feature is 0.
+    def apply(self, X):
+        """The index in ``tree_`` of the leaf each row of ``X`` reaches."""
+        tree = self._fitted_tree()
+        return tree.apply(self._check_X(X))
+
+    def decision_path(self, X):
+        """The nodes each row of ``X`` passes through, as a sparse indicator
+        matrix of shape ``(n_samples, tree_.node_count)``."""
+        tree = self._fitted_tree()
+        return tree.decision_path(self._check_X(X))
+
+    def to_dot(self, feature_names=None, class_names=None):
+        """The fitted tree in Graphviz DOT format; see ``Tree.to_dot``.
+
+        ``feature_names`` defaults to ``feature_names_in_`` when ``fit`` saw
+        a DataFrame, and ``class_names`` to ``classes_``.
         """
-        check_is_fitted(self, "tree_")
-        lines = ["digraph Tree {", "graph [ranksep=0];", "node [shape=record];"]
-        tree = self.tree_
-        if tree is not None:
-            for node in range(len(tree["feature"])):
-                error = f"{{error|{tree['error'][node]:g}}}"
-                left = tree["children_left"][node]
-                if left == -1:
-                    leaf = self._leaf_label(node)
-                    lines.append(f'{node} [label="{{{leaf}|{error}}}"];')
-                else:
-                    test = f"{{feature|{tree['feature'][node]}}}"
-                    lines.append(f'{node} [label="{{{test}|{error}}}"];')
-                    lines.append(f"{node} -> {left} [label=0];")
-                    lines.append(f"{node} -> {tree['children_right'][node]} [label=1];")
-        lines.append("}")
-        return "\n".join(lines)
+        tree = self._fitted_tree()
+        if feature_names is None:
+            feature_names = getattr(self, "feature_names_in_", None)
+        if class_names is None:
+            class_names = self._value_names()
+        return tree.to_dot(feature_names, class_names, self._value_label)
 
 
 class TreeClassifier(DecisionTree):
-    """What DL85Classifier and LGDTClassifier add: leaves hold class indices."""
+    """A classifier over its ``tree_``: leaves hold indices into ``classes_``."""
 
     def predict(self, X):
         """Classify each row of ``X``."""
-        # _leaf_values checks that the model is fitted, so it must run before
-        # anything reads classes_.
-        values = self._leaf_values(X)
-        return self.classes_.take(values.astype(np.intp))
+        tree = self._fitted_tree()
+        return self.classes_.take(tree.value[tree.apply(self._check_X(X))])
 
-    def _leaf_label(self, node):
-        return f"{{class|{self.classes_[int(self.tree_['value'][node])]}}}"
+    def _value_names(self):
+        return self.classes_
