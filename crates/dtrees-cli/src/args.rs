@@ -37,8 +37,8 @@ pub enum ArgCommand {
         #[arg(short, long)]
         depth: usize,
 
-        /// Sort the features by the heuristic at every node (true) or only at the root
-        #[arg(long, default_value_t = true)]
+        /// Sort the features by the heuristic at every node, not only at the root
+        #[arg(long)]
         always_sort: bool,
 
         /// Use the depth-2 solver for the last two levels
