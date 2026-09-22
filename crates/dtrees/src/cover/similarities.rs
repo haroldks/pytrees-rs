@@ -58,6 +58,7 @@ impl SimilarityCover {
             .map(|(idx, _)| idx);
         if let Some(idx) = min_idx {
             self.covers[idx] = Some(shallow_cover);
+            self.errors[idx] = error;
         }
     }
 
@@ -73,5 +74,36 @@ impl SimilarityCover {
                 })
             })
             .fold(0.0, f64::max)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SimilarityCover;
+    use crate::bitsets::{BitCollection, Bitset, BitsetInit};
+    use crate::cover::reversible_cover::SparseBitset;
+
+    /// The rows of `0..8` in `rows`.
+    fn cover(rows: &[usize]) -> SparseBitset {
+        let mut feature = Bitset::new(BitsetInit::Empty(8));
+        for &row in rows {
+            feature.set(row);
+        }
+        let mut cover = SparseBitset::new(8);
+        cover.intersect_with(&feature, false);
+        cover
+    }
+
+    #[test]
+    fn a_replaced_reference_set_takes_its_new_error() {
+        let mut similarity = SimilarityCover::new();
+        similarity.update(&cover(&[0, 1, 2, 3]), 3.0);
+        similarity.update(&cover(&[4, 5, 6, 7]), 3.0);
+        // Closest to the first set, so it replaces it.
+        similarity.update(&cover(&[0, 1, 2]), 1.0);
+
+        // The bound for {0, 1, 2} must come from its own error, 1, not from
+        // the error of the set it replaced.
+        assert_eq!(similarity.compute_similarity(&cover(&[0, 1, 2])), 1.0);
     }
 }
