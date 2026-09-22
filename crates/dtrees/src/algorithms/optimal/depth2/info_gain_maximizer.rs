@@ -143,9 +143,7 @@ where
                     let left_leaf_error = self.error_fn.compute(&left_leaf_distribution);
                     let right_leaf_error = self.error_fn.compute(&right_leaf_distribution);
 
-                    let stored_gain = candidate_tree
-                        .node_metric(branch_index)
-                        .map_or(0.0, |metric| metric);
+                    let stored_gain = candidate_tree.node_metric(branch_index).unwrap_or(0.0);
 
                     if branch_gain > stored_gain {
                         let (left_leaf, righ_leaf) = candidate_tree

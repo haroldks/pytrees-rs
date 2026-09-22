@@ -1,4 +1,4 @@
-use clap::{arg, Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand, ValueEnum};
 use dtrees_rs::algorithms::common::types::{
     BranchingPolicy, LowerBoundPolicy, OptimalDepth2Policy, SearchHeuristic,
 };

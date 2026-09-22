@@ -218,8 +218,8 @@ impl ConTreeDepth2 {
                         .split(threshold_value)
                 });
 
-                entry.feature = tree.root_feature().map_or(usize::MAX, |v| v);
-                entry.split = tree.root_split().map_or(f64::INFINITY, |v| v);
+                entry.feature = tree.root_feature().unwrap_or(usize::MAX);
+                entry.split = tree.root_split().unwrap_or(f64::INFINITY);
 
                 let (left, right) = tree.node_children(tree.get_root_index());
                 tree.update_subtree(left, &left_tree, left_tree.get_root_index());

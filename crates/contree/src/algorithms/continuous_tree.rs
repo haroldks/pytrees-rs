@@ -464,7 +464,6 @@ impl ConTree {
                 let right_config = config.derive_right(left_config.max_gap);
 
                 if process_left_first {
-                    right_entry.error = current_best.error;
                     (right_is_new, right_index, right_entry) =
                         self.cache_child(&right_view, right_config.max_depth);
 
@@ -478,7 +477,6 @@ impl ConTree {
                     );
                     right_entry.finalize_lower_bound(smaller_upper_bound);
                 } else {
-                    left_entry.error = current_best.error;
                     (left_is_new, left_index, left_entry) =
                         self.cache_child(&left_view, right_config.max_depth);
 
@@ -715,7 +713,6 @@ impl ConTree {
                 let right_config = config.derive_right(left_config.max_gap);
 
                 if process_left_first {
-                    right_entry.error = current_best.error;
                     (right_is_new, right_index, right_entry) =
                         self.cache_child(&right_view, right_config.max_depth);
 
@@ -729,7 +726,6 @@ impl ConTree {
                     );
                     right_entry.finalize_lower_bound(smaller_upper_bound);
                 } else {
-                    left_entry.error = current_best.error;
                     (left_is_new, left_index, left_entry) =
                         self.cache_child(&left_view, right_config.max_depth);
 

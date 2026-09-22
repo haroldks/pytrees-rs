@@ -55,7 +55,7 @@ pub fn compute_entropy(classes_support: &[usize]) -> f64 {
 /// The metric stored at the root of `tree`, 0 if none.
 pub fn get_tree_root_gain(tree: &Tree) -> f64 {
     tree.get_node(tree.get_root_index())
-        .map_or(0.0, |node| node.value.metric.map_or(0.0, |v| v))
+        .map_or(0.0, |node| node.value.metric.unwrap_or(0.0))
 }
 
 /// The error of the root of `tree`, infinite if the tree is empty.
