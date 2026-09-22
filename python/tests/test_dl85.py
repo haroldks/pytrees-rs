@@ -181,6 +181,25 @@ def test_indices_without_an_error_function_is_a_value_error(anneal):
         DL85Classifier(error_function_input="indices").fit(X, y)
 
 
+def test_an_indices_error_function_only_ever_receives_row_indices(anneal):
+    X, y = anneal
+    labels = y.astype(int)
+    calls = []
+
+    def misclassification(indices):
+        calls.append(list(indices))
+        counts = np.bincount(labels[indices], minlength=2)
+        return float(len(indices) - counts.max()), float(counts.argmax())
+
+    clf = DL85Classifier(
+        max_depth=2, error_function=misclassification, error_function_input="indices"
+    ).fit(X, y)
+
+    # The depth-2 solver works from class counts, so it must not be used here.
+    assert all(len(call) == len(set(call)) for call in calls)
+    assert clf.train_error_ == 137
+
+
 # --- Anytime search ------------------------------------------------------
 
 

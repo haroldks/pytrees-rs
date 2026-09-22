@@ -36,8 +36,12 @@ impl Default for DL85Config {
 
 impl DL85Config {
     /// Whether nodes two levels from the bottom use the depth-2 solver.
+    ///
+    /// The solver works from class counts, so it is skipped when the error
+    /// function takes row indices ([`NodeDataType::Tids`]).
     pub fn use_depth2_optimization(&self) -> bool {
         self.optimal_depth2policy == OptimalDepth2Policy::Enabled
+            && self.data_type == NodeDataType::ClassesSupport
     }
 
     /// Whether the branch with the higher lower bound is searched first.
