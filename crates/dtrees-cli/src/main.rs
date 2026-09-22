@@ -9,9 +9,11 @@ use dtrees_rs::algorithms::optimal::depth2::{
 use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
 use dtrees_rs::algorithms::TreeSearchAlgorithm;
 use dtrees_rs::caching::{Caching, Trie};
+use dtrees_rs::cover::Cover;
 use dtrees_rs::reader::data_reader::DataReader;
 use dtrees_rs::tree::Tree;
 use std::process::ExitCode;
+use std::time::Instant;
 
 mod args;
 
@@ -35,8 +37,9 @@ fn run(app: MainApp) -> Result<(), Box<dyn std::error::Error>> {
     let reader = DataReader::default();
     let mut cover = reader.read_file(&app.input)?;
 
-    let mut statistics = SearchStatistics::default();
+    let statistics: SearchStatistics;
     let tree: Tree;
+    let start = Instant::now();
 
     match app.command {
         ArgCommand::D2 {
@@ -49,6 +52,7 @@ fn run(app: MainApp) -> Result<(), Box<dyn std::error::Error>> {
             }
 
             tree = depth2_solver(objective).fit(support, depth, &mut cover, None)?;
+            statistics = basic_statistics(&tree, &cover, start);
         }
 
         ArgCommand::Lgdt {
@@ -65,6 +69,7 @@ fn run(app: MainApp) -> Result<(), Box<dyn std::error::Error>> {
 
             learner.fit(&mut cover)?;
             tree = learner.tree().clone();
+            statistics = basic_statistics(&tree, &cover, start);
 
             if print_config {
                 println!("{:#?}", learner.config())
@@ -134,5 +139,17 @@ fn depth2_solver(objective: Objective) -> Box<dyn OptimalDepth2Tree> {
     match objective {
         Objective::Error => Box::<ErrorMinimizer<NativeError>>::default(),
         Objective::InformationGain => Box::<InfoGainMaximizer<NativeError>>::default(),
+    }
+}
+
+/// The statistics of a search that keeps no counters of its own (LGDT and the
+/// depth-2 solvers): the error of the tree, the time taken and the data size.
+fn basic_statistics(tree: &Tree, cover: &Cover, start: Instant) -> SearchStatistics {
+    SearchStatistics {
+        tree_error: tree.root_error(),
+        duration: start.elapsed().as_secs_f64(),
+        num_attributes: cover.num_attributes,
+        num_samples: cover.num_samples,
+        ..Default::default()
     }
 }
