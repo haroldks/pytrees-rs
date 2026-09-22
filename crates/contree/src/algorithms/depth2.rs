@@ -8,32 +8,35 @@ use crate::data::DataPoint;
 use crate::tree::Tree;
 use std::collections::VecDeque;
 
-/// Helper struct to track state while finding optimal depth-1 trees
+/// The best depth-1 tree found so far for one side of a depth-2 root split,
+/// and the scan state used to find it.
+///
+/// Scores count correctly classified instances, so higher is better.
 struct SubtreeLeafScores {
-    // Best split found so far
+    // Best split found so far.
     classification_score: usize,
     best_feature_index: usize,
     best_threshold: f64,
     best_left_label: Option<usize>,
     best_right_label: Option<usize>,
+    best_left_error: usize,
+    best_right_error: usize,
 
-    best_left_error: usize,  // Error for the left leaf
-    best_right_error: usize, // Error for the right leaf
-
-    // State tracking during feature iteration
+    // Scan state for the feature being processed.
     previous_value: f64,
     previous_unique_value_index: Option<usize>,
+    /// No split on this feature can improve the score any more.
     is_zero: bool,
+    /// Number of upcoming instances that cannot improve the score and can be
+    /// skipped.
     can_skip: usize,
     current_element_count: usize,
 
-    // Tree properties
+    // The side itself.
     size: usize,
     min_sup: usize,
     max_label_frequency: usize,
     max_label: usize,
-
-    // Label frequency vectors
     label_frequency: Vec<usize>,
     current_label_frequency: Vec<usize>,
 }
@@ -72,15 +75,24 @@ impl SubtreeLeafScores {
     }
 }
 
-/// Why the best labels of a depth-2 half are set when they are read: its
-/// score starts at its leaf's score, and only rises where a split sets the
-/// labels too. They are read only when the score is above the leaf's.
+/// Why the best labels of a side are set when they are read: its score starts
+/// at the leaf's score and only rises when a split also sets the labels, and
+/// they are read only when the score is above the leaf's.
 const LABELS_SET: &str = "the labels are set whenever the score beats the leaf";
 
+/// Specialised solver for trees of depth at most 2.
+///
+/// For each root threshold it finds the best depth-1 tree on both sides in a
+/// single scan per feature, reusing the class counts of the scan, instead of
+/// recursing.
 #[derive(Default)]
 pub struct ConTreeDepth2;
 
 impl ConTreeDepth2 {
+    /// Finds the best depth-2 tree on `view` that beats `entry.error` and
+    /// `upper_bound`, updating `entry` when it does. Whether the result is
+    /// exact depends on `upper_bound`, so the caller decides, through
+    /// `Entry::finalize_lower_bound`.
     pub fn fit(
         &self,
         view: &DataView<'_>,
@@ -115,9 +127,6 @@ impl ConTreeDepth2 {
             }
         }
         tree.normalize_leaves();
-        // Whether this is an exact answer depends on the budget the caller
-        // passed in -- the search above prunes against it -- so the caller
-        // decides, through `Entry::finalize_lower_bound`.
         tree
     }
 
@@ -128,9 +137,7 @@ impl ConTreeDepth2 {
         feature: usize,
         config: &SearchConfig,
         entry: &mut Entry,
-        // The budget the parent handed down: no split here scoring at or
-        // above it is any use to the caller. Upstream's depth-2 node search
-        // prunes against it; this solver used to accept it and ignore it.
+        // Splits scoring at or above this bound are of no use to the caller.
         upper_bound: usize,
         tree: &mut Tree,
         stats: &mut Statistics,
@@ -143,9 +150,7 @@ impl ConTreeDepth2 {
             return;
         }
 
-        // Minimum support applies to the root split of this depth-2 subtree.
-        // Restricting the interval up front keeps every candidate the search
-        // ever looks at feasible.
+        // Only consider root splits that leave `min_sup` instances per side.
         let feasible = support_feasible_splits(
             possible_split_indices,
             view.get_dataset_size(),
@@ -362,7 +367,6 @@ impl ConTreeDepth2 {
         }
 
         if left_leaves.classification_score == left_leaves.max_label_frequency {
-            // Make a leaf with the majority class
             left_tree.update_root().map(|updater| {
                 updater
                     .label(left_leaves.max_label)
@@ -399,7 +403,6 @@ impl ConTreeDepth2 {
         );
 
         if right_leaves.classification_score == right_leaves.max_label_frequency {
-            // Make a leaf with the majority class
             right_tree.update_root().map(|updater| {
                 updater
                     .label(right_leaves.max_label)
@@ -407,7 +410,6 @@ impl ConTreeDepth2 {
                     .leaf()
             });
         } else {
-            // Make a split with two leaf children
             right_tree.update_root().map(|updater| {
                 updater
                     .feature(right_leaves.best_feature_index)
@@ -463,9 +465,8 @@ impl ConTreeDepth2 {
         for i in 0..feature_column_ids.len() {
             let current_feature_data = &current_feature[feature_column_ids[i]];
 
-            // Determine which tree and process it
             if IS_SAME_FEATURE {
-                // When processing the same feature, data is already sorted
+                // Same feature as the root split: position decides the side.
                 if index < split_point {
                     Self::process_single_point(
                         current_feature_data,
@@ -483,7 +484,7 @@ impl ConTreeDepth2 {
                 }
                 index += 1;
             } else {
-                // When processing different feature, lookup which side
+                // Other feature: look up the side from the root split's index.
                 let cur_split_index = split_feature_split_indices[current_feature_data.tid()];
                 if cur_split_index < split_index {
                     Self::process_single_point(
@@ -502,12 +503,10 @@ impl ConTreeDepth2 {
                 }
             }
 
-            // Update upper bound (now both trees are accessible)
             *upper_bound = (*upper_bound).min(
                 dataset_size - (left_tree.classification_score + right_tree.classification_score),
             );
 
-            // Early termination checks
             if left_tree.is_zero && right_tree.is_zero {
                 break;
             }
@@ -520,9 +519,10 @@ impl ConTreeDepth2 {
         }
     }
 
-    // Helper function to process a single data point for one tree
+    /// Advances the scan of one side by one instance, first evaluating the
+    /// threshold just before it if its value differs from the previous one.
     fn process_single_point(
-        current_feature_data: &DataPoint, // Adjust type to match your data structure
+        current_feature_data: &DataPoint,
         tree: &mut SubtreeLeafScores,
         class_number: usize,
         current_feature_index: usize,
@@ -533,7 +533,7 @@ impl ConTreeDepth2 {
 
         tree.can_skip = tree.can_skip.saturating_sub(1);
 
-        // Skip if same value or in skip mode
+        // No threshold between equal values, or inside a skipped stretch.
         if Some(current_feature_data.unique_value_id()) == tree.previous_unique_value_index
             || tree.can_skip > 0
         {
@@ -544,7 +544,6 @@ impl ConTreeDepth2 {
             return;
         }
 
-        // Evaluate split at this threshold
         let mut left_classification_score = -1i32;
         let mut right_classification_score = -1i32;
         let mut left_label = 0;
@@ -571,7 +570,6 @@ impl ConTreeDepth2 {
         let right_size = tree.size - tree.current_element_count;
         let has_support = left_size >= tree.min_sup && right_size >= tree.min_sup;
 
-        // Update if improved
         if has_support && total_score > 0 && total_score as usize > tree.classification_score {
             debug_assert!(tree.classification_score <= tree.size);
             tree.classification_score = total_score as usize;
@@ -591,12 +589,10 @@ impl ConTreeDepth2 {
                 .saturating_sub(total_score as usize);
         }
 
-        // Early termination check for this tree
         let remaining_size = tree.size - tree.current_element_count;
         tree.is_zero |= (right_classification_score == remaining_size as i32)
             || (tree.can_skip >= remaining_size);
 
-        // Update state
         tree.current_element_count += 1;
         tree.current_label_frequency[current_feature_data.label() as usize] += 1;
         tree.previous_value = current_feature_data.value();
@@ -625,8 +621,7 @@ mod d2_test {
         let (leaf_error, leaf_label) = classification_error(root_view.get_labels_freqs());
 
         let d2 = ConTreeDepth2;
-        // Seeded the way the searches seed it: the majority-class leaf is the
-        // incumbent the solver has to beat.
+        // The majority-class leaf is the incumbent to beat.
         let mut entry = Entry {
             error: leaf_error,
             label: leaf_label,
@@ -647,7 +642,7 @@ mod d2_test {
             budget: 0,
         };
 
-        // No budget from a parent: this is the root.
+        // No upper bound from a parent: this is the root.
         let tree = d2.fit(
             &root_view,
             &config,

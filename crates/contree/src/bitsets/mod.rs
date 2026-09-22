@@ -96,12 +96,12 @@ impl BitCollection for Bitset {
 }
 
 impl Bitset {
-    /// Check if hash has been computed
+    /// Whether the hash has been computed.
     pub fn is_hash_set(&self) -> bool {
         self.hash.is_some()
     }
 
-    /// Get the cached hash, computing it if necessary
+    /// The cached hash, computed on first use.
     pub fn get_hash(&mut self) -> u64 {
         match self.hash {
             Some(hash) => hash,
@@ -109,7 +109,7 @@ impl Bitset {
         }
     }
 
-    /// Compute and cache the hash
+    /// Computes and caches the hash.
     pub fn compute_hash(&mut self) -> u64 {
         let mut h = self.words.len() as u64;
         for &item in self.words.iter() {
@@ -122,15 +122,15 @@ impl Bitset {
         h
     }
 
+    /// Records the current population count for [`Self::saved_count`]. Call
+    /// it after the last mutation.
     pub fn save_count(&mut self) {
         self.count = self.count();
     }
 
     /// The population count recorded by the last [`Self::save_count`].
     ///
-    /// `count()` re-runs a full popcount over every word; on the cache's hot
-    /// path that is one pass over `n / 64` words per lookup, for a number that
-    /// was already computed when the bitset was built.
+    /// Unlike `count()`, this does not scan the words.
     pub fn saved_count(&self) -> usize {
         debug_assert_eq!(
             self.count,

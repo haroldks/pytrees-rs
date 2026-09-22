@@ -1,10 +1,4 @@
-//! Pieces both searches use verbatim.
-//!
-//! `ConTree` and `ConTreeLds` are the same branch and bound, one of them with a
-//! budget. Where the two genuinely differ -- how a feature or a split is
-//! admitted -- they still have their own code; everything here was duplicated
-//! character for character between them, which is exactly the kind of thing
-//! that drifts apart under maintenance.
+//! Helpers shared by `ConTree` and `ConTreeLds`.
 
 use std::time::Instant;
 
@@ -20,8 +14,8 @@ use crate::tree::{NodeInfos, Tree, TreeNode};
 ///
 /// Rows go left when `x <= threshold`, so it has to hold that
 /// `lower <= threshold < upper`. The midpoint does, except that it can round
-/// up to `upper` when the two are adjacent doubles; scikit-learn falls back
-/// to `lower` then, and so does this.
+/// up to `upper` when the two are adjacent doubles, in which case `lower` is
+/// used, as in scikit-learn.
 pub(crate) fn threshold_between(lower: f64, upper: f64) -> f64 {
     let midpoint = (lower + upper) / 2.0;
     if midpoint < upper {
@@ -31,7 +25,7 @@ pub(crate) fn threshold_between(lower: f64, upper: f64) -> f64 {
     }
 }
 
-/// Picks the split to probe inside an interval.
+/// Picks the candidate to evaluate inside an interval.
 pub(crate) fn select_point(selector: PointSelector, rng: &mut StdRng, bound: &Bound) -> usize {
     match selector {
         PointSelector::Mid => (bound.left_bound + bound.right_bound) / 2,
@@ -50,9 +44,8 @@ pub(crate) fn time_remains(runtime: &Instant, max_time: f64) -> bool {
 
 /// Converts a cache entry into a tree node.
 ///
-/// `Entry` marks a leaf with the sentinels `feature == usize::MAX` and
-/// `split == INFINITY`; the tree marks one with `feature: None`. This is where
-/// the two meet.
+/// `Entry` marks a leaf with `feature == usize::MAX` and `split == INFINITY`;
+/// the tree marks one with `feature: None`.
 fn node_from_entry(entry: &Entry) -> NodeInfos {
     let is_leaf = entry.feature == usize::MAX || !entry.split.is_finite();
     NodeInfos {
@@ -65,7 +58,7 @@ fn node_from_entry(entry: &Entry) -> NodeInfos {
 
 /// Reconstructs the solution tree from the cache, in canonical leaf form.
 ///
-/// Empty when the cache holds no root -- that is, when `fit` has not run.
+/// Empty when the cache holds no root, i.e. when `fit` has not run.
 pub(crate) fn build_solution_tree(cache: &Cache) -> Tree {
     let mut solution = Tree::new();
     if let Some(root) = cache.root() {

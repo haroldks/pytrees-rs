@@ -18,10 +18,7 @@ pub use contree_lds::ConTreeLds;
 ///
 /// `possible_splits` holds positions into a column sorted by value, so a split
 /// at position `p` puts `p` instances on the left and `view_len - p` on the
-/// right, and the feasible positions form one contiguous run. Returning the
-/// range up front is both cheaper and safer than testing each candidate as it
-/// comes up: a search that discovers a violation mid-interval has to throw the
-/// whole interval away, taking the feasible splits inside it with it.
+/// right, and the feasible positions form one contiguous run.
 ///
 /// The returned range is empty when no split satisfies the constraint.
 pub(crate) fn support_feasible_splits(
@@ -38,10 +35,7 @@ pub(crate) fn support_feasible_splits(
     first..last.max(first)
 }
 
-/// Checks the things a caller can get wrong before any work starts.
-///
-/// These used to be `debug_assert!`s, which are compiled out of exactly the
-/// build a wheel would ship.
+/// Checks the dataset and the parameters before a search starts.
 pub fn validate(config: &SearchConfig, dataset: &Dataset) -> Result<(), SearchError> {
     if dataset.count() == 0 {
         return Err(SearchError::EmptyDataset);
@@ -77,12 +71,17 @@ pub fn validate(config: &SearchConfig, dataset: &Dataset) -> Result<(), SearchEr
     Ok(())
 }
 
+/// Either search behind one interface, chosen at run time.
 pub enum GenericConTree {
+    /// The exhaustive search.
     Normal(ConTree),
+    /// The anytime search.
     LDS(ConTreeLds),
 }
 
 impl GenericConTree {
+    /// Builds the anytime search when `use_lds` is set, the exhaustive one
+    /// otherwise. The other arguments are those of [`ConTree::new`].
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         min_sup: usize,
@@ -128,6 +127,7 @@ impl GenericConTree {
         }
     }
 
+    /// Runs the search on `dataset`.
     pub fn fit(&mut self, dataset: &Dataset) -> Result<FitOutcome, SearchError> {
         match self {
             GenericConTree::Normal(solver) => solver.fit(dataset),
@@ -146,6 +146,7 @@ impl GenericConTree {
         }
     }
 
+    /// Counters of the last search.
     pub fn stats(&self) -> Statistics {
         match self {
             GenericConTree::Normal(solver) => solver.statistics(),
@@ -153,6 +154,7 @@ impl GenericConTree {
         }
     }
 
+    /// Why the last search stopped.
     pub fn status(&self) -> SearchStatus {
         match self {
             GenericConTree::Normal(solver) => solver.status(),

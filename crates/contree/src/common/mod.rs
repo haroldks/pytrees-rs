@@ -9,17 +9,19 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
 
-/// How a split threshold is chosen once the search has settled on the interval
-/// between two consecutive distinct values of a feature.
+/// Which candidate threshold the search evaluates next inside an interval of
+/// candidates.
 #[derive(Default, Copy, Debug, Clone, PartialOrd, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PointSelector {
-    /// The midpoint of the interval. The usual choice, and the default.
+    /// The middle candidate, which bisects the interval. The default.
     #[default]
     Mid,
-    /// The lower endpoint of the interval.
+    /// Candidates are tried one at a time instead of by bisection, in Gini
+    /// order when the heuristic is on. The anytime search limits how many are
+    /// tried with its split budget.
     First,
-    /// A uniformly random point inside the interval.
+    /// A uniformly random candidate.
     Random,
 }
 
@@ -33,8 +35,7 @@ impl PointSelector {
         }
     }
 
-    /// Every selector, in declaration order. Lets front ends enumerate the
-    /// choices without hard-coding them.
+    /// Every selector, in declaration order.
     pub const ALL: [Self; 3] = [Self::Mid, Self::First, Self::Random];
 }
 
@@ -58,23 +59,38 @@ impl FromStr for PointSelector {
         }
     }
 }
+
+/// Settings of a search, and the per-node state derived from them.
 #[derive(Copy, Clone, Debug)]
 pub struct SearchConfig {
+    /// Maximum depth of the tree (remaining depth, below the root).
     pub max_depth: usize,
+    /// Minimum number of instances in each leaf.
     pub min_sup: usize,
+    /// Time limit in seconds.
     pub max_time: f64,
+    /// Error gap tolerated with respect to the optimum; 0 for an exact search.
     pub max_gap: usize,
+    /// Initial upper bound on the error.
     pub max_error: usize,
+    /// Whether this configuration is the root's.
     pub is_root: bool,
+    /// Order features and thresholds by Gini impurity.
     pub use_heuristic: bool,
+    /// Use the specialised solver for depth-2 subtrees.
     pub fast_d2: bool,
+    /// How thresholds are picked inside an interval.
     pub point_selector: PointSelector,
+    /// Number of passes run so far (anytime search).
     pub nb_runs: usize,
+    /// Discrepancy used on the path to this node (anytime search).
     pub discrepancy: usize,
+    /// Discrepancy budget of the current pass (anytime search).
     pub budget: usize,
 }
 
 impl SearchConfig {
+    /// A root configuration with the given settings.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         min_sup: usize,
@@ -102,6 +118,8 @@ impl SearchConfig {
         }
     }
 
+    /// The configuration of the first child searched: one level shallower,
+    /// with part of the gap.
     pub fn derive_left(&self) -> Self {
         let mut left_config = *self;
         left_config.max_depth -= 1;
@@ -110,6 +128,8 @@ impl SearchConfig {
         left_config
     }
 
+    /// The configuration of the second child searched, given the gap already
+    /// handed to the first.
     pub fn derive_right(&self, left_gap: usize) -> Self {
         let mut right_config = *self;
         right_config.max_depth -= 1;
@@ -119,18 +139,29 @@ impl SearchConfig {
     }
 }
 
+/// Counters collected during a search.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Statistics {
+    /// Number of cached subproblems.
     pub cache_size: usize,
+    /// Subproblems answered from the cache.
     pub cache_hits: usize,
+    /// Calls to the general search.
     pub general_solver_call: usize,
+    /// Calls to the depth-2 solver.
     pub specialized_solver_call: usize,
+    /// Number of training instances.
     pub num_samples: usize,
+    /// Number of features.
     pub num_features: usize,
+    /// Training misclassifications of the best tree.
     pub error: usize,
+    /// Search time in seconds.
     pub duration: f64,
 }
 
+/// `(misclassifications, majority class)` of a leaf with the given class
+/// counts. Ties go to the highest class index.
 pub fn classification_error(classes_support: &[usize]) -> (usize, usize) {
     let mut max_idx = 0;
     let mut max_value = 0;

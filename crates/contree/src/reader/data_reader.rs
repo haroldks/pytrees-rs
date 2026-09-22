@@ -6,9 +6,8 @@ use std::path::Path;
 
 /// Reads a delimited text file into a [`Dataset`].
 ///
-/// The default matches the format the datasets in this repository use: one
-/// instance per line, whitespace separated, **the label in column 0**, `#`
-/// starting a comment, no header row.
+/// The default format is one instance per line, whitespace separated, the
+/// label in column 0, `#` starting a comment, and no header row.
 ///
 /// Labels must be non-negative integers. They are treated as a dense encoding,
 /// so `num_labels` is `max_label + 1` and a file whose labels are `{0, 2}`
@@ -32,20 +31,24 @@ impl Default for DataReader {
 }
 
 impl DataReader {
+    /// A reader with the default format.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Sets the column delimiter.
     pub fn with_format(mut self, format: DataFormat) -> Self {
         self.format = format;
         self
     }
 
+    /// Whether the first data line is a header to skip.
     pub fn with_headers(mut self, has_headers: bool) -> Self {
         self.has_headers = has_headers;
         self
     }
 
+    /// Lines starting with this character are ignored.
     pub fn with_comment_char(mut self, comment_char: Option<char>) -> Self {
         self.comment_char = comment_char;
         self
@@ -57,11 +60,14 @@ impl DataReader {
         self
     }
 
+    /// Picks the delimiter from the file extension (`.csv`, `.tsv`, otherwise
+    /// whitespace).
     pub fn auto_detect_format(mut self, path: &Path) -> Self {
         self.format = DataFormat::from_extension(path);
         self
     }
 
+    /// Reads a file. The returned dataset is sorted and indexed, ready to fit.
     pub fn read_file(&self, path: &Path) -> Result<Dataset, DataReaderError> {
         let file = File::open(path)?;
         self.read(BufReader::new(file))
@@ -74,8 +80,7 @@ impl DataReader {
         let mut dataset = Dataset::new();
         let mut row_idx = 0usize;
         let mut max_label = 0usize;
-        // Fixed by the first data row; every later row must agree, otherwise
-        // the columns silently shift and the dataset is quietly wrong.
+        // Set by the first data row; every later row must have as many.
         let mut num_columns: Option<usize> = None;
         let mut header_pending = self.has_headers;
 
@@ -92,8 +97,7 @@ impl DataReader {
                     continue;
                 }
             }
-            // The header is the first *data* line, not line 0: a file may open
-            // with comments or blank lines.
+            // The header is the first non-comment, non-blank line.
             if header_pending {
                 header_pending = false;
                 continue;
@@ -155,8 +159,8 @@ impl DataReader {
                     ))
                 })?;
                 if !value.is_finite() {
-                    // NaN and the infinities survive `parse::<f64>` and then
-                    // poison every comparison the search makes on this column.
+                    // NaN and infinities parse as `f64` but break the ordering
+                    // of the column.
                     return Err(DataReaderError::Parse(format!(
                         "line {line_no}, column {}: `{token}` is not a finite number",
                         col_idx + 1
@@ -175,11 +179,9 @@ impl DataReader {
             ));
         }
 
-        // The label histogram is indexed by label, so `num_labels` has to be
-        // `max + 1` and not the number of distinct labels -- with labels {0, 5}
-        // the latter is 2, and the first lookup of class 5 goes out of bounds.
-        // A label id that exceeds the row count cannot be a dense encoding, and
-        // would otherwise ask for an absurd allocation.
+        // Class histograms are indexed by label, so `num_labels` is `max + 1`
+        // rather than the number of distinct labels. A label at or above the
+        // row count cannot come from a dense encoding.
         if max_label >= row_idx {
             return Err(DataReaderError::Format(format!(
                 "label {max_label} in a file of {row_idx} rows: labels must be a dense encoding \
@@ -187,9 +189,6 @@ impl DataReader {
             )));
         }
         dataset.set_num_label(max_label + 1);
-        // Both preparation steps happen here rather than being left to the
-        // caller: skipping the second one makes every fit return a single leaf,
-        // with nothing to say why.
         dataset.sort_features();
         dataset.compute_unique_feature_values();
         Ok(dataset)
@@ -225,8 +224,6 @@ mod tests {
 
     #[test]
     fn num_labels_is_max_plus_one_not_the_distinct_count() {
-        // Labels {0, 5} used to report num_labels == 2, and the first lookup
-        // of class 5 in a length-2 histogram went out of bounds.
         let dataset = read("0 1.0\n5 2.0\n0 3.0\n5 4.0\n5 5.0\n0 6.0\n").unwrap();
         assert_eq!(dataset.num_labels(), 6);
     }
@@ -248,7 +245,6 @@ mod tests {
 
     #[test]
     fn a_missing_csv_field_is_reported_rather_than_deleted() {
-        // `1,,3` used to yield two tokens, shifting every later column left.
         let err = read_csv("0,1.0,2.0\n1,,3.0\n").unwrap_err();
         assert!(matches!(err, DataReaderError::Parse(_)), "{err}");
     }
@@ -271,8 +267,6 @@ mod tests {
 
     #[test]
     fn a_header_after_a_comment_is_still_skipped() {
-        // The header used to be recognised by line index, so a leading comment
-        // pushed it past the check and it was parsed as data.
         let dataset = DataReader::default()
             .with_headers(true)
             .read("# a comment\nlabel f0 f1\n0 1.0 2.0\n1 3.0 4.0\n".as_bytes())

@@ -1,19 +1,22 @@
 use crate::data::{DataPoint, Feature};
 use std::ops::{Index, IndexMut};
 
+/// A labelled dataset stored column by column.
+///
+/// Before a search, every column must be sorted and its values indexed; see
+/// [`Dataset::is_prepared`]. [`Dataset::from_rows`] and the file reader do both.
 #[derive(Debug, Default)]
 pub struct Dataset {
     features: Vec<Feature>,
     num_labels: usize,
-    // The search compares unique-value indices within sorted columns. Skipping
-    // either step does not fail loudly -- it makes every fit return a single
-    // leaf -- so the dataset remembers whether it has been prepared and `fit`
-    // refuses an unprepared one.
+    // Whether `sort_features` and `compute_unique_feature_values` have run.
+    // `fit` refuses a dataset that is not prepared.
     sorted: bool,
     indexed: bool,
 }
 
 impl Dataset {
+    /// An empty dataset.
     pub fn new() -> Self {
         Self::default()
     }
@@ -30,17 +33,23 @@ impl Dataset {
         self.features.first().map_or(0, Feature::len)
     }
 
+    /// Whether the dataset has no instances.
     pub fn is_empty(&self) -> bool {
         self.count() == 0
     }
 
+    /// Number of feature columns.
     pub fn num_features(&self) -> usize {
         self.features.len()
     }
 
+    /// Number of classes; labels are `0..num_labels`.
     pub fn num_labels(&self) -> usize {
         self.num_labels
     }
+
+    /// Appends an observation to column `feature_index`. The observation of
+    /// instance 0 opens a new column.
     pub fn insert(&mut self, data_point: DataPoint, feature_index: usize) {
         if data_point.tid() == 0 {
             self.features.push(Feature::new())
@@ -48,10 +57,12 @@ impl Dataset {
         self.features[feature_index].insert(data_point)
     }
 
+    /// Sets the number of classes.
     pub fn set_num_label(&mut self, value: usize) {
         self.num_labels = value;
     }
 
+    /// Sorts every column by value.
     pub fn sort_features(&mut self) {
         for column in self.features.iter_mut() {
             column.sort();
@@ -60,9 +71,8 @@ impl Dataset {
     }
 
     /// Assigns each observation the index of its value among the column's
-    /// distinct values. Independent of the order the column happens to be in,
-    /// so it may run before or after `sort_features`. The search compares these indices, so this must run
-    /// before any fit; skipping it makes every fit return a single leaf.
+    /// distinct values. It may run before or after `sort_features`, and must
+    /// run before any fit.
     pub fn compute_unique_feature_values(&mut self) {
         let size = self.count();
         let mut idx = vec![0; size];
@@ -76,7 +86,6 @@ impl Dataset {
                 let el = &mut column[index];
                 if let Some(prev_val) = prev {
                     if (el.value - prev_val).abs() >= f64::EPSILON {
-                        // TODO : The use a larger epsilon and not the absolute value
                         cur_unique += 1;
                     }
                 }
@@ -92,6 +101,7 @@ impl Dataset {
 /// Why a dataset could not be built from memory.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DatasetError {
+    /// No rows or no features.
     Empty,
     /// `values.len()` is not `labels.len() * n_features`.
     ShapeMismatch {
@@ -100,10 +110,7 @@ pub enum DatasetError {
         n_features: usize,
     },
     /// A feature value that is NaN or infinite.
-    NonFiniteValue {
-        row: usize,
-        feature: usize,
-    },
+    NonFiniteValue { row: usize, feature: usize },
     /// A label outside what can be a dense `0..k` encoding.
     InvalidLabel {
         row: usize,
@@ -145,10 +152,7 @@ impl Dataset {
     /// [`DataReader::read_file`](crate::reader::data_reader::DataReader::read_file),
     /// and takes numpy's C-order `(n_rows, n_features)` layout directly.
     ///
-    /// It also performs the two steps that were previously undocumented
-    /// obligations on the caller -- sorting each column and computing the
-    /// unique-value indices. Skipping the second one does not fail loudly: it
-    /// makes every fit return a single leaf.
+    /// The returned dataset is prepared: its columns are sorted and indexed.
     pub fn from_rows(
         values: &[f64],
         labels: &[usize],

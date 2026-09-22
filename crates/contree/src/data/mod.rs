@@ -6,6 +6,7 @@ pub mod view;
 
 pub use dataset::{Dataset, DatasetError};
 
+/// One observation of one feature: the instance id, its value and its label.
 #[derive(Copy, Clone, Debug)]
 pub struct DataPoint {
     tid: usize,
@@ -15,6 +16,7 @@ pub struct DataPoint {
 }
 
 impl DataPoint {
+    /// An observation of instance `tid`, not yet indexed.
     pub fn new(tid: usize, value: f64, label: f64) -> Self {
         Self {
             tid,
@@ -36,10 +38,12 @@ impl DataPoint {
         self.label
     }
 
+    /// Sets the index of the value among the column's distinct values.
     pub fn set_unique_value_id(&mut self, value: usize) {
         self.unique_value_idx = value
     }
 
+    /// The index of the value among the column's distinct values.
     pub fn unique_value_id(&self) -> usize {
         self.unique_value_idx
     }

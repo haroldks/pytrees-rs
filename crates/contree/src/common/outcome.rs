@@ -1,9 +1,4 @@
-//! What a fit produced, and why it stopped.
-//!
-//! Every invariant the search relies on used to be a `debug_assert!`, which is
-//! compiled out of the release build that a wheel would ship. The ones that
-//! guard caller-supplied input are checked here instead, at the `fit`
-//! boundary, and reported rather than assumed.
+//! What a fit produced, why it stopped, and why it could not start.
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -21,8 +16,8 @@ pub enum SearchError {
     NoFeatures,
     /// `sort_features` and `compute_unique_feature_values` have not both run.
     ///
-    /// The search compares unique-value indices, so an unprepared dataset does
-    /// not fail loudly -- it makes every fit return a single leaf. Build
+    /// The search compares unique-value indices, so an unprepared dataset
+    /// would silently produce a single leaf. Build
     /// datasets through [`Dataset::from_rows`](crate::data::Dataset::from_rows)
     /// or [`DataReader`](crate::reader::data_reader::DataReader), which both
     /// prepare them.
@@ -72,9 +67,7 @@ impl From<TreeError> for SearchError {
 /// Why the search stopped.
 ///
 /// Only `Optimal` means the tree is proven best for the given depth and
-/// support; the others mean the search ran out of something first. `Statistics`
-/// alone could never say which, so a caller had no way to tell an optimum from
-/// a timeout.
+/// support; the others mean the search ran out of something first.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SearchStatus {
@@ -110,8 +103,11 @@ impl fmt::Display for SearchStatus {
 /// The result of a fit.
 #[derive(Clone, Debug)]
 pub struct FitOutcome {
+    /// The best tree found.
     pub tree: Tree,
+    /// Search counters and the training error of `tree`.
     pub statistics: Statistics,
+    /// Why the search stopped.
     pub status: SearchStatus,
 }
 

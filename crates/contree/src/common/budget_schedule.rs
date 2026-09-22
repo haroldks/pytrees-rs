@@ -76,13 +76,13 @@ pub trait BudgetSchedule: Send {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ScheduleKind {
-    /// `(discrepancy, split)` pairs in order of increasing sum. See
-    /// [`Diagonal`].
+    /// `(discrepancy, split)` pairs in order of increasing sum:
+    /// `(0,0)`, `(0,1) (1,0)`, `(0,2) (1,1) (2,0)`, …
     #[default]
     Diagonal,
     /// Grows a square: every budget with `max(d, s) = k` before any with
     /// `k + 1`, each shell ending on `(k, k)`, which contains every budget
-    /// before it. See [`Square`].
+    /// before it.
     Square,
 }
 
