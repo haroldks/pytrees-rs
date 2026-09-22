@@ -1,5 +1,3 @@
-pub mod heuristics;
-
 use crate::cover::Cover;
 use crate::globals::item;
 

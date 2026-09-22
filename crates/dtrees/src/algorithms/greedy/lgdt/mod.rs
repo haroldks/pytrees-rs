@@ -7,7 +7,6 @@ use crate::globals::{float_is_null, item};
 use crate::tree::Tree;
 
 pub mod builder;
-mod config;
 pub mod factories;
 
 /// LGDT, a less greedy decision tree learner.
