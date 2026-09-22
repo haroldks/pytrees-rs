@@ -1,7 +1,7 @@
 [package]
 name = "dtrees-rs"
 description = "Optimal (DL8.5) and greedy (LGDT) decision trees over binary features."
-version = "1.0.3"
+version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

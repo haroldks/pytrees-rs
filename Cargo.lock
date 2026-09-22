@@ -112,7 +112,7 @@ checksum = "b05b61dc5112cbb17e4b6cd61790d9845d13888356391624cbe7e41efeac1e75"
 
 [[package]]
 name = "contree-cli"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "clap",
  "contree-rs",
@@ -122,7 +122,7 @@ dependencies = [
 
 [[package]]
 name = "contree-rs"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "coz",
  "float-cmp",
@@ -144,7 +144,7 @@ dependencies = [
 
 [[package]]
 name = "dtrees-cli"
-version = "1.0.3"
+version = "2.0.0"
 dependencies = [
  "clap",
  "dtrees-rs",
@@ -152,7 +152,7 @@ dependencies = [
 
 [[package]]
 name = "dtrees-rs"
-version = "1.0.3"
+version = "2.0.0"
 dependencies = [
  "clap",
  "float-cmp",
@@ -414,7 +414,7 @@ dependencies = [
 
 [[package]]
 name = "pytrees-py"
-version = "1.0.3"
+version = "2.0.0"
 dependencies = [
  "contree-rs",
  "dtrees-rs",

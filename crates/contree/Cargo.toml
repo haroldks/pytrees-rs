@@ -1,7 +1,7 @@
 [package]
 name = "contree-rs"
 description = "Optimal decision trees over continuous features, by branch and bound."
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
