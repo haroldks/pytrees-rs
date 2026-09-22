@@ -200,6 +200,44 @@ def test_an_indices_error_function_only_ever_receives_row_indices(anneal):
     assert clf.train_error_ == 137
 
 
+def brute_force(X, y, rows, depth, leaf_error, n_classes):
+    """The lowest error of any tree of at most `depth` levels on `rows`."""
+    best = leaf_error(np.bincount(y[rows], minlength=n_classes))[0]
+    if depth == 0 or best == 0:
+        return best
+    for feature in range(X.shape[1]):
+        left, right = rows[X[rows, feature] == 0], rows[X[rows, feature] == 1]
+        if len(left) and len(right):
+            best = min(
+                best,
+                brute_force(X, y, left, depth - 1, leaf_error, n_classes)
+                + brute_force(X, y, right, depth - 1, leaf_error, n_classes),
+            )
+    return best
+
+
+def test_a_weighted_error_function_still_gives_the_optimal_tree():
+    costs = np.array([1.0, 20.0, 3.0])
+
+    def weighted(counts):
+        counts = np.asarray(counts, dtype=float)
+        # Cost of predicting each class; predict the cheapest.
+        per_class = [(costs * counts).sum() - costs[k] * counts[k] for k in range(3)]
+        best = int(np.argmin(per_class))
+        return per_class[best], float(best)
+
+    rng = np.random.default_rng(3)
+    for _ in range(150):
+        n = int(rng.integers(20, 70))
+        X = rng.integers(0, 2, size=(n, int(rng.integers(4, 8))))
+        y = rng.integers(0, 3, size=n)
+        if len(np.unique(y)) < 3:
+            continue
+        clf = DL85Classifier(max_depth=3, fast_d2=False, error_function=weighted)
+        clf.fit(X, y)
+        assert clf.train_error_ == brute_force(X, y, np.arange(n), 3, weighted, 3)
+
+
 # --- Anytime search ------------------------------------------------------
 
 

@@ -19,6 +19,9 @@ def dl85_search(estimator, *, fast_d2, error_function_input, error_function):
     # The similarity bound and dynamic branching assume a single complete
     # pass, so they are turned off when a rule makes the search run in passes.
     bounded = any(rule is not None for rule in rules)
+    # The similarity bound also assumes that each row adds at most 1 to the
+    # error, which only the built-in misclassification error guarantees.
+    similarity_lb = estimator.similarity_lb and not bounded and error_function is None
     return RawDL85(
         min_sup=estimator.min_sup,
         max_depth=estimator.max_depth,
@@ -27,7 +30,7 @@ def dl85_search(estimator, *, fast_d2, error_function_input, error_function):
         always_sort=estimator.always_sort,
         heuristic=estimator.heuristic,
         fast_d2=fast_d2,
-        similarity_lb=estimator.similarity_lb and not bounded,
+        similarity_lb=similarity_lb,
         dynamic_branching=estimator.dynamic_branching and not bounded,
         error_function_input=error_function_input,
         discrepancy=estimator.discrepancy,
