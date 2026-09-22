@@ -11,9 +11,13 @@ def errors(clf, X, y):
     return int((np.asarray(clf.predict(X)) != y).sum())
 
 
-def test_its_predictions_reproduce_the_error_the_search_reports(anneal):
+@pytest.mark.parametrize("criterion", ["error", "information_gain"])
+@pytest.mark.parametrize("depth", [1, 2, 3, 4])
+def test_its_predictions_reproduce_the_error_the_search_reports(
+    anneal, criterion, depth
+):
     X, y = anneal
-    clf = LGDTClassifier(max_depth=3, min_sup=1)
+    clf = LGDTClassifier(max_depth=depth, criterion=criterion)
     clf.fit(X, y)
     assert errors(clf, X, y) == clf.train_error_
 

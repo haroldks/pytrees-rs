@@ -54,7 +54,7 @@ where
             let left_error = self.error_fn.compute(&left_distribution);
             let right_error = self.error_fn.compute(&right_distribution);
 
-            let mut tree = Tree::new();
+            let mut tree = Tree::empty_tree(1);
 
             let (left, right) = tree.node_children(tree.get_root_index());
 
@@ -267,5 +267,25 @@ mod tests {
             println!("Error {}", t.root_error());
             println!("{}", t)
         }
+    }
+
+    #[test]
+    fn the_depth_one_tree_has_a_test_and_two_leaves() {
+        let mut cover = DataReader::default()
+            .read_file(Path::new("test_data/anneal.txt"))
+            .expect("the test data is readable");
+
+        let tree = InfoGainMaximizer::default()
+            .fit(1, 1, &mut cover, None)
+            .expect("a split exists");
+
+        assert_eq!(tree.len(), 3);
+        assert!(tree.root_test().is_some());
+        let (left, right) = tree.node_children(tree.get_root_index());
+        assert_eq!(
+            tree.root_error(),
+            tree.node_error(left) + tree.node_error(right)
+        );
+        assert!(tree.root_error() < cover.count() as f64);
     }
 }
