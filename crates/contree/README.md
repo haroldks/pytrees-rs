@@ -79,7 +79,7 @@ The returned dataset is ready to fit.
 ```bash
 cargo run --release -p contree-cli -- \
     --input data.txt --depth 3 --sort-by-heuristic \
-    --print-tree --print-stats --result-dir .
+    --print-tree --print-stats
 ```
 
 `--use-lds` switches to the anytime search, and `--budget-schedule` picks its

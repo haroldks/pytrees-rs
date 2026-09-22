@@ -2,7 +2,7 @@
 //! text dataset and prints it.
 //!
 //! ```text
-//! con-tree --input data.txt --depth 3 --print-tree --print-stats --result-dir .
+//! con-tree --input data.txt --depth 3 --print-tree --print-stats
 //! ```
 
 mod parsers;

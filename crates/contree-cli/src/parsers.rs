@@ -74,7 +74,7 @@ pub struct GeneralParser {
 
     /// Directory where the `lds` example writes its JSON results
     #[arg(long)]
-    pub result_dir: PathBuf,
+    pub result_dir: Option<PathBuf>,
 
     /// Overwrite existing results in `result_dir`
     #[arg(long, default_value_t = false)]

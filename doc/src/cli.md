@@ -62,8 +62,8 @@ dtrees-rs --input data.txt --print-tree d2 --depth 2
 `con-tree` runs ConTree on continuous features:
 
 ```bash
-con-tree --input data.txt --depth 3 --sort-by-heuristic --print-tree --print-stats --result-dir .
-con-tree --input data.txt --depth 5 --use-lds --sort-by-heuristic --time-limit 60 --print-stats --result-dir .
+con-tree --input data.txt --depth 3 --sort-by-heuristic --print-tree --print-stats
+con-tree --input data.txt --depth 5 --use-lds --sort-by-heuristic --time-limit 60 --print-stats
 ```
 
 | Option | Default | Description |
@@ -80,4 +80,3 @@ con-tree --input data.txt --depth 5 --use-lds --sort-by-heuristic --time-limit 6
 | `--use-lds` | | Use the anytime search. |
 | `--budget-schedule` | `diagonal` | `diagonal` or `square`. |
 | `--print-tree`, `--print-stats` | | Print the tree, and the statistics with the reason the search stopped. |
-| `--result-dir` | required | Output directory for the `lds` example; unused by `con-tree` itself. |

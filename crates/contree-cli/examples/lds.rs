@@ -17,7 +17,6 @@ mod parsers;
 
 use crate::parsers::GeneralParser;
 use contree::reader::data_reader::DataReader;
-use contree::reader::DataReaderError;
 use contree::tree::Tree;
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -77,11 +76,14 @@ pub fn push_from_stats(result: &mut Res, stats: &Statistics) {
         .push(stats.specialized_solver_call);
 }
 
-fn main() -> Result<(), DataReaderError> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = GeneralParser::parse();
     let file = Path::new(&app.input);
     let file_name = file.file_stem().expect("Invalid file name");
-    let mut result_file = app.result_dir.clone();
+    let mut result_file = app
+        .result_dir
+        .clone()
+        .ok_or("the lds example needs --result-dir")?;
     result_file.push(file_name);
 
     fs::create_dir_all(&result_file).unwrap_or_else(|_| {
