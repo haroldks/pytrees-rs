@@ -1,0 +1,367 @@
+//! Python bindings for `contree`.
+//!
+//! Converts numpy arrays to a `Dataset`, runs the search with the GIL
+//! released, and returns the tree as arrays. The scikit-learn interface is in
+//! `pytrees.supervised.contree`.
+
+use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2, PyUntypedArrayMethods};
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
+use pyo3::prelude::*;
+use pyo3::types::PyDict;
+
+use contree::algorithms::{validate, ConTree, ConTreeLds};
+use contree::common::{PointSelector, ScheduleKind, SearchError, SearchStatus, Statistics};
+use contree::data::view::DataView;
+use contree::data::{Dataset, DatasetError};
+use contree::tree::{Tree, TreeError};
+
+/// Bad input becomes a `ValueError`; a broken invariant inside the search, a
+/// bug in the library, becomes a `RuntimeError`.
+fn search_err(err: SearchError) -> PyErr {
+    match err {
+        SearchError::Tree(_) => PyRuntimeError::new_err(err.to_string()),
+        _ => PyValueError::new_err(err.to_string()),
+    }
+}
+
+fn dataset_err(err: DatasetError) -> PyErr {
+    PyValueError::new_err(err.to_string())
+}
+
+fn tree_err(err: TreeError) -> PyErr {
+    match err {
+        TreeError::FeatureOutOfRange { .. } | TreeError::RaggedInput { .. } => {
+            PyValueError::new_err(err.to_string())
+        }
+        _ => PyRuntimeError::new_err(err.to_string()),
+    }
+}
+
+fn point_selector(name: &str) -> PyResult<PointSelector> {
+    name.parse().map_err(PyValueError::new_err)
+}
+
+fn status_name(status: SearchStatus) -> &'static str {
+    match status {
+        SearchStatus::Optimal => "optimal",
+        SearchStatus::TimeLimit => "time_limit",
+        SearchStatus::BudgetExhausted => "budget_exhausted",
+        SearchStatus::ErrorBoundReached => "error_bound_reached",
+    }
+}
+
+/// The constructor arguments, kept as given.
+#[derive(Clone, Copy)]
+struct Params {
+    min_sup: usize,
+    max_depth: usize,
+    max_time: f64,
+    max_error: usize,
+    max_gap: usize,
+    point_selector: PointSelector,
+    sort_by_heuristic: bool,
+    fast_d2: bool,
+    use_lds: bool,
+    /// Seeds the split-point generator so `split_selection="random"` is
+    /// reproducible. `None` draws from the OS.
+    random_state: Option<u64>,
+    /// The anytime search's budget schedule; ignored unless `use_lds`.
+    budget_schedule: ScheduleKind,
+}
+
+struct Fitted {
+    tree: Tree,
+    statistics: Statistics,
+    status: SearchStatus,
+}
+
+#[pyclass(module = "pytrees._native.contree")]
+pub struct RawConTree {
+    params: Params,
+    fitted: Option<Fitted>,
+}
+
+impl RawConTree {
+    fn fitted(&self) -> PyResult<&Fitted> {
+        self.fitted
+            .as_ref()
+            .ok_or_else(|| PyRuntimeError::new_err("this estimator has not been fitted yet"))
+    }
+
+    fn dataset(x: &PyReadonlyArray2<'_, f64>, y: &PyReadonlyArray1<'_, i64>) -> PyResult<Dataset> {
+        let shape = x.shape();
+        let (n_rows, n_features) = (shape[0], shape[1]);
+        if y.len() != n_rows {
+            return Err(PyValueError::new_err(format!(
+                "X has {n_rows} rows but y has {} labels",
+                y.len()
+            )));
+        }
+
+        let values = x
+            .as_slice()
+            .map_err(|_| PyValueError::new_err("X must be a contiguous C-order float64 array"))?;
+        let raw = y
+            .as_slice()
+            .map_err(|_| PyValueError::new_err("y must be a contiguous int64 array"))?;
+
+        let mut labels = Vec::with_capacity(raw.len());
+        for (row, &label) in raw.iter().enumerate() {
+            if label < 0 {
+                return Err(PyValueError::new_err(format!(
+                    "row {row}: label {label} is negative; encode labels as 0..n_classes"
+                )));
+            }
+            labels.push(label as usize);
+        }
+
+        let dataset = Dataset::from_rows(values, &labels, n_features).map_err(dataset_err)?;
+        Ok(dataset)
+    }
+}
+
+#[pymethods]
+impl RawConTree {
+    #[new]
+    #[pyo3(signature = (
+        min_sup = 1,
+        max_depth = 3,
+        max_time = 600.0,
+        max_error = None,
+        max_gap = 0,
+        split_selection = "mid",
+        sort_by_heuristic = false,
+        fast_d2 = true,
+        use_lds = false,
+        random_state = None,
+        budget_schedule = "diagonal",
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        min_sup: usize,
+        max_depth: usize,
+        max_time: f64,
+        max_error: Option<usize>,
+        max_gap: usize,
+        split_selection: &str,
+        sort_by_heuristic: bool,
+        fast_d2: bool,
+        use_lds: bool,
+        random_state: Option<u64>,
+        budget_schedule: &str,
+    ) -> PyResult<Self> {
+        Ok(Self {
+            params: Params {
+                min_sup,
+                max_depth,
+                max_time,
+                max_error: max_error.unwrap_or(usize::MAX),
+                max_gap,
+                point_selector: point_selector(split_selection)?,
+                sort_by_heuristic,
+                fast_d2,
+                use_lds,
+                random_state,
+                budget_schedule: budget_schedule.parse().map_err(PyValueError::new_err)?,
+            },
+            fitted: None,
+        })
+    }
+
+    /// Fits the tree. `y` must already be encoded as `0..n_classes`.
+    fn fit(
+        &mut self,
+        py: Python<'_>,
+        x: PyReadonlyArray2<'_, f64>,
+        y: PyReadonlyArray1<'_, i64>,
+    ) -> PyResult<()> {
+        let dataset = Self::dataset(&x, &y)?;
+        let params = self.params;
+
+        // Release the GIL: the search can run for minutes.
+        let outcome = py.detach(|| {
+            if params.use_lds {
+                let mut solver = ConTreeLds::new(
+                    params.min_sup,
+                    params.max_depth,
+                    params.max_time,
+                    params.max_error,
+                    params.point_selector,
+                    params.max_gap,
+                    params.sort_by_heuristic,
+                    params.fast_d2,
+                );
+                solver = solver.with_schedule(params.budget_schedule);
+                if let Some(seed) = params.random_state {
+                    solver = solver.with_random_state(seed);
+                }
+                solver.fit(&dataset)
+            } else {
+                let mut solver = ConTree::new(
+                    params.min_sup,
+                    params.max_depth,
+                    params.max_time,
+                    params.max_error,
+                    params.point_selector,
+                    params.max_gap,
+                    params.sort_by_heuristic,
+                    params.fast_d2,
+                );
+                if let Some(seed) = params.random_state {
+                    solver = solver.with_random_state(seed);
+                }
+                solver.fit(&dataset)
+            }
+        });
+
+        let outcome = outcome.map_err(search_err)?;
+        self.fitted = Some(Fitted {
+            tree: outcome.tree,
+            statistics: outcome.statistics,
+            status: outcome.status,
+        });
+        Ok(())
+    }
+
+    /// Runs the anytime search, reporting each improvement as it happens.
+    ///
+    /// `callback(error, seconds, status)` is invoked whenever a pass finds a
+    /// better tree.
+    #[pyo3(signature = (x, y, callback = None))]
+    fn fit_anytime(
+        &mut self,
+        py: Python<'_>,
+        x: PyReadonlyArray2<'_, f64>,
+        y: PyReadonlyArray1<'_, i64>,
+        callback: Option<Py<PyAny>>,
+    ) -> PyResult<()> {
+        let dataset = Self::dataset(&x, &y)?;
+        let params = self.params;
+
+        let mut solver = ConTreeLds::new(
+            params.min_sup,
+            params.max_depth,
+            params.max_time,
+            params.max_error,
+            params.point_selector,
+            params.max_gap,
+            params.sort_by_heuristic,
+            params.fast_d2,
+        );
+        solver = solver.with_schedule(params.budget_schedule);
+        if let Some(seed) = params.random_state {
+            solver = solver.with_random_state(seed);
+        }
+        validate(solver.config(), &dataset).map_err(search_err)?;
+
+        let view = DataView::root(&dataset, params.sort_by_heuristic);
+        let mut best = usize::MAX;
+        loop {
+            let done = py.detach(|| solver.partial_fit(&view));
+            let statistics = *solver.statistics();
+
+            if statistics.error < best {
+                best = statistics.error;
+                if let Some(callback) = &callback {
+                    callback.call1(
+                        py,
+                        (
+                            statistics.error,
+                            statistics.duration,
+                            status_name(solver.status()),
+                        ),
+                    )?;
+                }
+            }
+            if done {
+                break;
+            }
+        }
+
+        let tree = solver.get_solution_tree();
+        tree.validate().map_err(tree_err)?;
+        self.fitted = Some(Fitted {
+            tree,
+            statistics: *solver.statistics(),
+            status: solver.status(),
+        });
+        Ok(())
+    }
+
+    /// The tree as flat arrays, in the shape scikit-learn's own `tree_` uses.
+    ///
+    /// `children_left[i] == -1` marks a leaf, whose prediction is `value[i]`.
+    fn tree_arrays<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let fitted = self.fitted()?;
+        let nodes = fitted.tree.nodes();
+
+        let mut children_left = Vec::with_capacity(nodes.len());
+        let mut children_right = Vec::with_capacity(nodes.len());
+        let mut feature = Vec::with_capacity(nodes.len());
+        let mut threshold = Vec::with_capacity(nodes.len());
+        let mut value = Vec::with_capacity(nodes.len());
+        let mut error = Vec::with_capacity(nodes.len());
+
+        for node in nodes {
+            match node.value.feature {
+                // Index 0 is the root and also means "no child", so a leaf's
+                // children are reported as -1 rather than 0.
+                None => {
+                    children_left.push(-1i64);
+                    children_right.push(-1i64);
+                    feature.push(-1i64);
+                    threshold.push(f64::NAN);
+                }
+                Some(f) => {
+                    children_left.push(node.left as i64);
+                    children_right.push(node.right as i64);
+                    feature.push(f as i64);
+                    threshold.push(node.value.split.unwrap_or(f64::NAN));
+                }
+            }
+            value.push(node.value.label.map_or(-1i64, |label| label as i64));
+            error.push(node.value.error as i64);
+        }
+
+        let dict = PyDict::new(py);
+        dict.set_item("children_left", PyArray1::from_vec(py, children_left))?;
+        dict.set_item("children_right", PyArray1::from_vec(py, children_right))?;
+        dict.set_item("feature", PyArray1::from_vec(py, feature))?;
+        dict.set_item("threshold", PyArray1::from_vec(py, threshold))?;
+        dict.set_item("value", PyArray1::from_vec(py, value))?;
+        dict.set_item("error", PyArray1::from_vec(py, error))?;
+        Ok(dict)
+    }
+
+    #[getter]
+    fn statistics<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let stats = self.fitted()?.statistics;
+        let dict = PyDict::new(py);
+        dict.set_item("error", stats.error)?;
+        dict.set_item("duration", stats.duration)?;
+        dict.set_item("cache_size", stats.cache_size)?;
+        dict.set_item("cache_hits", stats.cache_hits)?;
+        dict.set_item("general_solver_calls", stats.general_solver_call)?;
+        dict.set_item("specialized_solver_calls", stats.specialized_solver_call)?;
+        dict.set_item("n_samples", stats.num_samples)?;
+        dict.set_item("n_features", stats.num_features)?;
+        Ok(dict)
+    }
+
+    /// Why the search stopped: only `"optimal"` means the tree is proven best.
+    #[getter]
+    fn status(&self) -> PyResult<&'static str> {
+        Ok(status_name(self.fitted()?.status))
+    }
+
+    #[getter]
+    fn error(&self) -> PyResult<usize> {
+        Ok(self.fitted()?.statistics.error)
+    }
+}
+
+/// Fills `pytrees._native.contree`.
+pub fn add_classes(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_class::<RawConTree>()?;
+    Ok(())
+}

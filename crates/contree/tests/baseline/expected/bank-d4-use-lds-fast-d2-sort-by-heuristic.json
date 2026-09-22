@@ -1,0 +1,158 @@
+{
+  "counters": {
+    "cache_hits": 386,
+    "cache_size": 1696,
+    "general_solver_call": 2274,
+    "num_features": 4,
+    "num_samples": 1372,
+    "specialized_solver_call": 32063
+  },
+  "dataset": "bank",
+  "depth": 4,
+  "error": 0,
+  "flags": {
+    "fast_d2": true,
+    "sort_by_heuristic": true,
+    "use_lds": true
+  },
+  "support": 1,
+  "tree": {
+    "error": 0,
+    "feature": 0,
+    "left": {
+      "error": 0,
+      "feature": 2,
+      "left": {
+        "error": 0,
+        "feature": 0,
+        "left": {
+          "error": 0,
+          "feature": 2,
+          "left": {
+            "error": 0,
+            "leaf": 1
+          },
+          "right": {
+            "error": 0,
+            "leaf": 0
+          },
+          "split": 0.3591554065522218
+        },
+        "right": {
+          "error": 0,
+          "feature": 1,
+          "left": {
+            "error": 0,
+            "leaf": 1
+          },
+          "right": {
+            "error": 0,
+            "leaf": 0
+          },
+          "split": 0.6657049149288861
+        },
+        "split": 0.3037589050184252
+      },
+      "right": {
+        "error": 0,
+        "feature": 3,
+        "left": {
+          "error": 0,
+          "feature": 0,
+          "left": {
+            "error": 0,
+            "leaf": 1
+          },
+          "right": {
+            "error": 0,
+            "leaf": 0
+          },
+          "split": 0.4175600662729233
+        },
+        "right": {
+          "error": 0,
+          "feature": 1,
+          "left": {
+            "error": 0,
+            "leaf": 1
+          },
+          "right": {
+            "error": 0,
+            "leaf": 0
+          },
+          "split": 0.3995156985859523
+        },
+        "split": 0.6827425707193322
+      },
+      "split": 0.43329570077756474
+    },
+    "right": {
+      "error": 0,
+      "feature": 1,
+      "left": {
+        "error": 0,
+        "feature": 3,
+        "left": {
+          "error": 0,
+          "feature": 2,
+          "left": {
+            "error": 0,
+            "leaf": 1
+          },
+          "right": {
+            "error": 0,
+            "leaf": 0
+          },
+          "split": 0.23619101087729122
+        },
+        "right": {
+          "error": 0,
+          "feature": 0,
+          "left": {
+            "error": 0,
+            "leaf": 1
+          },
+          "right": {
+            "error": 0,
+            "leaf": 0
+          },
+          "split": 0.6242098414209376
+        },
+        "split": 0.8423208399028888
+      },
+      "right": {
+        "error": 0,
+        "feature": 1,
+        "left": {
+          "error": 0,
+          "feature": 2,
+          "left": {
+            "error": 0,
+            "leaf": 1
+          },
+          "right": {
+            "error": 0,
+            "leaf": 0
+          },
+          "split": 0.11837388286988175
+        },
+        "right": {
+          "error": 0,
+          "feature": 2,
+          "left": {
+            "error": 0,
+            "leaf": 1
+          },
+          "right": {
+            "error": 0,
+            "leaf": 0
+          },
+          "split": 0.009028362375341936
+        },
+        "split": 0.7094440839373315
+      },
+      "split": 0.5921622057497371
+    },
+    "split": 0.5248974850903951
+  }
+}

@@ -1,0 +1,55 @@
+[package]
+name = "dtrees-rs"
+description = "Optimal (DL8.5) and greedy (LGDT) decision trees over binary features."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+clap = { workspace = true, optional = true }
+float-cmp.workspace = true
+rustc-hash.workspace = true
+search_trail.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[features]
+# Lets clap parse the search options, for the dtrees CLI and the examples.
+# Off by default, so the library and the Python extension do not build clap.
+cli = ["dep:clap"]
+
+[dev-dependencies]
+paste.workspace = true
+
+[lints]
+workspace = true
+
+[[example]]
+name = "gain"
+required-features = ["cli"]
+
+[[example]]
+name = "gainlds"
+required-features = ["cli"]
+
+[[example]]
+name = "gaintopk"
+required-features = ["cli"]
+
+[[example]]
+name = "lds"
+required-features = ["cli"]
+
+[[example]]
+name = "purity"
+required-features = ["cli"]
+
+[[example]]
+name = "restart"
+required-features = ["cli"]
+
+[[example]]
+name = "topk"
+required-features = ["cli"]

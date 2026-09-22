@@ -1,6 +1,9 @@
 [book]
-authors = ["haroldks"]
+authors = ["Harold Kiossou"]
 language = "en"
-multilingual = false
 src = "src"
-title = "Improving Algorithms for Exact Decision Trees"
+title = "pytrees-rs"
+description = "Optimal and lookahead decision trees in Rust, with a scikit-learn API."
+
+[output.html]
+git-repository-url = "https://github.com/haroldks/pytrees-rs"

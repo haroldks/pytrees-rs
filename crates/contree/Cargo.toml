@@ -1,0 +1,29 @@
+[package]
+name = "contree-rs"
+description = "Optimal decision trees over continuous features, by branch and bound."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "contree"
+path = "src/lib.rs"
+
+[features]
+default = []
+# Instruments the hot path for the `coz` causal profiler. Off by default: the
+# probes cost time and pull an extra dependency into every downstream build.
+profiling = ["dep:coz"]
+
+[dependencies]
+float-cmp.workspace = true
+rustc-hash.workspace = true
+rand.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+coz = { workspace = true, optional = true }
+
+[lints]
+workspace = true

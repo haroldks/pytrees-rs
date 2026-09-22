@@ -1,0 +1,86 @@
+{
+  "counters": {
+    "cache_hits": 0,
+    "cache_size": 1307,
+    "general_solver_call": 1306,
+    "num_features": 5,
+    "num_samples": 4839,
+    "specialized_solver_call": 33002
+  },
+  "dataset": "wilt",
+  "depth": 3,
+  "error": 88,
+  "flags": {
+    "fast_d2": true,
+    "sort_by_heuristic": true,
+    "use_lds": false
+  },
+  "support": 1,
+  "tree": {
+    "error": 88,
+    "feature": 2,
+    "left": {
+      "error": 42,
+      "feature": 1,
+      "left": {
+        "error": 26,
+        "feature": 2,
+        "left": {
+          "error": 21,
+          "leaf": 1
+        },
+        "right": {
+          "error": 5,
+          "leaf": 0
+        },
+        "split": 0.02626650991631095
+      },
+      "right": {
+        "error": 16,
+        "feature": 1,
+        "left": {
+          "error": 0,
+          "leaf": 0
+        },
+        "right": {
+          "error": 16,
+          "leaf": 1
+        },
+        "split": 0.04211054618646361
+      },
+      "split": 0.04205610690288984
+    },
+    "right": {
+      "error": 46,
+      "feature": 2,
+      "left": {
+        "error": 16,
+        "feature": 1,
+        "left": {
+          "error": 8,
+          "leaf": 0
+        },
+        "right": {
+          "error": 8,
+          "leaf": 1
+        },
+        "split": 0.0545235644779567
+      },
+      "right": {
+        "error": 30,
+        "feature": 1,
+        "left": {
+          "error": 10,
+          "leaf": 0
+        },
+        "right": {
+          "error": 20,
+          "leaf": 1
+        },
+        "split": 0.06345775930893194
+      },
+      "split": 0.043687572375608136
+    },
+    "split": 0.03566756567437886
+  }
+}
