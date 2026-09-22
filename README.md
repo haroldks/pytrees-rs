@@ -1,20 +1,25 @@
 # pytrees-rs
 
-pytrees-rs learns decision trees by search rather than by greedy splitting.
-The algorithms are written in Rust and exposed in Python through estimators
-that follow the scikit-learn API.
+pytrees-rs learns anytime optimal decision trees. It is written mostly in
+Rust and comes with a Python wrapper that follows the scikit-learn API.
+
+An optimal tree is the one with the lowest training error among all trees of
+a given depth. Finding it can take a long time, so the optimal searches can run
+as anytime searches: they return a good tree quickly and keep improving it
+until it is proven optimal or the time limit is reached. `status_` tells you
+which.
 
 | Estimator | Features | What it learns |
 |---|---|---|
-| `DL85Classifier` | binary | The optimal tree of a given depth (DL8.5) for the misclassification error or an error of your own, with optional anytime search strategies |
-| `LGDTClassifier` | binary | A tree grown top-down whose tests are chosen with a depth-2 lookahead (LGDT) |
-| `ConTreeClassifier` | continuous | The optimal tree of a given depth (ConTree), with an anytime variant |
-| `DL85Cluster` | binary | A clustering whose clusters are the leaves of an optimal tree |
+| `DL85Classifier` | binary | Optimal trees (DL8.5), for the misclassification error or your own |
+| `ConTreeClassifier` | continuous | Optimal trees without binarising the data (ConTree) |
+| `LGDTClassifier` | binary | Trees grown top-down, each test chosen with a depth-2 lookahead (LGDT) |
+| `DL85Cluster` | binary | Clusterings whose clusters are the leaves of an optimal tree |
 
-"Optimal" means the tree with the lowest training error among all trees of
-at most `max_depth` levels, with at least `min_sup` training rows per leaf.
-Finding it can take a long time on large problems, so every search has a time
-limit and reports whether it proved optimality (`status_`).
+The estimators behave like any scikit-learn estimator: they can be cloned,
+pickled and used in `Pipeline`, `GridSearchCV` or `cross_val_score`. The
+fitted tree is in `tree_`, with scikit-learn's layout, and a row goes left
+when `x[feature] <= threshold`.
 
 ## Installation
 
@@ -65,9 +70,8 @@ model.fit(X_train, y_train)
 
 ### Anytime search
 
-An exact search may not finish in the time you have. The anytime searches
-return a good tree early and improve it until they prove it optimal.
-`fit_anytime` calls you back after each improvement:
+`fit_anytime` works like `fit`, but calls you back each time the search finds
+a better tree:
 
 ```python
 from pytrees import DL85Classifier
@@ -110,20 +114,13 @@ def cost_sensitive(class_counts):
 clf = DL85Classifier(max_depth=3, error_function=cost_sensitive).fit(X_bin, y_bin)
 ```
 
-The [documentation](https://haroldks.github.io/pytrees-rs/estimators/dl85.html#custom-error-functions)
-covers the details.
-
-All estimators can be cloned, pickled and used in `Pipeline`, `GridSearchCV`
-or `cross_val_score`. Their fitted tree is in `tree_`, with scikit-learn's
-layout (`children_left`, `children_right`, `feature`, `threshold`, `value`),
-and a row goes left when `x[feature] <= threshold`.
-
 ## Documentation
 
-The [documentation](https://haroldks.github.io/pytrees-rs/) covers every
-estimator and parameter, the anytime search rules, the command line tools and
-the Rust crates in more detail. The Rust API documentation is at
-[haroldks.github.io/pytrees-rs/api](https://haroldks.github.io/pytrees-rs/api/).
+- [User guide](https://haroldks.github.io/pytrees-rs/): installation, every
+  estimator and its parameters, the anytime search rules, custom error
+  functions and the command line tools.
+- [Rust API](https://haroldks.github.io/pytrees-rs/api/): the `dtrees-rs` and
+  `contree-rs` crates.
 
 ## Repository layout
 

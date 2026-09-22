@@ -1,9 +1,8 @@
 # pytrees-rs
 
-pytrees-rs learns decision trees by search rather than by greedy splitting.
-The algorithms are written in Rust and used from Python through estimators
-that follow the scikit-learn API, so they work with pipelines, grid search and
-cross-validation.
+pytrees-rs learns anytime optimal decision trees. It is written mostly in
+Rust and comes with a Python wrapper that follows the scikit-learn API, so the
+estimators work with pipelines, grid search and cross-validation.
 
 A greedy learner such as CART picks, at each node, the split that looks best
 right now, and never revisits it. That is fast, but the tree it builds can be
