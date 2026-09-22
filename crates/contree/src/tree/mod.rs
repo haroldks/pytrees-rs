@@ -508,7 +508,7 @@ impl Tree {
         Ok(self.tree[self.leaf_for(x)?]
             .value
             .label
-            .expect("checked by leaf_for"))
+            .expect("leaf_for returns a leaf, and every leaf has a label"))
     }
 
     /// The indices of the nodes an instance visits, root first, leaf last.

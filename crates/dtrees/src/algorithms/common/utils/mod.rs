@@ -13,7 +13,7 @@ pub fn find_valid_split_attributes(
         Some(attrs) => {
             let mut valid = Vec::new();
             for &attribute in attrs {
-                if previous.is_some() && previous.unwrap() == attribute {
+                if previous == Some(attribute) {
                     continue;
                 }
 
@@ -32,7 +32,7 @@ pub fn find_valid_split_attributes(
             let mut valid_attributes = Vec::with_capacity(num_attributes);
 
             for attr_idx in 0..num_attributes {
-                if previous.is_some() && previous.unwrap() == attr_idx {
+                if previous == Some(attr_idx) {
                     continue;
                 }
 

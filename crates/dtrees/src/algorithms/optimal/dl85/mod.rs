@@ -711,23 +711,28 @@ where
     ) {
         let parent_key = parent_index.to_cache_key(path);
         let node_test = tree.node_test(tree_index);
-        if let Some(mut updater) = self.cache.update_node(&parent_key) {
-            updater = updater
-                .error(tree.node_error(tree_index))
-                .leaf_error(tree.node_error(tree_index))
-                .upper_bound(tree.node_error(tree_index))
+        if let Some(updater) = self.cache.update_node(&parent_key) {
+            let error = tree.node_error(tree_index);
+            let updater = updater
+                .error(error)
+                .leaf_error(error)
+                .upper_bound(error)
                 .optimal();
-
-            if tree.node_test(tree_index).is_none() {
-                updater
-                    .leaf()
-                    .output(tree.node_output(tree_index).unwrap_or(0.0));
-                return;
+            match node_test {
+                Some(test) => {
+                    updater.test(test);
+                }
+                None => {
+                    updater
+                        .leaf()
+                        .output(tree.node_output(tree_index).unwrap_or(0.0));
+                }
             }
-            updater.test(node_test.unwrap());
         }
-
-        let node_test = node_test.unwrap();
+        // A leaf has no subtree to cache.
+        let Some(node_test) = node_test else {
+            return;
+        };
 
         let children = tree.node_children(tree_index);
         let children = [children.0, children.1];

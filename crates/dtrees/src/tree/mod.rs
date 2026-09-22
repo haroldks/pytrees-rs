@@ -324,14 +324,15 @@ impl Tree {
             return;
         }
 
-        if has_children
-            && self.is_leaf(left)
-            && self.is_leaf(right)
-            && self.node_output(left).eq(&self.node_output(right))
-        {
-            let output = self.node_output(right).unwrap();
-            self.update_node(index)
-                .map(|updater| updater.output(output).clean_test().leaf());
+        if has_children && self.is_leaf(left) && self.is_leaf(right) {
+            // Two leaves that predict the same class are one leaf. Both
+            // outputs have to be set: two unset ones are equal too.
+            if let (Some(output), Some(other)) = (self.node_output(left), self.node_output(right)) {
+                if output == other {
+                    self.update_node(index)
+                        .map(|updater| updater.output(output).clean_test().leaf());
+                }
+            }
         }
     }
 

@@ -72,6 +72,11 @@ impl SubtreeLeafScores {
     }
 }
 
+/// Why the best labels of a depth-2 half are set when they are read: its
+/// score starts at its leaf's score, and only rises where a split sets the
+/// labels too. They are read only when the score is above the leaf's.
+const LABELS_SET: &str = "the labels are set whenever the score beats the leaf";
+
 #[derive(Default)]
 pub struct ConTreeDepth2;
 
@@ -157,8 +162,7 @@ impl ConTreeDepth2 {
         let init_bound = Bound::new(feasible.start, feasible.end - 1, None, None);
         queue.push_back(init_bound);
 
-        while !queue.is_empty() {
-            let mut current_bound = queue.pop_front().unwrap();
+        while let Some(mut current_bound) = queue.pop_front() {
             if pruner.subinterval_pruning(&current_bound, entry.error.min(upper_bound)) {
                 continue;
             }
@@ -284,7 +288,9 @@ impl ConTreeDepth2 {
             }
         }
 
-        debug_assert!(split_index.is_some(), "Split not found");
+        // The threshold lies between two values of the feature, so at least
+        // one value is above it.
+        let split_index = split_index.expect("a value lies above the threshold");
 
         let dataset_size = view.get_dataset_size();
         let class_number = view.get_num_labels();
@@ -330,7 +336,7 @@ impl ConTreeDepth2 {
                     feature,
                     split_point,
                     current_feature_index,
-                    split_index.unwrap(),
+                    split_index,
                     &mut left_leaves,
                     &mut right_leaves,
                     &split_feature_split_indices,
@@ -342,7 +348,7 @@ impl ConTreeDepth2 {
                     feature,
                     split_point,
                     current_feature_index,
-                    split_index.unwrap(),
+                    split_index,
                     &mut left_leaves,
                     &mut right_leaves,
                     &split_feature_split_indices,
@@ -375,14 +381,14 @@ impl ConTreeDepth2 {
 
             left_tree.update_node(ll).map(|updater| {
                 updater
-                    .label(left_leaves.best_left_label.unwrap())
+                    .label(left_leaves.best_left_label.expect(LABELS_SET))
                     .error(left_leaves.best_left_error)
                     .leaf()
             });
 
             left_tree.update_node(lr).map(|updater| {
                 updater
-                    .label(left_leaves.best_right_label.unwrap())
+                    .label(left_leaves.best_right_label.expect(LABELS_SET))
                     .error(left_leaves.best_right_error)
                     .leaf()
             });
@@ -413,14 +419,14 @@ impl ConTreeDepth2 {
 
             right_tree.update_node(ll).map(|updater| {
                 updater
-                    .label(right_leaves.best_left_label.unwrap())
+                    .label(right_leaves.best_left_label.expect(LABELS_SET))
                     .error(right_leaves.best_left_error)
                     .leaf()
             });
 
             right_tree.update_node(lr).map(|updater| {
                 updater
-                    .label(right_leaves.best_right_label.unwrap())
+                    .label(right_leaves.best_right_label.expect(LABELS_SET))
                     .error(right_leaves.best_right_error)
                     .leaf()
             });

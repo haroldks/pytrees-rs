@@ -103,11 +103,9 @@ impl Bitset {
 
     /// Get the cached hash, computing it if necessary
     pub fn get_hash(&mut self) -> u64 {
-        if let Some(h) = self.hash {
-            h
-        } else {
-            self.compute_hash();
-            self.hash.unwrap()
+        match self.hash {
+            Some(hash) => hash,
+            None => self.compute_hash(),
         }
     }
 

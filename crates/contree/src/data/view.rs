@@ -147,7 +147,7 @@ impl<'a> DataView<'a> {
             .iter()
             .map(|x| x.len())
             .max()
-            .unwrap()
+            .unwrap_or(0)
     }
 
     pub fn ordered_possible_splits(&self, feature: usize) -> &[usize] {

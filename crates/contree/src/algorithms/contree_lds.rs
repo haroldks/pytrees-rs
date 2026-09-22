@@ -485,12 +485,10 @@ impl ConTreeLds {
 
         let mut stopped = false;
 
-        while !queue.is_empty() {
+        while let Some(mut current_bound) = queue.pop_front() {
             if !self.time_remains() {
                 return true;
             }
-
-            let mut current_bound = queue.pop_front().unwrap();
 
             // Prune against the tighter of the incumbent and the budget the
             // parent handed down, as upstream does: a split that cannot come
