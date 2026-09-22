@@ -165,24 +165,6 @@ where
                         // Not enough support for the left part of the tree
                         continue;
                     }
-                    let right_leaf_error = self.error_fn.compute(&i_left_j_right_classes_support);
-
-                    if right_leaf_error.0 >= feature_error {
-                        continue;
-                    }
-
-                    // Here is if the left part of the tree so the classes support of i__left -> j__right
-                    let i_left_j_right_classes_support =
-                        deduce_sibling_error(&matrix[j][j], &matrix[i][j]);
-                    let j_right_support = matrix[j][j].iter().sum::<usize>();
-                    let i_right_j_right_support = matrix[i][j].iter().sum::<usize>();
-                    let i_left_j_right_support = j_right_support - i_right_j_right_support; // Important
-                    let i_left_j_left_support = left_support - i_left_j_right_support; // Important
-
-                    if i_left_j_right_support < min_sup || i_left_j_left_support < min_sup {
-                        // Not enough support for the left part of the tree
-                        continue;
-                    }
 
                     let right_leaf_error = self.error_fn.compute(&i_left_j_right_classes_support);
 
