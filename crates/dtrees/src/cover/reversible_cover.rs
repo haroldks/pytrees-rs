@@ -19,12 +19,11 @@ pub struct SparseBitset {
     state_manager: StateManager,
 }
 
-/// A non-reversible snapshot of a [`SparseBitset`].
+/// A non-reversible snapshot of a [`SparseBitset`]: every word, with the
+/// inactive ones as 0.
 #[derive(Debug)]
 pub struct ShallowBitset {
     words: Vec<u64>,
-    non_zero_words: Vec<usize>,
-    nb_non_zero: usize,
 }
 
 /// Sizes of the two set differences between a [`SparseBitset`] and a
@@ -164,22 +163,26 @@ impl SparseBitset {
     pub fn restore(&mut self) {
         self.state_manager.restore_state();
     }
+
+    /// Every word of the set, with the inactive ones as 0.
+    ///
+    /// A word that becomes empty is moved out of the active part of
+    /// `non_zero_words` without being overwritten, so its stored value is
+    /// stale and must not be read.
+    fn active_words(&self) -> Vec<u64> {
+        let mut words = vec![0; self.words.len()];
+        let nb_non_zero = self.state_manager.get_usize(self.nb_non_zero);
+        for &idx in &self.non_zero_words[..nb_non_zero] {
+            words[idx] = self.state_manager.get_u64(self.words[idx]);
+        }
+        words
+    }
 }
 
 impl From<&SparseBitset> for ShallowBitset {
     fn from(val: &SparseBitset) -> Self {
-        let mut words = Vec::with_capacity(val.words.len());
-        let non_zero_words = val.non_zero_words.clone();
-
-        let nb_non_zero = val.state_manager.get_usize(val.nb_non_zero);
-        for i in 0..val.words.len() {
-            words.push(val.state_manager.get_u64(val.words[i]));
-        }
-
         ShallowBitset {
-            words,
-            non_zero_words,
-            nb_non_zero,
+            words: val.active_words(),
         }
     }
 }
@@ -189,27 +192,16 @@ impl From<&SparseBitset> for ShallowBitset {
 impl Sub<&ShallowBitset> for &SparseBitset {
     type Output = Difference;
     fn sub(self, rhs: &ShallowBitset) -> Self::Output {
-        let in_count: usize = (0..self.state_manager.get_usize(self.nb_non_zero))
-            .map(|i| {
-                let idx = self.non_zero_words[i];
-                let self_word = self.state_manager.get_u64(self.words[idx]);
-                (self_word & !rhs.words[idx]).count_ones() as usize
-            })
+        let words = self.active_words();
+        let in_count = words
+            .iter()
+            .zip(&rhs.words)
+            .map(|(&own, &other)| (own & !other).count_ones() as usize)
             .sum();
-
-        let out_count: usize = (0..rhs.nb_non_zero)
-            .map(|i| {
-                let idx = rhs.non_zero_words[i];
-                let self_size = self.state_manager.get_usize(self.nb_non_zero);
-                // TODO: `i` indexes the active words of `rhs`, not of `self`,
-                // so this does not check that word `idx` is active in `self`.
-                let self_word = if i < self_size {
-                    self.state_manager.get_u64(self.words[idx])
-                } else {
-                    0
-                };
-                (rhs.words[idx] & !self_word).count_ones() as usize
-            })
+        let out_count = words
+            .iter()
+            .zip(&rhs.words)
+            .map(|(&own, &other)| (other & !own).count_ones() as usize)
             .sum();
         Difference {
             in_count,
@@ -288,5 +280,28 @@ mod sparse_test {
         println!("{:?}", cover.to_vec());
 
         let _ = &cover - shallow_cover;
+    }
+
+    #[test]
+    fn a_word_emptied_by_an_intersection_counts_as_empty() {
+        // Rows 64..128 only: the intersection empties word 0, which keeps its
+        // old value in storage but is no longer active.
+        let mut feature = Bitset::new(BitsetInit::Empty(128));
+        for row in 64..128 {
+            feature.set(row);
+        }
+        let mut cover = SparseBitset::new(128);
+        let full: ShallowBitset = (&cover).into();
+        cover.intersect_with(&feature, false);
+
+        let difference = &cover - &full;
+        assert_eq!(difference.in_count, 0);
+        assert_eq!(difference.out_count, 64, "rows 0..64 are only in `full`");
+
+        let half: ShallowBitset = (&cover).into();
+        cover.restore();
+        let difference = &cover - &half;
+        assert_eq!(difference.in_count, 64, "rows 0..64 are only in `cover`");
+        assert_eq!(difference.out_count, 0);
     }
 }
