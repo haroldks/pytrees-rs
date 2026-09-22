@@ -16,12 +16,14 @@ __all__ = ["ConTreeClassifier"]
 
 
 class ConTreeClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
-    """An optimal decision tree classifier for continuous features.
+    """Optimal decision tree classifier over continuous features (ConTree).
 
     Where a greedy learner picks the locally best split at each node, this
-    searches for the tree of the given depth with the fewest training errors.
-    The search is exact, so it can be slow; ``max_time`` bounds it and
-    ``status_`` says whether it finished.
+    searches for the tree of the given depth with the fewest training errors,
+    with thresholds between observed values, without binarising the data. The
+    search is exact, so it can be slow; ``max_time`` bounds it and ``status_``
+    says whether it finished. The anytime variant (``use_lds=True`` or
+    ``fit_anytime``) finds good trees much earlier.
 
     Parameters
     ----------
@@ -39,20 +41,21 @@ class ConTreeClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
         Accept a tree within this many errors of the optimum. Larger values
         prune more and finish sooner.
     split_selection : {"mid", "first", "random"}, default="mid"
-        Where inside a candidate interval the threshold is placed.
+        Which candidate threshold of an interval is evaluated next: the
+        middle one (bisection), each one in turn from the left (in Gini order
+        with ``sort_by_heuristic``), or a random one.
     sort_by_heuristic : bool, default=False
         Try features and splits in Gini order. Usually finds a good incumbent
         sooner, which prunes more.
     fast_d2 : bool, default=True
-        Use the specialized solver for depth-2 subtrees. Exact, and much
-        faster; set it to False only to run the general search all the way
-        down, which becomes impractical from depth 2 upward.
+        Use the specialised solver for depth-2 subtrees. It is exact and much
+        faster than the general search.
     use_lds : bool, default=False
-        Use the anytime limited-discrepancy search, which widens its budget
+        Use the anytime limited discrepancy search, which widens its budget
         over successive passes rather than running to the optimum in one go.
     random_state : int or None, default=None
-        Seeds the split-point generator. Only ``split_selection="random"``
-        draws from it; every other setting is deterministic already.
+        Seed for ``split_selection="random"``; the other settings are
+        deterministic.
     budget_schedule : {"diagonal", "square"}, default="diagonal"
         How the anytime search (``use_lds=True`` or ``fit_anytime``) widens
         its budget from one pass to the next.
@@ -75,6 +78,15 @@ class ConTreeClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
         best for the given depth and support.
     statistics_ : dict
         Search counters: cache size and hits, solver calls, duration.
+
+    References
+    ----------
+    C. E. Briţa, J. G. M. van der Linden and E. Demirović. Optimal
+    Classification Trees for Continuous Feature Data Using Dynamic
+    Programming with Branch-and-Bound. AAAI 2025.
+
+    H. Kiossou, P. Schaus and S. Nijssen. Anytime Optimal Decision Tree
+    Learning with Continuous Features. ECML PKDD 2026.
 
     Examples
     --------
@@ -100,9 +112,8 @@ class ConTreeClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
         random_state=None,
         budget_schedule="diagonal",
     ):
-        # Stored verbatim under their own names, with no validation and no
-        # name mangling: `get_params`, `clone` and `GridSearchCV` all depend on
-        # being able to read a parameter back exactly as it was passed.
+        # As scikit-learn requires, parameters are stored as given and only
+        # validated in fit.
         self.max_depth = max_depth
         self.min_sup = min_sup
         self.max_error = max_error
@@ -127,9 +138,8 @@ class ConTreeClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
         """Fit with the anytime search, reporting improvements as they happen.
 
         ``callback(error, seconds, status)`` is invoked each time a pass finds
-        a better tree, so a caller can watch a long search converge, stop
-        early, or plot the anytime profile. This is what the LDS solver is for;
-        plain ``fit`` only ever hands back the final answer.
+        a better tree, so a caller can follow a long search or plot how the
+        error decreases over time.
 
         Returns ``self``.
         """
@@ -142,9 +152,8 @@ class ConTreeClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
     def _validate(self, X, y):
         X, y = validate_data(self, X, y, dtype=np.float64, ensure_all_finite=True)
         check_classification_targets(y)
-        # The Rust core works with a dense 0..k-1 encoding; keeping the
-        # original labels here is what lets arbitrary ones -- strings,
-        # non-contiguous integers -- work at all.
+        # The native search expects labels 0..k-1; classes_ maps them back to
+        # the original labels.
         self.classes_, encoded = np.unique(y, return_inverse=True)
         self.n_classes_ = len(self.classes_)
         return np.ascontiguousarray(X), np.ascontiguousarray(encoded, dtype=np.int64)
@@ -165,8 +174,7 @@ class ConTreeClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
         )
 
     def _store(self, native):
-        # Only plain data is kept, so the fitted estimator pickles without
-        # the native search.
+        # Keep only plain data, so the fitted estimator can be pickled.
         arrays = native.tree_arrays()
         self.tree_ = Tree(
             arrays["children_left"],

@@ -27,9 +27,11 @@ __all__ = ["DiscrepancyRule", "GainRule", "PurityRule", "RestartRule", "TopKRule
 class DiscrepancyRule:
     """Limited discrepancy search.
 
-    The search may deviate from the heuristic order of the features only
-    ``initial_value`` times, and the budget grows on each restart up to
-    ``limit``. This puts the effort on the most promising trees first.
+    Taking the feature of rank ``i`` at a node costs ``i`` discrepancies. A
+    pass explores only the trees whose total cost is within the budget, which
+    starts at ``initial_value`` and grows on each restart up to ``limit``.
+    This puts the effort on the trees the heuristic prefers first
+    (LDS-DL8.5).
 
     Parameters
     ----------
@@ -49,16 +51,20 @@ class DiscrepancyRule:
 
 @dataclass(frozen=True)
 class GainRule:
-    """Skip splits whose information gain is too small to matter.
+    """Explore only the paths that stay close to the heuristic's choices.
+
+    At each node, choosing a feature other than the best-ranked one loses the
+    difference between their heuristic scores. A pass skips the paths whose
+    accumulated loss exceeds a gap, and the gap widens on each restart.
 
     Parameters
     ----------
     min_gain : float, default=0.0
-        Smallest gain gap for which a branch is still explored.
+        Gap allowed on the first pass.
     epsilon : float, default=1e-4
-        Amount the threshold relaxes by on each restart.
+        Step by which the gap widens on each restart.
     limit : float, default=6.0
-        Largest threshold; usually the maximum depth.
+        Largest gap; usually the maximum depth.
     step_strategy : {"monotonic", "exponential", "luby"}, default="monotonic"
     base : int, default=1
     """
@@ -72,15 +78,16 @@ class GainRule:
 
 @dataclass(frozen=True)
 class PurityRule:
-    """Stop splitting a node once its majority class is pure enough.
+    """Do not split nodes that are already pure enough, on the current pass.
+
+    The threshold rises on each restart until every node may be split.
 
     Parameters
     ----------
     min_purity : float, default=0.0
-        Share of the majority class at which a node becomes a leaf. Around
-        0.8-0.95 prunes moderately; higher prunes more.
+        Share of correctly classified rows from which a node is not split.
     epsilon : float, default=1e-4
-        Amount the threshold relaxes by on each restart.
+        Amount the threshold rises by on each restart.
     """
 
     min_purity: float = 0.0
@@ -89,7 +96,10 @@ class PurityRule:
 
 @dataclass(frozen=True)
 class TopKRule:
-    """Explore only the ``k`` most promising features at each node.
+    """Explore only the best-ranked features at each node (Top-k search).
+
+    A pass with budget ``k`` tries the ``k + 1`` best features of each node,
+    and ``k`` grows on each restart.
 
     Parameters
     ----------

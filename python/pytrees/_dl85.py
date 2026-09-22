@@ -8,6 +8,7 @@ from pytrees._native.dtrees import RawDL85
 
 
 def dl85_search(estimator, *, fast_d2, error_function_input, error_function):
+    """A ``RawDL85`` configured from ``estimator``'s parameters."""
     rules = (
         estimator.discrepancy,
         estimator.gain,
@@ -15,8 +16,8 @@ def dl85_search(estimator, *, fast_d2, error_function_input, error_function):
         estimator.restart,
         estimator.purity,
     )
-    # The rules relax the search pass by pass, which the similarity bounds
-    # and dynamic branching do not take into account.
+    # The similarity bound and dynamic branching assume a single complete
+    # pass, so they are turned off when a rule makes the search run in passes.
     bounded = any(rule is not None for rule in rules)
     return RawDL85(
         min_sup=estimator.min_sup,

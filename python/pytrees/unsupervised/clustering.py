@@ -79,7 +79,7 @@ class DL85Cluster(ClusterMixin, DecisionTree, BaseEstimator):
         purity=None,
         error_function=None,
     ):
-        # Stored verbatim: see DL85Classifier.__init__.
+        # Stored as given; validated in fit.
         self.min_sup = min_sup
         self.max_depth = max_depth
         self.max_error = max_error

@@ -5,35 +5,35 @@ from .._dl85 import dl85_search
 
 
 class DL85Classifier(ClassifierMixin, TreeClassifier, BaseEstimator):
-    """
-    Optimal Decision Tree Classifier using the DL8.5 algorithm.
+    """Optimal decision tree classifier over binary features (DL8.5).
 
-    DL85Classifier implements the DL8.5 algorithm for constructing globally optimal
-    decision trees.
-    The algorithm uses dynamic programming with advanced caching and pruning
-    techniques to efficiently explore the exponential search space of possible
-    decision trees.
+    Searches for the tree of at most ``max_depth`` levels with the fewest
+    training errors, by dynamic programming with branch-and-bound and a cache
+    of subproblems. Every feature must be 0 or 1; binarise continuous data
+    first, or use ``ConTreeClassifier``.
+
+    The search can also be anytime. The rules in ``pytrees.rules`` restrict
+    each pass of the search, and the search restarts with relaxed rules until
+    a pass completes; ``fit_anytime`` reports each improvement.
 
     Parameters
     ----------
     min_sup : int, default=1
-        Minimum support (number of samples) required for a node to be split.
-        Higher values lead to simpler trees and prevent overfitting.
+        Minimum number of training rows in each leaf.
 
     max_depth : int, default=1
-        Maximum depth of the decision tree. Controls tree complexity and
-        prevents overfitting. Depth 1 creates decision stumps.
+        Maximum depth of the tree. Depth 1 gives a decision stump.
 
     max_error : float or None, default=None
         Stop as soon as a tree with at most this error is found. ``None``
         searches for the optimum.
 
     max_time : float, default=600.0
-        Maximum time limit in seconds for the search. Prevents infinite
-        computation on difficult instances.
+        Seconds before the search stops with the best tree found so far.
 
     always_sort : bool, default=True
-        Whether to always sort features based on heuristic at each node
+        Sort the features by ``heuristic`` at every node, rather than only at
+        the root.
 
     heuristic : {"none", "gini", "information_gain", "weighted_entropy"}, default="none"
         Order in which the features are tried at each node.
@@ -42,12 +42,12 @@ class DL85Classifier(ClassifierMixin, TreeClassifier, BaseEstimator):
         Solve depth-2 subtrees with the specialised exact solver.
 
     similarity_lb : bool, default=True
-        Use similarity lower bounds to prune branches early. Turned off when
-        any rule is given.
+        Bound the error of a node from similar nodes already solved, to prune
+        earlier. Turned off when any rule is given.
 
     dynamic_branching : bool, default=True
-        Choose the branch to explore first dynamically. Turned off when any
-        rule is given.
+        Search first the branch with the higher known lower bound. Turned off
+        when any rule is given.
 
     error_function_input : {"class_counts", "indices"}, default="class_counts"
         What ``error_function`` receives at each node: the count of each class,
@@ -58,7 +58,7 @@ class DL85Classifier(ClassifierMixin, TreeClassifier, BaseEstimator):
         Limited discrepancy search.
 
     gain : pytrees.rules.GainRule, optional
-        Skip splits with too little information gain.
+        Explore only paths close to the heuristic's choices.
 
     topk : pytrees.rules.TopKRule, optional
         Explore only the most promising features at each node.
@@ -91,10 +91,19 @@ class DL85Classifier(ClassifierMixin, TreeClassifier, BaseEstimator):
         ``"optimal"``, or ``"time_limit"`` if the search stopped at
         ``max_time`` with the best tree found so far.
 
+    References
+    ----------
+    G. Aglin, S. Nijssen and P. Schaus. Learning Optimal Decision Trees Using
+    Caching Branch-and-Bound Search. AAAI 2020.
+
+    H. Kiossou, P. Schaus, S. Nijssen and V. R. Houndji. Time Constrained
+    DL8.5 Using Limited Discrepancy Search. ECML PKDD 2022.
+
+    H. Kiossou and P. Schaus. A Generic Complete Anytime Beam Search for
+    Optimal Decision Tree. IDA 2026.
+
     Examples
     --------
-    Basic usage with default parameters:
-
     >>> from pytrees import DL85Classifier
     >>> from sklearn.datasets import make_classification
     >>> X, y = make_classification(n_samples=100, n_features=5, random_state=42)
@@ -104,17 +113,17 @@ class DL85Classifier(ClassifierMixin, TreeClassifier, BaseEstimator):
     'optimal'
     >>> accuracy = clf.score(X, y)
 
-    Advanced usage with rules and heuristics:
+    An anytime search that first explores the trees preferred by the
+    heuristic:
 
-    >>> from pytrees.rules import GainRule, PurityRule
+    >>> from pytrees.rules import DiscrepancyRule
     >>> clf = DL85Classifier(
     ...     max_depth=4,
     ...     min_sup=10,
     ...     heuristic="information_gain",
-    ...     gain=GainRule(min_gain=0.01),
-    ...     purity=PurityRule(min_purity=0.9)
+    ...     discrepancy=DiscrepancyRule(),
     ... )
-    >>> clf.fit(X, y)
+    >>> clf = clf.fit(X, y)
     """
 
     _binary_features = True
@@ -138,9 +147,8 @@ class DL85Classifier(ClassifierMixin, TreeClassifier, BaseEstimator):
         purity=None,
         error_function=None,
     ):
-        # Stored verbatim, with no validation: get_params, clone and
-        # GridSearchCV all read a parameter back exactly as it was passed.
-        # The search itself is only built in fit.
+        # As scikit-learn requires, parameters are stored as given and only
+        # validated in fit.
         self.min_sup = min_sup
         self.max_depth = max_depth
         self.max_error = max_error

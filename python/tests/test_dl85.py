@@ -1,8 +1,4 @@
-"""DL85Classifier: the optimal search on binary features.
-
-Tests marked xfail are known bugs. They are strict, so fixing a bug makes
-its test fail until the marker is removed.
-"""
+"""DL85Classifier: the optimal search on binary features."""
 
 import pickle
 
@@ -16,15 +12,11 @@ from pytrees import DL85Classifier, LGDTClassifier
 from pytrees.rules import DiscrepancyRule, GainRule
 
 
-def known_bug(reason):
-    return pytest.mark.xfail(strict=True, reason=reason)
-
-
 def errors(clf, X, y):
     return int((np.asarray(clf.predict(X)) != y).sum())
 
 
-# --- What already works --------------------------------------------------
+# --- Fitting and predicting ---------------------------------------------
 
 
 @pytest.mark.parametrize("depth, expected", [(2, 137), (3, 112)])

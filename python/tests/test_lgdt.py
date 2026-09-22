@@ -1,18 +1,10 @@
-"""LGDTClassifier: the greedy search on binary features.
-
-Tests marked xfail are known bugs. They are strict, so fixing a bug makes
-its test fail until the marker is removed.
-"""
+"""LGDTClassifier: the greedy search on binary features."""
 
 import numpy as np
 import pytest
 from sklearn.base import clone
 
 from pytrees import LGDTClassifier
-
-
-def known_bug(reason):
-    return pytest.mark.xfail(strict=True, reason=reason)
 
 
 def errors(clf, X, y):

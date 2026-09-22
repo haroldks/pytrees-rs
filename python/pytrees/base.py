@@ -1,3 +1,5 @@
+"""Behaviour shared by the pytrees estimators."""
+
 import numpy as np
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.utils.validation import check_is_fitted, validate_data
@@ -10,8 +12,7 @@ def validate_binary_classification(estimator, X, y):
     """Check ``X`` and ``y`` for a binary-feature classifier.
 
     Returns ``X`` as float64, the classes, and ``y`` encoded as indices into
-    them: the Rust side needs labels 0..k-1, and this is what lets users pass
-    any labels at all.
+    them, since the native searches expect labels ``0..k-1``.
     """
     X, y = validate_data(estimator, X, y, dtype=np.float64, ensure_all_finite=True)
     check_classification_targets(y)
@@ -21,6 +22,7 @@ def validate_binary_classification(estimator, X, y):
 
 
 def check_binary(estimator, X):
+    """Raise a ``ValueError`` unless every value of ``X`` is 0 or 1."""
     if not np.isin(X, (0.0, 1.0)).all():
         raise ValueError(
             f"{type(estimator).__name__} needs binary features: every value "
@@ -51,12 +53,12 @@ def tree_from_native(native):
 
 
 class DecisionTree:
-    """What every pytrees estimator does with its fitted ``tree_``, a
-    ``pytrees.tree.Tree``: find leaves, report paths, and draw it."""
+    """Methods shared by every pytrees estimator, based on its fitted
+    ``tree_`` (a ``pytrees.tree.Tree``)."""
 
-    # Set by the estimators over binary features, which check it on predict.
+    # Whether X must be binary; checked on predict too.
     _binary_features = False
-    # How to_dot names what a leaf holds.
+    # What a leaf holds, as shown by to_dot.
     _value_label = "class"
 
     def _fitted_tree(self):

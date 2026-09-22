@@ -6,26 +6,20 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 
 
 class LGDTClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
-    """
-    Less Greedy Decision Tree (LGDT) Classifier for fast approximate solutions.
+    """Less greedy decision tree classifier over binary features (LGDT).
 
-    LGDTClassifier implements greedy decision tree construction algorithms that
-    provide fast approximate solutions by making locally optimal choices with at each node
-    with a lookahead of 2.
-    This approach trades global optimality for significantly improved
-    computational efficiency, making it suitable for large datasets.
-
+    Grows the tree top-down like CART, but chooses each test by solving the
+    best depth-2 tree at the node and keeping its root. This two-level
+    lookahead is much less myopic than a single greedy split, and still fast
+    enough for deep trees. Every feature must be 0 or 1.
 
     Parameters
     ----------
     min_sup : int, default=1
-        Minimum support (number of samples) required for a node to be split.
-        Higher values lead to simpler trees and prevent overfitting while
-        also improving computational efficiency.
+        Minimum number of training rows in each leaf.
 
     max_depth : int, default=2
-        Maximum depth of the decision tree. Controls tree complexity and
-        prevents overfitting. Smaller depths result in faster construction.
+        Maximum depth of the tree.
 
     criterion : {"error", "information_gain"}, default="error"
         What the depth-2 lookahead at each step optimises: the
@@ -43,11 +37,15 @@ class LGDTClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
     train_error_ : float
         Training error of the tree, as the error function measures it.
     statistics_ : dict
-        Search counters: cache size and hits, restarts, duration.
+        The error, duration and sizes of the search.
+
+    References
+    ----------
+    H. Kiossou, P. Schaus, S. Nijssen and G. Aglin. Efficient Lookahead
+    Decision Trees. IDA 2024.
 
     Examples
     --------
-    Basic usage for fast tree construction:
 
     >>> from pytrees import LGDTClassifier
     >>> from sklearn.datasets import make_classification
@@ -56,7 +54,7 @@ class LGDTClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
     >>> clf = LGDTClassifier(max_depth=5, min_sup=10).fit(X, y)
     >>> accuracy = clf.score(X, y)
 
-    Using different search strategies:
+    A lookahead that maximises information gain:
 
     >>> clf = LGDTClassifier(max_depth=4, criterion="information_gain")
     >>> clf = clf.fit(X, y)
@@ -70,7 +68,7 @@ class LGDTClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
         max_depth=2,
         criterion="error",
     ):
-        # Stored verbatim: see DL85Classifier.__init__.
+        # Stored as given; validated in fit.
         self.min_sup = min_sup
         self.max_depth = max_depth
         self.criterion = criterion

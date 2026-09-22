@@ -1,53 +1,26 @@
-"""
+"""Decision trees learned by search, with a scikit-learn interface.
 
-pytrees is a Python wrapper around Rust-based decision tree
-algorithms from pytrees-rs. It provides scikit-learn compatible interfaces for
-both optimal and greedy decision tree construction with advanced optimization
-features.
+pytrees wraps Rust implementations of four learners:
 
-Key Features
-------------
-- **Optimal Decision Trees**: DL8.5 algorithm for globally optimal trees
-- **Greedy Algorithms**: LGDT variants for fast approximate solutions
-- **Continuous Features**: ConTree, optimal trees without binarising the data
-- **Rule-based Optimization**: Advanced stopping criteria and search control
-- **Scikit-learn Compatible**: Drop-in replacement for sklearn decision trees
-- **High Performance**: Rust backend with Python convenience
+- ``DL85Classifier``: optimal decision trees over binary features (DL8.5),
+  with optional rules that make the search anytime (LDS-DL8.5, Top-k,
+  CA-DL8.5; see ``pytrees.rules``).
+- ``LGDTClassifier``: trees grown top-down like CART, but each test is chosen
+  with a depth-2 lookahead (LGDT).
+- ``ConTreeClassifier``: optimal decision trees over continuous features
+  (ConTree), with an anytime variant.
+- ``DL85Cluster``: clustering with an optimal decision tree.
 
-Main Classes
-------------
-- `DL85Classifier`: Optimal decision tree classifier using DL8.5 algorithm
-- `LGDTClassifier`: Greedy decision tree classifier using LGDT algorithm
-- `DL85Cluster`: Unsupervised clustering using optimal decision trees
-- `ConTreeClassifier`: Optimal decision tree classifier for continuous features
-- `DecisionTree`: Base class with common functionality
+Every estimator exposes its fitted tree as ``tree_``, a ``pytrees.tree.Tree``.
 
-Quick Start
------------
-```python
-from pytrees import DL85Classifier, LGDTClassifier
-from sklearn.datasets import make_classification
-from sklearn.model_selection import train_test_split
-
-# Generate sample data
-X, y = make_classification(n_samples=1000, n_features=10, random_state=42)
-X = (X > 0).astype(int)  # DL8.5 and LGDT need binary features
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
-
-# Optimal decision tree
-optimal_clf = DL85Classifier(max_depth=3, min_sup=10)
-optimal_clf.fit(X_train, y_train)
-optimal_pred = optimal_clf.predict(X_test)
-
-# Greedy decision tree (faster)
-greedy_clf = LGDTClassifier(max_depth=3, min_sup=10)
-greedy_clf.fit(X_train, y_train)
-greedy_pred = greedy_clf.predict(X_test)
-
-print(f"Optimal accuracy: {optimal_clf.score(X_test, y_test)}")
-print(f"Greedy accuracy: {greedy_clf.score(X_test, y_test)}")
-```
-For more information, see the individual class documentation and examples.
+Example
+-------
+>>> from sklearn.datasets import load_iris
+>>> from pytrees import ConTreeClassifier
+>>> X, y = load_iris(return_X_y=True)
+>>> clf = ConTreeClassifier(max_depth=2).fit(X, y)
+>>> clf.status_
+'optimal'
 """
 
 from .base import DecisionTree

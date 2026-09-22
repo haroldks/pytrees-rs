@@ -1,6 +1,9 @@
+"""Exceptions raised by the pytrees estimators."""
+
+
 class TreeNotFoundError(Exception):
-    pass
+    """The search found no tree, so the estimator cannot predict."""
 
 
 class SearchFailedError(Exception):
-    pass
+    """The native search failed."""

@@ -1,8 +1,4 @@
-"""DL85Cluster: optimal trees for clustering, scored by an error function.
-
-Tests marked xfail are known bugs. They are strict, so fixing a bug makes
-its test fail until the marker is removed.
-"""
+"""DL85Cluster: optimal trees for clustering, scored by an error function."""
 
 import math
 import pickle
@@ -12,10 +8,6 @@ import pytest
 from sklearn.base import clone
 
 from pytrees import DL85Cluster
-
-
-def known_bug(reason):
-    return pytest.mark.xfail(strict=True, reason=reason)
 
 
 @pytest.fixture
