@@ -8,23 +8,6 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::Formatter;
 
-/// Which search to run.
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, Eq, PartialEq)]
-#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
-pub enum SearchStrategy {
-    /// Optimal tree of depth at most 2, minimising the error.
-    Depth2ErrorMinimizer,
-    /// Tree of depth at most 2 maximising information gain.
-    Depth2InfoGainMaximizer,
-    /// LGDT with the error-minimising depth-2 lookahead.
-    LGDTErrorMinimizer,
-    /// LGDT with the information-gain depth-2 lookahead.
-    LGDTInfoGainMaximizer,
-    /// DL8.5, optimal at any depth.
-    #[default]
-    DL85,
-}
-
 /// Why a search could not produce a tree.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum FitError {

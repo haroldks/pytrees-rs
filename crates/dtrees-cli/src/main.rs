@@ -1,7 +1,7 @@
 use clap::Parser;
 use dtrees_rs::algorithms::common::errors::NativeError;
 use dtrees_rs::algorithms::common::heuristics::Heuristic;
-use dtrees_rs::algorithms::common::types::{NodeDataType, SearchStatistics, SearchStrategy};
+use dtrees_rs::algorithms::common::types::{NodeDataType, SearchStatistics};
 use dtrees_rs::algorithms::greedy::LGDTBuilder;
 use dtrees_rs::algorithms::optimal::depth2::{
     ErrorMinimizer, InfoGainMaximizer, OptimalDepth2Tree,
@@ -15,7 +15,7 @@ use std::process::ExitCode;
 
 mod args;
 
-use args::{ArgCommand, MainApp};
+use args::{ArgCommand, MainApp, Objective};
 
 fn main() -> ExitCode {
     match run(MainApp::parse()) {
@@ -48,19 +48,7 @@ fn run(app: MainApp) -> Result<(), Box<dyn std::error::Error>> {
                 return Err(format!("d2 needs a depth of 1 or 2, not {depth}").into());
             }
 
-            let learner: Box<dyn OptimalDepth2Tree> = match objective {
-                SearchStrategy::Depth2ErrorMinimizer => {
-                    Box::<ErrorMinimizer<NativeError>>::default()
-                }
-                SearchStrategy::Depth2InfoGainMaximizer => {
-                    Box::<InfoGainMaximizer<NativeError>>::default()
-                }
-                other => {
-                    return Err(format!("d2 cannot optimise {other:?}").into());
-                }
-            };
-
-            tree = learner.fit(support, depth, &mut cover, None)?;
+            tree = depth2_solver(objective).fit(support, depth, &mut cover, None)?;
         }
 
         ArgCommand::Lgdt {
@@ -69,22 +57,10 @@ fn run(app: MainApp) -> Result<(), Box<dyn std::error::Error>> {
             objective,
             print_config,
         } => {
-            let obejective_fn: Box<dyn OptimalDepth2Tree> = match objective {
-                SearchStrategy::Depth2ErrorMinimizer => {
-                    Box::<ErrorMinimizer<NativeError>>::default()
-                }
-                SearchStrategy::Depth2InfoGainMaximizer => {
-                    Box::<InfoGainMaximizer<NativeError>>::default()
-                }
-                other => {
-                    return Err(format!("lgdt cannot optimise {other:?}").into());
-                }
-            };
-
             let mut learner = LGDTBuilder::default()
                 .min_support(support)
                 .max_depth(depth)
-                .search(obejective_fn)
+                .search(depth2_solver(objective))
                 .build()?;
 
             learner.fit(&mut cover)?;
@@ -151,4 +127,12 @@ fn run(app: MainApp) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+/// The depth-2 solver for `objective`.
+fn depth2_solver(objective: Objective) -> Box<dyn OptimalDepth2Tree> {
+    match objective {
+        Objective::Error => Box::<ErrorMinimizer<NativeError>>::default(),
+        Objective::InformationGain => Box::<InfoGainMaximizer<NativeError>>::default(),
+    }
 }

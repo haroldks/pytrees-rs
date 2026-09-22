@@ -1,6 +1,6 @@
-use clap::{arg, Parser, Subcommand};
+use clap::{arg, Parser, Subcommand, ValueEnum};
 use dtrees_rs::algorithms::common::types::{
-    BranchingPolicy, LowerBoundPolicy, OptimalDepth2Policy, SearchHeuristic, SearchStrategy,
+    BranchingPolicy, LowerBoundPolicy, OptimalDepth2Policy, SearchHeuristic,
 };
 use std::path::PathBuf;
 
@@ -80,9 +80,9 @@ pub enum ArgCommand {
         #[arg(short, long, default_value_t = 2)]
         depth: usize,
 
-        /// Objective: error or information gain
-        #[arg(short, long, value_enum, default_value_t = SearchStrategy::Depth2ErrorMinimizer)]
-        objective: SearchStrategy,
+        /// What the tree optimises
+        #[arg(short, long, value_enum, default_value_t = Objective::Error)]
+        objective: Objective,
     },
 
     /// LGDT: a greedy tree whose tests are chosen with a depth-2 lookahead
@@ -95,12 +95,21 @@ pub enum ArgCommand {
         #[arg(short, long)]
         depth: usize,
 
-        /// Objective of the depth-2 lookahead: error or information gain
-        #[arg(short, long, value_enum, default_value_t = SearchStrategy::Depth2ErrorMinimizer)]
-        objective: SearchStrategy,
+        /// What the depth-2 lookahead optimises
+        #[arg(short, long, value_enum, default_value_t = Objective::Error)]
+        objective: Objective,
 
         /// Print the configuration
         #[arg(long, default_value_t = false)]
         print_config: bool,
     },
+}
+
+/// What a depth-2 tree optimises.
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum Objective {
+    /// Minimise the misclassification error
+    Error,
+    /// Maximise the information gain
+    InformationGain,
 }

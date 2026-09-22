@@ -43,6 +43,7 @@ dtrees-rs --input data.txt --print-tree d2 --depth 2
 | `--depth2-policy` | `enabled` | Use the depth-2 solver for the last two levels. |
 | `--lb` | `disabled` | `similarity` enables the similarity lower bound. |
 | `-b, --branching-policy` | `default` | `dynamic` searches first the branch with the higher lower bound. |
+| `--always-sort` | | Sort the features by the heuristic at every node, not only at the root. |
 | `--max-error` | `inf` | Initial upper bound on the error. |
 | `--print-config` | | Print the configuration. |
 
@@ -52,7 +53,7 @@ dtrees-rs --input data.txt --print-tree d2 --depth 2
 |---|---|---|
 | `-d, --depth` | required for `lgdt`, `2` for `d2` | Maximum depth (1 or 2 for `d2`). |
 | `-s, --support` | `1` | Minimum number of rows in each leaf. |
-| `-o, --objective` | `depth2-error-minimizer` | `depth2-error-minimizer` (misclassifications) or `depth2-info-gain-maximizer` (information gain). |
+| `-o, --objective` | `error` | What the tree (`d2`) or the lookahead (`lgdt`) optimises: `error` (misclassifications) or `information-gain`. |
 
 `dtrees-rs <command> --help` lists every option.
 
