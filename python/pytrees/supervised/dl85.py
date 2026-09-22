@@ -43,7 +43,8 @@ class DL85Classifier(ClassifierMixin, TreeClassifier, BaseEstimator):
 
     similarity_lb : bool, default=True
         Bound the error of a node from similar nodes already solved, to prune
-        earlier. Turned off when any rule is given.
+        earlier. Turned off when a rule or an ``error_function`` is given,
+        since it is only valid for the built-in error.
 
     dynamic_branching : bool, default=True
         Search first the branch with the higher known lower bound. Turned off
@@ -72,7 +73,10 @@ class DL85Classifier(ClassifierMixin, TreeClassifier, BaseEstimator):
     error_function : callable, optional
         ``error_function(data) -> (error, prediction)``, called at each leaf
         with what ``error_function_input`` selects. Replaces the built-in
-        misclassification error.
+        misclassification error; the tree then minimises the sum of the leaf
+        errors. ``prediction`` is the index of a class in ``classes_``. With
+        ``"indices"``, the depth-2 solver is not used, since it works from
+        class counts.
 
     Attributes
     ----------

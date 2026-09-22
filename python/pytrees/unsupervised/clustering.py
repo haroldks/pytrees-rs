@@ -29,7 +29,10 @@ class DL85Cluster(ClusterMixin, DecisionTree, BaseEstimator):
         Seconds before the search stops with the best tree found so far.
     always_sort : bool, default=True
     heuristic : {"none", "gini", "information_gain", "weighted_entropy"}, default="none"
-    similarity_lb, dynamic_branching : bool, default=True
+    dynamic_branching : bool, default=True
+    similarity_lb : bool, default=True
+        Has no effect: the similarity bound is only valid for the
+        misclassification error, not for clustering errors.
     discrepancy, gain, topk, restart, purity : optional
         Rules from ``pytrees.rules``, as for ``DL85Classifier``.
     error_function : callable, optional

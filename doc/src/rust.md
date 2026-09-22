@@ -61,6 +61,50 @@ dl85.fit(&mut cover)?;
 
 The `examples/` directory of the crate has one program per search rule.
 
+### Custom error functions
+
+DL8.5 minimises the sum of the errors of the leaves, and the error of a leaf
+is whatever the `ErrorWrapper` passed to `error_function` computes. It
+receives the class counts of the leaf, or its row ids when the builder is set
+to `node_exposed_data(NodeDataType::Tids)`, and returns
+`(error, predicted class)`:
+
+```rust
+use dtrees_rs::algorithms::common::errors::ErrorWrapper;
+
+/// Misclassification cost that differs per class.
+#[derive(Clone)]
+struct CostSensitive {
+    costs: Vec<f64>,
+}
+
+impl ErrorWrapper for CostSensitive {
+    fn compute(&self, class_counts: &[usize]) -> (f64, f64) {
+        let total: f64 = class_counts.iter().zip(&self.costs).map(|(&n, c)| n as f64 * c).sum();
+        // Predict the class whose rows are the costliest to get wrong.
+        (0..class_counts.len())
+            .map(|k| (total - class_counts[k] as f64 * self.costs[k], k as f64))
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+            .unwrap_or((0.0, 0.0))
+    }
+}
+
+let error_fn = Box::new(CostSensitive { costs: vec![1.0, 5.0] });
+let mut dl85 = DL85Builder::default()
+    .max_depth(3)
+    .cache(Box::<Trie>::default())
+    .heuristic(Box::<NoHeuristic>::default())
+    .depth2_search(Box::new(ErrorMinimizer::new(error_fn.clone())))
+    .error_function(error_fn)
+    .build()?;
+```
+
+A plain function works too, through `NativeError::new`. Two options assume
+the misclassification error: the similarity lower bound
+(`LowerBoundPolicy::Similarity`) is only valid when each row adds at most 1
+to the error, and the depth-2 solver needs class counts, so it is skipped
+with row ids.
+
 ## contree-rs
 
 Optimal decision trees over continuous features: `ConTree` (exact) and

@@ -6,12 +6,12 @@ that follow the scikit-learn API.
 
 | Estimator | Features | What it learns |
 |---|---|---|
-| `DL85Classifier` | binary | The optimal tree of a given depth (DL8.5), with optional anytime search strategies |
+| `DL85Classifier` | binary | The optimal tree of a given depth (DL8.5) for the misclassification error or an error of your own, with optional anytime search strategies |
 | `LGDTClassifier` | binary | A tree grown top-down whose tests are chosen with a depth-2 lookahead (LGDT) |
 | `ConTreeClassifier` | continuous | The optimal tree of a given depth (ConTree), with an anytime variant |
 | `DL85Cluster` | binary | A clustering whose clusters are the leaves of an optimal tree |
 
-"Optimal" means the tree with the fewest training errors among all trees of
+"Optimal" means the tree with the lowest training error among all trees of
 at most `max_depth` levels, with at least `min_sup` training rows per leaf.
 Finding it can take a long time on large problems, so every search has a time
 limit and reports whether it proved optimality (`status_`).
@@ -85,6 +85,33 @@ clf.fit_anytime(X_bin, y, callback=lambda error, seconds, status: print(seconds,
 
 `ConTreeClassifier` has the same method, and `use_lds=True` makes its plain
 `fit` anytime too.
+
+### Custom error functions
+
+DL8.5 finds the tree that minimises the sum of its leaf errors, and the error
+of a leaf does not have to be the number of misclassified rows. Pass your own
+as `error_function`: it receives the class counts of a leaf (or its row
+indices, with `error_function_input="indices"`) and returns the error and the
+predicted class. Class-dependent costs, sample weights and clustering
+objectives (`DL85Cluster` works this way) all fit:
+
+```python
+import numpy as np
+
+y_bin = (y == 2).astype(int)   # is it Iris virginica?
+costs = np.array([1.0, 5.0])   # missing a virginica costs five times more
+
+def cost_sensitive(class_counts):
+    counts = np.asarray(class_counts, dtype=float)
+    per_prediction = [(costs * counts).sum() - costs[k] * counts[k] for k in range(len(counts))]
+    best = int(np.argmin(per_prediction))
+    return per_prediction[best], best
+
+clf = DL85Classifier(max_depth=3, error_function=cost_sensitive).fit(X_bin, y_bin)
+```
+
+The [documentation](https://haroldks.github.io/pytrees-rs/estimators/dl85.html#custom-error-functions)
+covers the details.
 
 All estimators can be cloned, pickled and used in `Pipeline`, `GridSearchCV`
 or `cross_val_score`. Their fitted tree is in `tree_`, with scikit-learn's

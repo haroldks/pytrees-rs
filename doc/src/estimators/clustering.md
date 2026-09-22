@@ -29,12 +29,14 @@ model = DL85Cluster(max_depth=3, min_sup=20).fit(X_binary, X_error=X_measurement
 ## Parameters
 
 `min_sup`, `max_depth`, `max_error`, `max_time`, `always_sort`, `heuristic`,
-`similarity_lb`, `dynamic_branching` and the [search rules](rules.md) work as
-for [DL85Classifier](dl85.md); here `min_sup` is the minimum cluster size.
+`dynamic_branching` and the [search rules](rules.md) work as for
+[DL85Classifier](dl85.md); here `min_sup` is the minimum cluster size.
+`similarity_lb` has no effect, because the similarity bound is only valid for
+the misclassification error.
 
 | Parameter | Default | Description |
 |---|---|---|
-| `error_function` | `None` | `error_function(indices) -> (error, value)`, called with the row indices of a candidate cluster. Replaces the distance to the centroid. `value` is ignored. |
+| `error_function` | `None` | `error_function(indices) -> (error, value)`, called with the row indices of a candidate cluster. Replaces the distance to the centroid, so any measure of how tight a cluster is can be used. `value` is ignored. |
 
 ## Fitted attributes
 
