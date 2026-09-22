@@ -681,7 +681,7 @@ where
         {
             let key = index.to_cache_key(path);
             if let Some(node) = self.cache.node(&key) {
-                similarity.update(cover.sparse(), node.error())
+                similarity.update(cover.sparse(), node.lower_bound())
             }
         }
         cover.backtrack();
