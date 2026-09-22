@@ -1,3 +1,8 @@
+/// What the search knows about one subproblem.
+///
+/// `error` is the best error found so far, an upper bound on the optimum;
+/// `lower_bound` is a proven lower bound. The two meet when the subproblem is
+/// solved.
 #[derive(Copy, Clone, Debug)]
 pub struct CacheEntry {
     item: usize,
@@ -13,6 +18,7 @@ pub struct CacheEntry {
     is_leaf: bool,
 }
 impl CacheEntry {
+    /// An unsolved entry reached by `item`.
     pub fn new(item: usize) -> Self {
         Self {
             item,
@@ -29,46 +35,57 @@ impl CacheEntry {
         }
     }
 
+    /// The item leading to this entry from its parent in the trie.
     pub fn item(&self) -> usize {
         self.item
     }
 
+    /// The feature tested at this node, `usize::MAX` if none.
     pub fn test(&self) -> usize {
         self.test
     }
 
+    /// Best error found so far.
     pub fn error(&self) -> f64 {
         self.error
     }
 
+    /// Upper bound the subproblem was last solved under.
     pub fn upper_bound(&self) -> f64 {
         self.upper_bound
     }
 
+    /// Proven lower bound on the error.
     pub fn lower_bound(&self) -> f64 {
         self.lower_bound
     }
 
+    /// Score used by searches that optimise another metric.
     pub fn metric(&self) -> f64 {
         self.metric
     }
 
+    /// Number of instances in the subproblem.
     pub fn size(&self) -> usize {
         self.size
     }
 
+    /// Error of the subproblem as a leaf.
     pub fn leaf_error(&self) -> f64 {
         self.leaf_error
     }
 
+    /// Prediction of the subproblem as a leaf.
     pub fn out(&self) -> f64 {
         self.out
     }
 
+    /// Whether the subproblem is solved.
     pub fn is_optimal(&self) -> bool {
         self.is_optimal
     }
 
+    /// Whether the best subtree is a leaf.
     pub fn is_leaf(&self) -> bool {
         self.is_leaf
     }
@@ -108,6 +125,7 @@ impl Default for CacheEntry {
     }
 }
 
+/// Chained setters for a [`CacheEntry`].
 pub struct CacheEntryUpdater<'a> {
     node: &'a mut CacheEntry,
 }
@@ -161,11 +179,13 @@ impl<'a> CacheEntryUpdater<'a> {
         self
     }
 
+    /// Marks the entry as solved.
     pub fn optimal(self) -> Self {
         self.node.is_optimal = true;
         self
     }
 
+    /// Makes the entry a leaf, with its leaf error as its error.
     pub fn leaf(self) -> Self {
         self.node.is_leaf = true;
         self.node.error = self.node.leaf_error;

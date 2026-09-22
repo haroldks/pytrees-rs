@@ -4,9 +4,12 @@ use crate::algorithms::common::types::{
 };
 use serde::{Deserialize, Serialize};
 
+/// Settings of a [`DL85`](super::DL85) search. Set them through
+/// [`DL85Builder`](super::DL85Builder).
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct DL85Config {
     pub(crate) base: BaseSearchConfig,
+    /// Sort the features by the heuristic at every node, not only at the root.
     pub(crate) always_sort: bool,
     pub(crate) cache_init_size: usize,
     pub(crate) cache_init_strategy: CacheInitStrategy,
@@ -32,14 +35,17 @@ impl Default for DL85Config {
 }
 
 impl DL85Config {
+    /// Whether nodes two levels from the bottom use the depth-2 solver.
     pub fn use_depth2_optimization(&self) -> bool {
         self.optimal_depth2policy == OptimalDepth2Policy::Enabled
     }
 
+    /// Whether the branch with the higher lower bound is searched first.
     pub fn use_dynamic_branching(&self) -> bool {
         self.branching_policy == BranchingPolicy::Dynamic
     }
 
+    /// Whether the similarity lower bound is used.
     pub fn use_similarity_lb(&self) -> bool {
         self.lower_bound_policy == LowerBoundPolicy::Similarity
     }

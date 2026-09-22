@@ -1,8 +1,12 @@
+//! The rules that define the DL8.5 problem, plus the time limit. None of them
+//! is relaxable except, optionally, the time limit.
+
 use crate::algorithms::optimal::rules::core::Reason;
 use crate::algorithms::optimal::rules::{Rule, RuleContext, RuleResult, RuleState};
 use crate::globals::float_is_null;
 use std::time::Instant;
 
+/// Turns nodes at the maximum depth into leaves.
 #[derive(Debug)]
 pub struct MaxDepthRule {
     max_depth: usize,
@@ -10,6 +14,7 @@ pub struct MaxDepthRule {
 }
 
 impl MaxDepthRule {
+    /// A rule for trees of at most `max_depth` levels.
     pub fn new(max_depth: usize) -> Self {
         Self {
             max_depth,
@@ -54,6 +59,7 @@ impl Rule for MaxDepthRule {
     }
 }
 
+/// Turns nodes with fewer than `min_support` instances into leaves.
 #[derive(Debug)]
 pub struct MinSupportRule {
     min_support: usize,
@@ -61,6 +67,7 @@ pub struct MinSupportRule {
 }
 
 impl MinSupportRule {
+    /// A rule requiring `min_support` instances to split a node.
     pub fn new(min_support: usize) -> Self {
         Self {
             min_support,
@@ -105,6 +112,10 @@ impl Rule for MinSupportRule {
     }
 }
 
+/// Stops the search once the time limit is reached.
+///
+/// It also serves as the search's clock. When made relaxable, reaching the
+/// limit ends the current pass and the clock restarts for the next one.
 #[derive(Debug)]
 pub struct TimeLimitRule {
     time_limit: f64,
@@ -121,7 +132,7 @@ impl Default for TimeLimitRule {
 }
 
 impl TimeLimitRule {
-    /// Create a new rule that stops search after the specified time limit (in seconds)
+    /// A rule that stops the search after `time_limit` seconds.
     pub fn new(time_limit: f64) -> Self {
         Self {
             time_limit,
@@ -131,19 +142,23 @@ impl TimeLimitRule {
             relaxable: false,
         }
     }
+    /// Makes the limit apply per pass rather than to the whole search.
     pub fn relaxable(mut self) -> Self {
         self.relaxable = true;
         self
     }
 
+    /// Seconds since the rule was activated or reset.
     pub fn elapsed_seconds(&self) -> f64 {
         self.start_time.elapsed().as_secs_f64()
     }
 
+    /// Seconds left before the limit, never negative.
     pub fn remaining_seconds(&self) -> f64 {
         (self.time_limit - self.elapsed_seconds()).max(0.0)
     }
 
+    /// Whether the limit is reached.
     pub fn exhausted(&self) -> bool {
         self.elapsed_seconds() >= self.time_limit
     }
@@ -210,6 +225,8 @@ impl Rule for TimeLimitRule {
     }
 }
 
+/// Stops at nodes whose lower bound reaches the upper bound, or whose upper
+/// bound is zero: no subtree there can improve the parent.
 #[derive(Debug)]
 pub struct LowerBoundRule {
     priority: u8,
@@ -223,6 +240,7 @@ impl Default for LowerBoundRule {
 }
 
 impl LowerBoundRule {
+    /// A new, inactive rule.
     pub fn new() -> Self {
         Self {
             priority: 100,
@@ -277,8 +295,9 @@ impl Rule for LowerBoundRule {
     }
 }
 
+/// Stops at nodes already solved in an earlier visit: their error and the
+/// bound they were solved under are both known. Always active.
 #[derive(Debug)]
-/// Always active: it stops a node once its error and upper bound are known.
 pub struct UsableNodeRule {
     priority: u8,
 }
@@ -290,6 +309,7 @@ impl Default for UsableNodeRule {
 }
 
 impl UsableNodeRule {
+    /// A new rule.
     pub fn new() -> Self {
         Self { priority: 101 }
     }
@@ -333,6 +353,7 @@ impl Rule for UsableNodeRule {
     }
 }
 
+/// Turns nodes with zero error into leaves.
 #[derive(Debug)]
 pub struct PureNodeRule {
     priority: u8,
@@ -345,6 +366,7 @@ impl Default for PureNodeRule {
 }
 
 impl PureNodeRule {
+    /// A new rule.
     pub fn new() -> Self {
         Self { priority: 99 }
     }
@@ -386,6 +408,9 @@ impl Rule for PureNodeRule {
     }
 }
 
+/// Applies the similarity lower bound of DL8.5: stops when the bound reaches
+/// the upper bound, and makes the node a leaf when its error already meets
+/// the bound.
 #[derive(Debug)]
 pub struct SimilarityLowerBoundRule {
     priority: u8,
@@ -399,6 +424,7 @@ impl Default for SimilarityLowerBoundRule {
 }
 
 impl SimilarityLowerBoundRule {
+    /// A new, inactive rule.
     pub fn new() -> Self {
         Self {
             priority: 100,

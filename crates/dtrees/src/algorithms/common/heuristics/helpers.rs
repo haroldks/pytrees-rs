@@ -1,3 +1,6 @@
+//! Split scores computed from class counts.
+
+/// Shannon entropy (base 2) of a class distribution.
 #[inline]
 pub fn entropy(distribution: &[usize]) -> f64 {
     let sum: usize = distribution.iter().sum();
@@ -15,6 +18,7 @@ pub fn entropy(distribution: &[usize]) -> f64 {
     entropy
 }
 
+/// Weighted Gini impurity of the two children of a split.
 #[inline]
 pub fn gini_index(
     parent_distribution: &[usize],
@@ -40,7 +44,7 @@ pub fn gini_index(
 #[inline]
 fn calculate_branch_impurity(distribution: &[usize], total: f64) -> f64 {
     if total < 1.0 {
-        return 0.0; // Empty branch has zero impurity
+        return 0.0;
     }
 
     1.0 - distribution
@@ -52,6 +56,7 @@ fn calculate_branch_impurity(distribution: &[usize], total: f64) -> f64 {
         .sum::<f64>()
 }
 
+/// Entropy of the parent minus the weighted entropy of the children.
 #[inline]
 pub fn information_gain(
     parent_distribution: &[usize],
@@ -75,6 +80,7 @@ pub fn information_gain(
     parent_entropy - (left_weight * left_entropy + right_weight * right_entropy)
 }
 
+/// Weighted entropy of the two children; infinite when a child is empty.
 #[inline]
 pub fn weighted_entropy(
     parent_distribution: &[usize],
@@ -97,7 +103,6 @@ pub fn weighted_entropy(
         return f64::INFINITY;
     }
 
-    // Calculate entropy for each branch
     let left_entropy = entropy(left_distribution);
     let right_entropy = entropy(right_distribution);
 

@@ -1,12 +1,18 @@
+//! Binary decision trees stored as an arena of nodes.
+
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+/// The content of a tree node.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct NodeInfos {
-    // Specific data for decision trees
+    /// The feature tested by an internal node; `None` for a leaf.
     pub test: Option<usize>,
+    /// Error of the subtree rooted here.
     pub error: f64,
+    /// Score of the node for searches that optimise another metric.
     pub metric: Option<f64>,
+    /// The prediction of a leaf.
     pub out: Option<f64>,
 }
 
@@ -27,11 +33,16 @@ impl NodeInfos {
     }
 }
 
+/// A node of a [`Tree`]. Child indices of `0` mean "no child".
 #[derive(Copy, Clone, Serialize, Deserialize, Debug, Default)]
 pub struct TreeNode {
+    /// What the node tests or predicts.
     pub value: NodeInfos,
+    /// The node's own index in the arena.
     pub index: usize,
+    /// Index of the child where the tested feature is 0.
     pub left: usize,
+    /// Index of the child where the tested feature is 1.
     pub right: usize,
 }
 
@@ -46,6 +57,7 @@ impl TreeNode {
     }
 }
 
+/// A binary decision tree stored as an arena of nodes, the root at index 0.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Tree {
     tree: Vec<TreeNode>,
@@ -76,11 +88,11 @@ impl Tree {
         self.tree.len()
     }
 
+    /// Number of nodes reachable from the root.
     pub fn actual_len(&self) -> usize {
         self.count_node_recursion(self.get_root_index())
     }
 
-    // ! Is it still relevant
     fn count_node_recursion(&self, node_index: usize) -> usize {
         let mut left_index = 0;
         let mut right_index = 0;
@@ -105,6 +117,8 @@ impl Tree {
         count + 1
     }
 
+    /// Appends `node` as the left or right child of `parent` and returns its
+    /// index. The first node added becomes the root and `parent` is ignored.
     pub fn add_node(&mut self, parent: usize, is_left: bool, mut node: TreeNode) -> usize {
         node.index = self.tree.len();
         self.tree.push(node);
@@ -183,6 +197,7 @@ impl Tree {
         }
     }
 
+    /// A complete tree skeleton of the given depth, with empty nodes.
     pub fn empty_tree(depth: usize) -> Tree {
         let mut tree = Tree::new();
         let value = NodeInfos::new();
@@ -209,8 +224,6 @@ impl Tree {
         }
     }
 
-    // New functions
-
     pub fn root_details(&self) -> NodeInfos {
         self.get_node(self.get_root_index())
             .map(|node| node.value)
@@ -226,7 +239,7 @@ impl Tree {
     pub fn root_error(&self) -> f64 {
         self.get_node(self.get_root_index())
             .map(|node| node.value.error)
-            .unwrap_or(f64::MAX) // Or another sensible default
+            .unwrap_or(f64::MAX)
     }
 
     pub fn node_error(&self, index: usize) -> f64 {
@@ -259,6 +272,7 @@ impl Tree {
         self.get_node(index).and_then(|node| node.value.test)
     }
 
+    /// A builder that edits the node at `index`.
     pub fn update_node(&mut self, index: usize) -> Option<NodeUpdater<'_>> {
         self.get_node_mut(index).map(NodeUpdater::new)
     }
@@ -267,18 +281,22 @@ impl Tree {
         self.get_node_mut(0).map(NodeUpdater::new)
     }
 
+    /// `(left, right)` child indices of the node at `index`; `0` means none.
     pub fn node_children(&self, index: usize) -> (usize, usize) {
         self.get_node(index)
             .map_or((0, 0), |node| (node.left, node.right))
     }
 
+    /// Sets the `(error, prediction)` of the node at `index`.
     pub fn update_leaf_node(&mut self, index: usize, error: (f64, f64)) -> &mut Self {
         if let Some(updater) = self.update_node(index) {
-            updater.error(error.0).output(error.1); // Maybe not the leaf
+            updater.error(error.0).output(error.1);
         }
         self
     }
 
+    /// Copies the subtree of `origin` rooted at `origin_index` onto the node at
+    /// `index`, creating children as needed.
     pub fn update_subtree(&mut self, index: usize, origin: &Tree, origin_index: usize) {
         let (left_index, right_index) = self.update_node(index).map_or((0, 0), |updater| {
             updater
@@ -302,6 +320,8 @@ impl Tree {
         }
     }
 
+    /// Merges pairs of sibling leaves that predict the same class into their
+    /// parent.
     pub fn clean_orphaned_nodes(&mut self) {
         if self.is_empty() {
             return;
@@ -362,6 +382,7 @@ impl fmt::Display for Tree {
     }
 }
 
+/// Chained setters for one node of a [`Tree`].
 pub struct NodeUpdater<'a> {
     node: &'a mut TreeNode,
 }
@@ -406,8 +427,9 @@ impl<'a> NodeUpdater<'a> {
         self
     }
 
+    /// Detaches the node's children. The tested feature is kept; use
+    /// [`Self::clean_test`] to clear it.
     pub fn leaf(self) -> Self {
-        // self.node.value.test = None;
         self.node.left = 0;
         self.node.right = 0;
         self

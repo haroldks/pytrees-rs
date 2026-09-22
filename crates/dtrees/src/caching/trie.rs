@@ -30,6 +30,7 @@ impl TrieNode {
     }
 }
 
+/// A [`Caching`] implementation as a trie of items stored in an arena.
 #[derive(Default)]
 pub struct Trie {
     arena: Vec<TrieNode>,
@@ -113,6 +114,7 @@ impl Caching for Trie {
 }
 
 impl Trie {
+    /// An empty trie.
     pub fn new() -> Self {
         Self {
             arena: Vec::new(),
@@ -214,13 +216,5 @@ mod trie_test {
         }
 
         itemset.remove(1);
-
-        // let mut_infos = cache.contains(Index(idx().unwrap()));
-        // println!("Should be none = {:#?}", mut_infos);
-        //
-        // itemset.insert(1, 1);
-        // let infos = cache.node(Index(idx.get_position().unwrap()));
-        //
-        // println!("Should have 33.0 as ub: {:#?}", infos);
     }
 }

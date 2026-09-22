@@ -12,6 +12,31 @@ use crate::algorithms::optimal::rules::common::{
 use crate::algorithms::optimal::rules::{Rule, RuleManager};
 use crate::caching::Caching;
 
+/// Builder for [`DL85`].
+///
+/// A cache, a depth-2 solver, an error function and a heuristic are required.
+/// The pure-node, lower-bound and already-solved rules are always included;
+/// depth, support and time limits add their own rules.
+///
+/// ```
+/// use dtrees_rs::algorithms::common::errors::NativeError;
+/// use dtrees_rs::algorithms::common::heuristics::NoHeuristic;
+/// use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
+/// use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
+/// use dtrees_rs::caching::Trie;
+///
+/// let error_fn = Box::<NativeError>::default();
+/// let dl85 = DL85Builder::default()
+///     .max_depth(3)
+///     .min_support(5)
+///     .max_time(60.0)
+///     .cache(Box::<Trie>::default())
+///     .heuristic(Box::<NoHeuristic>::default())
+///     .depth2_search(Box::new(ErrorMinimizer::new(error_fn.clone())))
+///     .error_function(error_fn)
+///     .build();
+/// assert!(dl85.is_ok());
+/// ```
 pub struct DL85Builder<C, D, E, H>
 where
     C: Caching + ?Sized,
@@ -58,10 +83,12 @@ where
     E: ErrorWrapper + ?Sized,
     H: Heuristic + ?Sized,
 {
+    /// A builder with the default rules and no limits.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Minimum number of instances in each leaf.
     pub fn min_support(mut self, value: usize) -> Self {
         self.config.base.min_support = value;
         self.nodes_rules
@@ -69,6 +96,7 @@ where
         self
     }
 
+    /// Maximum depth of the tree.
     pub fn max_depth(mut self, value: usize) -> Self {
         self.config.base.max_depth = value;
         self.nodes_rules
@@ -76,17 +104,21 @@ where
         self
     }
 
+    /// Only trees with a lower error are accepted.
     pub fn max_error(mut self, value: f64) -> Self {
         self.config.base.max_error = value;
         self
     }
 
+    /// Time limit in seconds for the whole search.
     pub fn max_time(mut self, value: f64) -> Self {
         self.config.base.max_time = value;
         self.time_rule = TimeLimitRule::new(value);
         self
     }
 
+    /// Adds the rules every search needs: already-solved nodes, pure nodes
+    /// and the lower bound. Called by [`Self::new`].
     pub fn default_rules(mut self) -> Self {
         self.nodes_rules.add_rule(Box::new(UsableNodeRule::new()));
         self.nodes_rules.add_rule(Box::new(PureNodeRule::new()));
@@ -94,16 +126,19 @@ where
         self
     }
 
+    /// The solver used for depth-2 subtrees.
     pub fn depth2_search(mut self, search: Box<D>) -> Self {
         self.depth2_search = Some(search);
         self
     }
 
+    /// Adds a rule evaluated on entering each node.
     pub fn add_node_rule(mut self, rule: Box<dyn Rule>) -> Self {
         self.nodes_rules.add_rule(rule);
         self
     }
 
+    /// Adds several node rules.
     pub fn add_node_rules(mut self, rules: Vec<Box<dyn Rule>>) -> Self {
         for rule in rules {
             self.nodes_rules.add_rule(rule)
@@ -111,11 +146,15 @@ where
         self
     }
 
+    /// Adds a rule evaluated before branching on each candidate feature,
+    /// such as [`DiscrepancyRule`](crate::algorithms::optimal::rules::DiscrepancyRule)
+    /// or [`TopkRule`](crate::algorithms::optimal::rules::TopkRule).
     pub fn add_search_rule(mut self, rule: Box<dyn Rule>) -> Self {
         self.search_rules.add_rule(rule);
         self
     }
 
+    /// Adds several search rules.
     pub fn add_search_rules(mut self, rules: Vec<Box<dyn Rule>>) -> Self {
         for rule in rules {
             self.search_rules.add_rule(rule)
@@ -123,59 +162,70 @@ where
         self
     }
 
+    /// Sort the features by the heuristic at every node, not only at the root.
     pub fn always_sort(mut self, value: bool) -> Self {
         self.config.always_sort = value;
         self
     }
 
+    /// Initial capacity of the cache. Not yet used by the search.
     pub fn cache_init_size(mut self, value: usize) -> Self {
         self.config.cache_init_size = value;
         self
     }
 
+    /// How the cache is allocated. Not yet used by the search.
     pub fn cache_init_strategy(mut self, value: CacheInitStrategy) -> Self {
         self.config.cache_init_strategy = value;
         self
     }
 
+    /// Whether to use the depth-2 solver.
     pub fn specialization(mut self, value: OptimalDepth2Policy) -> Self {
         self.config.optimal_depth2policy = value;
         self
     }
 
+    /// Whether to use the similarity lower bound.
     pub fn lower_bound_strategy(mut self, value: LowerBoundPolicy) -> Self {
         self.config.lower_bound_policy = value;
         self
     }
 
+    /// Which branch of a feature is searched first.
     pub fn branching_strategy(mut self, value: BranchingPolicy) -> Self {
         self.config.branching_policy = value;
         self
     }
 
+    /// What the error function receives: class counts or instance ids.
     pub fn node_exposed_data(mut self, value: NodeDataType) -> Self {
         self.config.data_type = value;
         self
     }
 
+    /// The cache of subproblems.
     pub fn cache(mut self, value: Box<C>) -> Self {
         self.cache = Some(value);
         self
     }
 
+    /// The error of a leaf.
     pub fn error_function(mut self, value: Box<E>) -> Self {
         self.error_fn = Some(value);
         self
     }
 
+    /// The heuristic used to order features.
     pub fn heuristic(mut self, value: Box<H>) -> Self {
         self.heuristic_fn = Some(value);
         self
     }
 
+    /// Builds the search, or says which required part is missing.
     pub fn build(self) -> Result<DL85<C, D, E, H>, String> {
         let cache = self.cache.ok_or("Cache is required")?;
-        let depth2 = self.depth2_search.ok_or("Neee depth 2 algorithm")?;
+        let depth2 = self.depth2_search.ok_or("Depth-2 search is required")?;
         let error_function = self.error_fn.ok_or("Error function is required")?;
         let heuristic = self.heuristic_fn.ok_or("Heuristic is required")?;
 

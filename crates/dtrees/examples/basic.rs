@@ -1,3 +1,8 @@
+//! DL8.5 with a Top-k search rule on `test_data/anneal.txt`, printing the
+//! tree and the search statistics.
+//!
+//!     cargo run -p dtrees-rs --example basic
+
 use dtrees_rs::algorithms::common::errors::NativeError;
 use dtrees_rs::algorithms::common::heuristics::InformationGain;
 use dtrees_rs::algorithms::common::types::OptimalDepth2Policy;
@@ -19,8 +24,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let depth2 = Box::new(ErrorMinimizer::new(error_fn.clone()));
 
     let topk = TopkRule::new(usize::MAX, Box::<Luby>::default());
-    // let gain_rule = GainRule::new(0.0, 0.001, 4.0, Box::new(Monotonic::default()));
-    // let time_rule = TimeLimitRule::new(1.0).relaxable();
 
     let mut algo = DL85Builder::default()
         .max_depth(5)
@@ -28,8 +31,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .max_time(300.0)
         .always_sort(true)
         .add_search_rule(Box::new(topk))
-        // .add_search_rule(Box::new(gain_rule))
-        // .add_search_rule(Box::new(time_rule))
         .specialization(OptimalDepth2Policy::Enabled)
         .cache(Box::<Trie>::default())
         .heuristic(Box::<InformationGain>::default())

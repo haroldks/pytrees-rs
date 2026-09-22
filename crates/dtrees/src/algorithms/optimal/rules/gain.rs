@@ -2,6 +2,13 @@ use crate::algorithms::optimal::rules::core::Reason;
 use crate::algorithms::optimal::rules::helpers::StepStrategy;
 use crate::algorithms::optimal::rules::{Rule, RuleContext, RuleResult, RuleState};
 
+/// Restricts a pass to the paths whose accumulated heuristic loss stays
+/// within a gap.
+///
+/// At each node, choosing a feature other than the best-ranked one loses
+/// the difference between their heuristic scores. The rule cuts the paths
+/// whose total loss exceeds the gap; relaxing it widens the gap by `delta`
+/// times the next step of its [`StepStrategy`], up to `limit`.
 pub struct GainRule {
     gap: f64,
     delta: f64,
@@ -14,6 +21,7 @@ pub struct GainRule {
 }
 
 impl GainRule {
+    /// A rule starting at `gap`, widened in steps of `delta` up to `limit`.
     pub fn new(gap: f64, delta: f64, limit: f64, increment: Box<dyn StepStrategy>) -> Self {
         Self {
             gap,
@@ -27,26 +35,32 @@ impl GainRule {
         }
     }
 
+    /// Sets the evaluation priority.
     pub fn with_priority(mut self, priority: u8) -> Self {
         self.priority = priority;
         self
     }
 
+    /// Sets the number of passes before the rule takes effect.
     pub fn with_delay(mut self, delay: u8) -> Self {
         self.delay = delay;
         self
     }
 
+    /// Sets the gap of the first pass.
     pub fn with_gap(mut self, gap: f64) -> Self {
         self.gap = gap;
         self
     }
 
+    /// Sets the largest gap.
     pub fn with_limit(mut self, limit: f64) -> Self {
         self.limit = limit;
         self
     }
 
+    /// Sets the step of the gap; ignored unless positive. The search sets it
+    /// to the smallest loss seen in the first pass.
     pub fn update_gap_delta(&mut self, delta: f64) {
         if delta <= 0.0 {
             return;
@@ -54,6 +68,7 @@ impl GainRule {
         self.delta = delta;
     }
 
+    /// Lowers the largest gap to `limit`.
     pub fn update_limit(&mut self, limit: f64) {
         self.limit = self.limit.min(limit);
     }
@@ -64,7 +79,6 @@ impl Rule for GainRule {
         if !self.is_active() {
             return RuleResult::continue_search();
         }
-        // println!("gap {} gain {}", self.gap, context.gain);
         if context.gain > self.gap {
             RuleResult::stop_with_bound(f64::INFINITY, Reason::RuleReason)
         } else {

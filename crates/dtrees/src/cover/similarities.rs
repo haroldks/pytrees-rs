@@ -1,5 +1,10 @@
+//! The similarity lower bound of DL8.5.
+
 use crate::cover::reversible_cover::{Difference, ShallowBitset, SparseBitset};
 
+/// Two solved sets of instances and their errors, used to bound the error of
+/// a new set: if a solved set had error `e` and `k` of its instances are
+/// missing from the new set, the new set's error is at least `e - k`.
 #[derive(Debug)]
 pub struct SimilarityCover {
     covers: [Option<ShallowBitset>; 2],
@@ -13,6 +18,7 @@ impl Default for SimilarityCover {
 }
 
 impl SimilarityCover {
+    /// No reference set yet.
     pub fn new() -> Self {
         Self {
             covers: [None, None],
@@ -20,6 +26,8 @@ impl SimilarityCover {
         }
     }
 
+    /// Records a solved set of instances and its error, filling an empty slot
+    /// or replacing the closest reference set.
     pub fn update(&mut self, cover: &SparseBitset, error: f64) {
         let shallow_cover: ShallowBitset = cover.into();
 
@@ -53,6 +61,7 @@ impl SimilarityCover {
         }
     }
 
+    /// The best lower bound the reference sets give for `cover`, at least 0.
     pub fn compute_similarity(&self, cover: &SparseBitset) -> f64 {
         self.covers
             .iter()

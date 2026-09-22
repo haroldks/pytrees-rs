@@ -8,6 +8,8 @@ use crate::cover::Cover;
 use crate::globals::{float_is_null, item};
 use crate::tree::Tree;
 
+/// Depth-2 solver that minimises the error of the tree: the optimal tree of
+/// depth at most 2.
 pub struct ErrorMinimizer<E>
 where
     E: ErrorWrapper + ?Sized,
@@ -131,7 +133,7 @@ where
 
             let left_error = self.error_fn.compute(&left_distribution);
 
-            // The left does not have enough support to be split further
+            // Too few instances on the left to split it again.
             if left_support < 2 * min_sup {
                 candidate_tree
                     .update_node(left_index)
@@ -153,22 +155,20 @@ where
                         continue;
                     }
 
-                    // Here is if the left part of the tree so the classes support of i__left -> j__right
+                    // Left child of `i`, split on `j`.
                     let i_left_j_right_classes_support =
                         deduce_sibling_error(&matrix[j][j], &matrix[i][j]);
                     let j_right_support = matrix[j][j].iter().sum::<usize>();
                     let i_right_j_right_support = matrix[i][j].iter().sum::<usize>();
-                    let i_left_j_right_support = j_right_support - i_right_j_right_support; // Important
-                    let i_left_j_left_support = left_support - i_left_j_right_support; // Important
+                    let i_left_j_right_support = j_right_support - i_right_j_right_support;
+                    let i_left_j_left_support = left_support - i_left_j_right_support;
 
                     if i_left_j_right_support < min_sup || i_left_j_left_support < min_sup {
-                        // Not enough support for the left part of the tree
                         continue;
                     }
 
                     let right_leaf_error = self.error_fn.compute(&i_left_j_right_classes_support);
 
-                    // TODO Upper bound control here
                     if right_leaf_error.0 >= feature_error {
                         continue;
                     }
@@ -177,7 +177,6 @@ where
                         deduce_sibling_error(&left_distribution, &i_left_j_right_classes_support);
                     let left_leaf_error = self.error_fn.compute(&i_left_j_left_classes_support);
 
-                    // TODO Upper bound control here
                     let branch_error = left_leaf_error.0 + right_leaf_error.0;
                     if branch_error >= feature_error {
                         continue;
@@ -214,7 +213,7 @@ where
                 if current_left_error > best_error
                     || right_error.0 >= best_error - current_left_error
                 {
-                    // TODO : Quite not clear
+                    // This candidate cannot beat the best tree found so far.
                     continue;
                 }
             } else {
@@ -224,7 +223,6 @@ where
                 if current_left_error > feature_error
                     || right_error.0 < feature_error - current_left_error
                 {
-                    // TODO : Not clear
                     candidate_tree
                         .update_node(right_index)
                         .map(|updater| updater.error(right_error.0).output(right_error.1));
@@ -236,7 +234,7 @@ where
                     if i == j {
                         continue;
                     }
-                    // Here is if the right part of the tree so the classes support of i__right -> j__right
+                    // Right child of `i`, split on `j`.
                     let i_right_j_right_classes_support = &matrix[i][j];
                     deduce_sibling_error_with_buffer(
                         &matrix[i][i],
@@ -244,16 +242,14 @@ where
                         &mut i_right_j_left_classes_support,
                     );
                     let i_right_j_right_support = matrix[i][j].iter().sum::<usize>();
-                    let i_right_j_left_support = right_support - i_right_j_right_support; // Important
+                    let i_right_j_left_support = right_support - i_right_j_right_support;
 
                     if i_right_j_left_support < min_sup || i_right_j_right_support < min_sup {
-                        // Not enough support for the right part of the tree
                         continue;
                     }
 
                     let left_leaf_error = self.error_fn.compute(&i_right_j_left_classes_support);
 
-                    // TODO Upper bound control here
                     if left_leaf_error.0 >= feature_error {
                         continue;
                     }
@@ -262,7 +258,6 @@ where
 
                     let branch_error = left_leaf_error.0 + right_leaf_error.0;
 
-                    // TODO Upper bound control here
                     if branch_error >= feature_error {
                         continue;
                     }
@@ -317,6 +312,7 @@ impl<E> ErrorMinimizer<E>
 where
     E: ErrorWrapper + ?Sized,
 {
+    /// A solver using `error_function` for the error of a leaf.
     pub fn new(error_function: Box<E>) -> Self {
         Self {
             error_fn: error_function,

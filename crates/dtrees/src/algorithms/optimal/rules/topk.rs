@@ -2,6 +2,9 @@ use crate::algorithms::optimal::rules::core::Reason;
 use crate::algorithms::optimal::rules::helpers::StepStrategy;
 use crate::algorithms::optimal::rules::{Rule, RuleContext, RuleResult, RuleState};
 
+/// Top-k search: at each node, a pass only branches on the `k + 1`
+/// best-ranked features. Relaxing the rule raises `k`, following its
+/// [`StepStrategy`], up to `limit`.
 pub struct TopkRule {
     limit: usize,
     budget: usize,
@@ -13,6 +16,7 @@ pub struct TopkRule {
 }
 
 impl TopkRule {
+    /// A rule whose `k` grows following `increment`, up to `limit`.
     pub fn new(limit: usize, increment: Box<dyn StepStrategy>) -> Self {
         Self {
             limit,
@@ -25,11 +29,13 @@ impl TopkRule {
         }
     }
 
+    /// Sets the number of passes before the rule takes effect.
     pub fn with_delay(mut self, delay: u8) -> Self {
         self.delay = delay;
         self
     }
 
+    /// Sets `k` for the first pass.
     pub fn with_budget(mut self, budget: usize) -> Self {
         self.budget = budget;
         self
@@ -101,6 +107,8 @@ impl Rule for TopkRule {
     }
 }
 
+/// Like [`TopkRule`], but the number of features allowed halves at each
+/// level: `k / 2^depth`, and at least one.
 pub struct DecreasingTopkRule {
     limit: usize,
     budget: usize,
@@ -112,6 +120,7 @@ pub struct DecreasingTopkRule {
 }
 
 impl DecreasingTopkRule {
+    /// A rule whose root `k` grows following `increment`, up to `limit`.
     pub fn new(limit: usize, increment: Box<dyn StepStrategy>) -> Self {
         Self {
             limit,
@@ -124,11 +133,13 @@ impl DecreasingTopkRule {
         }
     }
 
+    /// Sets the number of passes before the rule takes effect.
     pub fn with_delay(mut self, delay: u8) -> Self {
         self.delay = delay;
         self
     }
 
+    /// Sets `k` for the first pass.
     pub fn with_budget(mut self, budget: usize) -> Self {
         self.budget = budget;
         self

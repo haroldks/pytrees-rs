@@ -1,19 +1,28 @@
 use std::collections::BTreeSet;
 
+/// How to find an entry: by its position, or by its itemset.
 pub enum CacheKey {
+    /// Position in the cache.
     Index(usize),
+    /// Sorted itemset of the path to the entry.
     Path(Vec<usize>),
 }
 
+/// The set of items on the path from the root to the current node, kept
+/// sorted.
 #[derive(Default)]
 pub struct SearchPath {
     inner: BTreeSet<usize>,
 }
 
+/// Result of a cache insertion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Index {
+    /// A new entry whose position is not known.
     NewUnknown,
+    /// A new (or never evaluated) entry at this position.
     New(usize),
+    /// An entry evaluated before, at this position.
     Existing(usize),
 }
 
@@ -32,10 +41,12 @@ impl SearchPath {
         self.inner.remove(value);
     }
 
+    /// The path as a cache key.
     pub fn to_key(&self) -> CacheKey {
-        CacheKey::Path(self.inner.iter().copied().collect()) // Create a copy of the
+        CacheKey::Path(self.inner.iter().copied().collect())
     }
 
+    /// The items of the path, sorted.
     pub fn to_sorted_vec(&self) -> Vec<usize> {
         self.inner.iter().copied().collect()
     }
@@ -64,6 +75,7 @@ impl Index {
         Index::Existing(position)
     }
 
+    /// Whether the entry has not been evaluated yet.
     pub fn is_new(&self) -> bool {
         matches!(self, Index::New(_) | Index::NewUnknown)
     }
@@ -79,6 +91,8 @@ impl Index {
         !matches!(self, Index::NewUnknown)
     }
 
+    /// A key for the entry: its position when known, `fallback_path`
+    /// otherwise.
     pub fn to_cache_key(&self, fallback_path: &SearchPath) -> CacheKey {
         match self {
             Index::New(pos) | Index::Existing(pos) => CacheKey::Index(*pos),

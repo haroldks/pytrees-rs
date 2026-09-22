@@ -47,8 +47,7 @@ macro_rules! dl85_test_suite {
         $(
             paste! {
                 #[test]
-                // The names come from the dataset files, and one of them,
-                // small_.txt, ends in an underscore.
+                // Test names come from dataset file names, such as `small_`.
                 #[allow(non_snake_case)]
                 fn [<$name_prefix _ $name _minsup_ $minsup _maxdepth_ $maxdepth>]() -> Result<(), Box<dyn std::error::Error>> {
                     let error = solve_dataset(stringify!($name), $minsup, $maxdepth)?;
@@ -94,12 +93,10 @@ dl85_test_suite!(test_d2,
     vehicle: 1, 2, 75.0;
     audiology: 1, 2, 10.0;
     ionosphere: 1, 2, 32.0;
-    // segment: 1, 2, 9.0; // Commented out to reduce test runtime
     rsparse_dataset: 1, 2, 0.0;
     anneal: 1, 2, 137.0;
     vote: 1, 2, 17.0;
     ttt: 1, 2, 282.0;
-    // pendigits: 1, 2, 153.0; // Commented out to reduce test runtime
     diabetes: 1, 2, 177.0;
     iris: 1, 2, 9.0;
     mushroom: 1, 2, 252.0;
@@ -109,7 +106,6 @@ dl85_test_suite!(test_d2,
     small: 1, 2, 0.0;
     hypothyroid: 1, 2, 70.0;
     iris_multi: 1, 2, 6.0;
-    // letter: 1, 2, 599.0; // Commented out to reduce test runtime
     lymph: 1, 2, 22.0;
 );
 
@@ -118,19 +114,27 @@ dl85_test_suite!(test_d2,
     vehicle: 50, 2, 75.0;
     audiology: 50, 2, 11.0;
     ionosphere: 50, 2, 32.0;
-    // segment: 50, 2, 21.0;
     rsparse_dataset: 50, 2, 0.0;
     anneal: 50, 2, 164.0;
     vote: 50, 2, 19.0;
     ttt: 50, 2, 282.0;
-    // pendigits: 50, 2, 153.0;
     diabetes: 50, 2, 180.0;
     mushroom: 50, 2, 252.0;
     soybean: 50, 2, 85.0;
     yeast: 50, 2, 441.0;
     small: 50, 2, 2.0;
     hypothyroid: 50, 2, 70.0;
-    // letter: 50, 2, 599.0;
+);
+
+// The larger datasets are ignored by default to keep the suite fast; run
+// them with `cargo test -- --ignored`.
+dl85_ignored_test_suite!(test_d2,
+    segment: 1, 2, 9.0;
+    pendigits: 1, 2, 153.0;
+    letter: 1, 2, 599.0;
+    segment: 50, 2, 21.0;
+    pendigits: 50, 2, 153.0;
+    letter: 50, 2, 599.0;
 );
 
 dl85_ignored_test_suite!(test_d3,
@@ -158,8 +162,7 @@ dl85_ignored_test_suite!(test_d3,
 
 #[test]
 fn a_search_built_without_a_time_limit_runs() -> Result<(), Box<dyn std::error::Error>> {
-    // The builder used to default to a zero-second limit, so a search built
-    // without calling max_time stopped before its first pass.
+    // Without `max_time`, the search has no time limit.
     let mut cover = DataReader::default().read_file(Path::new("test_data/anneal.txt"))?;
     let error_fn = Box::<NativeError>::default();
     let mut algo = DL85Builder::default()

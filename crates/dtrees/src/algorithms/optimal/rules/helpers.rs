@@ -1,7 +1,10 @@
+/// A sequence of budgets used to relax a rule between passes.
 pub trait StepStrategy: Send + Sync {
+    /// The next value of the sequence.
     fn next(&mut self) -> usize;
 }
 
+/// `0, n, 2n, 3n, …`
 pub struct Monotonic {
     increment: usize,
     current: usize,
@@ -25,6 +28,7 @@ impl StepStrategy for Monotonic {
 }
 
 impl Monotonic {
+    /// A sequence with step `increment`.
     pub fn new(increment: usize) -> Self {
         Self {
             current: 0,
@@ -33,6 +37,7 @@ impl Monotonic {
     }
 }
 
+/// `1, b, b², b³, …`
 pub struct Exponential {
     current: usize,
     base: usize,
@@ -48,6 +53,7 @@ impl Default for Exponential {
 }
 
 impl Exponential {
+    /// A sequence with base `base`.
     pub fn new(base: usize) -> Self {
         Self { current: 1, base }
     }
@@ -61,6 +67,8 @@ impl StepStrategy for Exponential {
     }
 }
 
+/// Running sums of the Luby sequence `1, 1, 2, 1, 1, 2, 4, …`, scaled by a
+/// multiplier, as used for restarts in SAT solvers.
 pub struct Luby {
     multiplier: usize,
     steps: Vec<usize>,
@@ -80,6 +88,7 @@ impl Default for Luby {
 }
 
 impl Luby {
+    /// A sequence scaled by `multiplier`.
     pub fn new(multiplier: usize) -> Self {
         Self {
             multiplier,

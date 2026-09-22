@@ -23,6 +23,21 @@ pub mod config;
 
 pub use builder::DL85Builder;
 
+/// DL8.5: optimal decision trees over binary features by dynamic programming
+/// with branch-and-bound and a cache of subproblems.
+///
+/// A subproblem is the set of instances reaching a node, identified by the
+/// itemset of tests on the path to it. The search explores features at each
+/// node, prunes children with the upper bound left by their sibling, and
+/// caches every solved subproblem so it is solved once.
+///
+/// The search is also anytime. Relaxable search rules (see
+/// [`rules`](crate::algorithms::optimal::rules)) restrict each pass, and the
+/// search restarts with widened budgets until a pass completes, which proves
+/// the tree optimal.
+///
+/// Aglin, Nijssen and Schaus, *Learning Optimal Decision Trees Using Caching
+/// Branch-and-Bound Search* (AAAI 2020). Build one with [`DL85Builder`].
 pub struct DL85<C, D, E, H>
 where
     C: Caching + ?Sized,
@@ -52,6 +67,7 @@ where
     E: ErrorWrapper + ?Sized,
     H: Heuristic + ?Sized,
 {
+    /// Runs passes until one completes or the time limit is reached.
     fn fit(&mut self, cover: &mut Cover) -> Result<(), FitError> {
         let mut result = SearchResult {
             reason: Reason::RuleReason,
@@ -76,7 +92,7 @@ where
     E: ErrorWrapper + ?Sized,
     H: Heuristic + ?Sized,
 {
-    // Called by DL85Builder, which is how callers are meant to build a DL85.
+    /// Assembles a search from its parts. Prefer [`DL85Builder`].
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         config: DL85Config,
@@ -105,10 +121,17 @@ where
         }
     }
 
+    /// The configuration of the search.
     pub fn config(&self) -> DL85Config {
         self.config
     }
 
+    /// Runs one pass of the search and rebuilds the tree.
+    ///
+    /// The first call initialises the cache and the rules. When the result's
+    /// reason is [`Reason::RuleReason`], a rule cut the pass short and the
+    /// rules are relaxed for the next one; any other reason means the search
+    /// is over.
     pub fn partial_fit(&mut self, cover: &mut Cover) -> SearchResult {
         self.statistics.increment_restarts();
 
@@ -158,7 +181,6 @@ where
             root_context.upper_bound(self.statistics.tree_error);
             root_context.error(self.statistics.tree_error);
         }
-        // println!("Cache size : {}", self.cache.size());
         let root_index = self.cache.root_index();
         let node_ub = self
             .cache
@@ -186,7 +208,6 @@ where
         self.root_candidates = candidates;
 
         if self.statistics.restarts() <= 1 || self.gain_gap <= 0.0 {
-            // println!("Min gap : {}", self.gain_gap);
             if let Some(gain_rule) = self.search_rules.get_rule_mut::<GainRule>() {
                 gain_rule.update_gap_delta(self.gain_gap);
             }
@@ -208,8 +229,8 @@ where
         result
     }
 
-    // The search's state travels through the recursion as arguments;
-    // bundling it into a struct is a refactor of the hot path, not a lint fix.
+    /// Searches the best subtree for the node reached by `parent_item`,
+    /// whose instances are the current state of `cover`.
     #[allow(clippy::too_many_arguments)]
     fn recursive_search(
         &mut self,
@@ -229,7 +250,6 @@ where
         let result = self.evaluate(parent_context, &parent_key, RuleType::Node);
 
         if !result.0 {
-            // println!("Parent context: {:?} Result ? : {:?}", parent_context.gain, result);
             return SearchResult {
                 error: result.2,
                 has_intersected: false,
@@ -274,7 +294,6 @@ where
         }
 
         if self.config.use_depth2_optimization() && self.config.base.max_depth - depth <= 2 {
-            // println!("Size : {}", self.cache.size());
             let result = self.apply_specialized_depth2_search(
                 cover,
                 &node_candidates,
@@ -283,8 +302,6 @@ where
                 path,
                 self.config.base.max_depth - depth,
             );
-            // println!("Size : {}", self.cache.size());
-            // self.cache.print();
 
             match result {
                 Err(_) => {}
@@ -342,6 +359,8 @@ where
                 depth,
             );
 
+            // The second branch only has what the first one left of the
+            // upper bound; if that cannot cover its lower bound, skip it.
             if first_result.error >= subtree_upper_bound - second_lb {
                 min_lower_bound = self
                     .cache
@@ -437,6 +456,8 @@ where
         }
     }
 
+    /// Branches on `branch_context.item`, looks the child up in the cache
+    /// (seeding it when new), searches it and backtracks.
     fn process_branch(
         &mut self,
         cover: &mut Cover,
@@ -455,7 +476,6 @@ where
             let size = cover.branch_on(branch_context.item);
             branch_context.support(size);
             let error = self.compute_leaf_error(cover);
-            // branch_context.error(error.0);
             branch_context.leaf_error(error.0);
             branch_context.node_upper_bound(f64::INFINITY);
 
@@ -463,13 +483,12 @@ where
                 updater
                     .leaf_error(error.0)
                     .output(error.1)
-                    .lower_bound(branch_context.node_lower_bound) // TODO
+                    .lower_bound(branch_context.node_lower_bound)
                     .size(size)
             });
         } else {
             self.statistics.increment_cache_hits();
             if let Some(node) = self.cache.node(&branch_key) {
-                // branch_context.error(node.error().min(node.leaf_error())); // TODO
                 branch_context.error(node.error());
                 branch_context.support(node.size());
                 branch_context.node_upper_bound(node.upper_bound());
@@ -499,6 +518,8 @@ where
         (first_result, branch_key)
     }
 
+    /// Evaluates the time limit, then the rules of `rule_type`. Returns
+    /// `(continue, reason, best error of the node)`.
     fn evaluate(
         &mut self,
         context: &RuleContext,
@@ -512,6 +533,7 @@ where
         self.evaluate_node(context, key, rule_type)
     }
 
+    /// Evaluates one set of rules and applies its decision to the cached node.
     fn evaluate_node(
         &mut self,
         context: &RuleContext,
@@ -536,22 +558,20 @@ where
             }
 
             if result.leaf.unwrap_or(false) {
-                // println!("Error : {:?}", updater.get_error());
                 updater = updater.leaf();
-                // println!("Error : {:?}", updater.get_error());
             }
 
             if rule_type == RuleType::Similarity {
                 updater = updater.lower_bound(context.node_lower_bound)
             }
-            // println!("Error : {:?}", updater.get_error());
             error = updater.get_error().min(updater.get_leaf_error());
-            // println!("Error : {:?}", updater.get_error());
         }
 
         (result.continue_search, result.reason, error)
     }
 
+    /// `(error, prediction)` of the current node as a leaf, from its class
+    /// counts or its instance ids depending on the configuration.
     fn compute_leaf_error(&self, cover: &mut Cover) -> (f64, f64) {
         if self.config.data_type == NodeDataType::ClassesSupport {
             return self.error_fn.compute(&cover.labels_count());
@@ -559,18 +579,25 @@ where
         self.error_fn.compute(&cover.to_vec())
     }
 
+    /// Counters of the search.
     pub fn statistics(&self) -> &SearchStatistics {
         &self.statistics
     }
 
+    /// Seconds since the search started.
     pub fn elapsed_seconds(&self) -> f64 {
         self.time_rule.elapsed_seconds()
     }
 
+    /// Whether the time limit is reached.
     pub fn time_is_exhausted(&self) -> bool {
         self.time_rule.exhausted()
     }
 
+    /// Chooses which branch of `attribute` to search first, and the lower
+    /// bounds of both. With dynamic branching, the branch with the higher
+    /// known lower bound goes first, so it leaves a tighter bound for the
+    /// other one.
     fn determine_branch_strategy(
         &self,
         attribute: usize,
@@ -598,6 +625,8 @@ where
         (branch_first, first_bound, second_bound)
     }
 
+    /// Lower bounds of both branches of `attribute` from the cache: the error
+    /// of a solved branch, the recorded lower bound otherwise.
     fn get_cached_branch_bounds(&self, attribute: usize, path: &mut SearchPath) -> [f64; 2] {
         let mut bounds = [0.0; 2];
         for (branch, lb) in bounds.iter_mut().enumerate() {
@@ -607,7 +636,6 @@ where
             if let Some(node) = self.cache.node(&key) {
                 let error = node.error();
                 *lb = match error.is_finite() {
-                    // TODO: Investigate
                     true => error,
                     false => node.lower_bound(),
                 }
@@ -617,6 +645,7 @@ where
         bounds
     }
 
+    /// Raises the branch lower bounds with the similarity bound.
     fn enhance_bounds_with_similarity(
         &self,
         bounds: &mut [f64; 2],
@@ -633,6 +662,8 @@ where
         }
     }
 
+    /// Undoes the branching on `item`, recording the child for the similarity
+    /// bound when it was cut by its lower bound.
     fn backtrack(
         &mut self,
         cover: &mut Cover,
@@ -646,7 +677,6 @@ where
             cover.branch_on(*item);
         }
 
-        // Update similarity data if applicable
         if self.config.use_similarity_lb() && search_result.reason == Reason::LowerBoundConstrained
         {
             let key = index.to_cache_key(path);
@@ -658,6 +688,7 @@ where
         path.remove(item);
     }
 
+    /// Solves the node with the depth-2 solver and caches the tree it returns.
     fn apply_specialized_depth2_search(
         &mut self,
         cover: &mut Cover,
@@ -683,8 +714,6 @@ where
         match tree_result {
             Err(err) => Err(err),
             Ok(tree) => {
-                // tree.print();
-                // println!("{:?}", parent_index);
                 let error = tree.root_error();
                 self.cache_specialized_depth2_tree_results(
                     path,
@@ -702,6 +731,7 @@ where
         }
     }
 
+    /// Stores every node of a depth-2 tree in the cache, as solved.
     fn cache_specialized_depth2_tree_results(
         &mut self,
         path: &mut SearchPath,
@@ -753,6 +783,7 @@ where
         }
     }
 
+    /// Converts a cache entry into the content of a tree node.
     pub fn cache_entry_to_tree_entry(&self, cache_entry: &CacheEntry) -> NodeInfos {
         NodeInfos {
             error: cache_entry.error(),
@@ -770,13 +801,14 @@ where
         }
     }
 
+    /// Rebuilds the best tree from the cache, starting at the root.
     fn build_solution_tree(&mut self) {
         let mut tree = Tree::default();
         let mut path = SearchPath::new();
         if let Some(cache_root) = self.cache.root() {
             // The search only records trees that beat the root as a leaf. When
-            // none does, as with a single class, the root keeps an infinite
-            // error, and the leaf itself is the answer, if within max_error.
+            // none does (e.g. a single class), the root keeps an infinite error
+            // and the leaf is the answer, if within `max_error`.
             let unsolved = cache_root.error().is_infinite() && !cache_root.is_leaf();
             if unsolved && cache_root.leaf_error() < self.config.base.max_error {
                 tree.add_root(TreeNode::new(NodeInfos {
@@ -853,16 +885,11 @@ mod dl85_test {
             .depth2_search(depth2)
             .error_function(error_fn)
             .build()?;
-        // Configure and build the DL85 algorithm using builder pattern
-
-        // Execute the fitting process and handle any errors
         algo.fit(&mut cover)?;
 
-        // Report results
         println!("Search statistics: {:#?}", algo.statistics);
         println!("Execution time: {:.3}s", algo.time_rule.elapsed_seconds());
 
-        // Print resulting tree
         println!("{}", algo.tree);
 
         Ok(())

@@ -6,6 +6,11 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
+/// Reads a text dataset of binary features into a [`Cover`].
+///
+/// The default format is one instance per line, whitespace separated, the
+/// label in column 0, `#` starting a comment, and no header. Feature values
+/// must be 0 or 1, and labels non-negative integers.
 pub struct DataReader {
     format: DataFormat,
     has_headers: bool,
@@ -25,35 +30,42 @@ impl Default for DataReader {
 }
 
 impl DataReader {
+    /// A reader with the default format.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Sets the column delimiter.
     pub fn with_format(mut self, format: DataFormat) -> Self {
         self.format = format;
         self
     }
 
+    /// Whether the first data line is a header to skip.
     pub fn with_headers(mut self, has_headers: bool) -> Self {
         self.has_headers = has_headers;
         self
     }
 
+    /// Lines starting with this character are ignored.
     pub fn with_comment_char(mut self, comment_char: Option<char>) -> Self {
         self.comment_char = comment_char;
         self
     }
 
+    /// Which column holds the label; `None` for unlabelled data.
     pub fn with_label_column(mut self, label_column: Option<usize>) -> Self {
         self.label_column = label_column;
         self
     }
 
+    /// Picks the delimiter from the file extension.
     pub fn auto_detect_format(mut self, path: &Path) -> Self {
         self.format = DataFormat::from_extension(path);
         self
     }
 
+    /// Reads a dataset file.
     pub fn read_file(&self, path: &Path) -> Result<Cover, DataReaderError> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);

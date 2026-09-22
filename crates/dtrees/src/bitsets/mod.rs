@@ -1,41 +1,61 @@
+//! Fixed-capacity bitsets.
+
 use std::ops::Index;
 
+/// Initial content of a [`Bitset`] of the given capacity.
 pub enum BitsetInit {
+    /// No element set.
     Empty(usize),
+    /// Every element set.
     Full(usize),
 }
 
+/// A fixed-capacity set of integers stored as 64-bit words.
 #[derive(Debug, Clone)]
 pub struct Bitset {
     capacity: usize,
     words: Vec<u64>,
 }
 
+/// Operations on a bitset.
 pub trait BitCollection {
+    /// A bitset of the given capacity and content.
     fn new(init: BitsetInit) -> Self;
 
+    /// Number of elements set.
     fn count(&self) -> usize;
 
+    /// Whether `index` is set.
     fn test(&self, index: usize) -> bool;
 
+    /// Sets `index`.
     fn set(&mut self, index: usize);
 
+    /// Clears `index`.
     fn unset(&mut self, index: usize);
 
+    /// Whether no element is set.
     fn is_empty(&self) -> bool;
 
+    /// Clears every element.
     fn clear(&mut self);
 
+    /// Largest number of elements.
     fn capacity(&self) -> usize;
 
+    /// Changes the capacity.
     fn resize(&mut self, capacity: usize);
 
+    /// Keeps only the elements also in `other`.
     fn intersect_with(&mut self, other: &Bitset);
 
+    /// Adds the elements of `other`.
     fn union_with(&mut self, other: &Bitset);
 
+    /// Size of the intersection with `other`.
     fn count_intersect_with(&self, other: &Bitset) -> usize;
 
+    /// Size of the intersection with each of `others`.
     fn count_interest_with_many(&self, others: &[Bitset]) -> Vec<usize>;
 }
 

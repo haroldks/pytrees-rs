@@ -1,3 +1,5 @@
+//! Heuristics that rank candidate features, best first.
+
 pub mod helpers;
 
 use crate::algorithms::common::heuristics::helpers::{
@@ -7,11 +9,17 @@ use crate::algorithms::common::utils::deduce_sibling_error_with_buffer;
 use crate::cover::Cover;
 use crate::globals::item;
 
+/// Scores a split from the class counts of the parent and both children.
 type ScoreFn = Box<dyn Fn(&[usize], &[usize], &[usize], f64) -> f64>;
 
+/// Ranks candidate features at a node.
 pub trait Heuristic: Send + Sync {
+    /// Sorts `candidates` best first and returns their scores in the same
+    /// order (empty when the heuristic does not score).
     fn compute(&self, cover: &mut Cover, candidates: &mut Vec<usize>) -> Vec<f64>;
 
+    /// Scores each candidate with `scorer` and sorts them, ascending when
+    /// `lower_is_better` and descending otherwise.
     fn compute_with_scorer(
         &self,
         parent_entropy: f64,
@@ -65,6 +73,7 @@ pub trait Heuristic: Send + Sync {
     }
 }
 
+/// Keeps the candidates in their original order.
 #[derive(Default)]
 pub struct NoHeuristic;
 
@@ -74,6 +83,7 @@ impl Heuristic for NoHeuristic {
     }
 }
 
+/// Lowest weighted Gini impurity of the children first.
 #[derive(Default)]
 pub struct GiniIndex;
 
@@ -83,6 +93,7 @@ impl Heuristic for GiniIndex {
     }
 }
 
+/// Highest information gain first.
 #[derive(Default)]
 pub struct InformationGain;
 
@@ -105,6 +116,7 @@ impl Heuristic for InformationGain {
     }
 }
 
+/// Lowest weighted entropy of the children first.
 #[derive(Default)]
 pub struct WeightedEntropy;
 

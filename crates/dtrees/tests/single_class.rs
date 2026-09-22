@@ -1,7 +1,5 @@
-//! When no split beats predicting one class for everything, the answer is a
-//! single leaf, or a split that is no worse. Every search used to return no
-//! tree at all here: the depth-2 solver reports the case as
-//! `FitError::EmptyTree`, and nothing turned that into a leaf at the root.
+//! When no split beats predicting one class for everything, every search must
+//! still return a tree: a single leaf, or a split that is no worse.
 
 use dtrees_rs::algorithms::common::errors::NativeError;
 use dtrees_rs::algorithms::common::heuristics::NoHeuristic;

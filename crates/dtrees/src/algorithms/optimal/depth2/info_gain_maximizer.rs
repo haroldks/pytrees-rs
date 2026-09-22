@@ -10,6 +10,8 @@ use crate::cover::Cover;
 use crate::globals::{float_is_null, get_tree_root_error, item};
 use crate::tree::Tree;
 
+/// Depth-2 solver that maximises the information gain of the tree rather
+/// than minimising its error. Used by LGDT for a less greedy lookahead.
 pub struct InfoGainMaximizer<E>
 where
     E: ErrorWrapper,
@@ -126,7 +128,8 @@ where
                         &root_distribution,
                     );
 
-                    // TODO : The weights are from the distribution not the global support from the parent
+                    // Each branch's gain is weighted by the branch's own class
+                    // counts, not by the parent's support.
 
                     let branch_index = if val == 0 { left_index } else { right_index };
 
@@ -211,6 +214,9 @@ where
         candidates.first().copied()
     }
 
+    /// Class counts of the leaf reached by branch `first.1` of feature
+    /// `first.0` then branch `second.1` of feature `second.0` (0 is left),
+    /// deduced from the pairwise count matrix.
     fn deduce_leaves_classes_support(
         matrix: &[Vec<Vec<usize>>],
         first: (usize, usize),

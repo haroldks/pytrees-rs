@@ -1,3 +1,5 @@
+//! A reversible sparse bitset of instances.
+
 use crate::bitsets::Bitset;
 use search_trail::{
     ReversibleU64, ReversibleUsize, SaveAndRestore, StateManager, U64Manager, UsizeManager,
@@ -5,6 +7,10 @@ use search_trail::{
 use std::cmp::Ordering;
 use std::ops::Sub;
 
+/// A set of instances that supports intersection and constant-time undo.
+///
+/// Words that become zero are moved out of the active part of
+/// `non_zero_words`, so later operations only visit non-empty words.
 pub struct SparseBitset {
     words: Vec<ReversibleU64>,
     non_zero_words: Vec<usize>,
@@ -13,6 +19,7 @@ pub struct SparseBitset {
     state_manager: StateManager,
 }
 
+/// A non-reversible snapshot of a [`SparseBitset`].
 #[derive(Debug)]
 pub struct ShallowBitset {
     words: Vec<u64>,
@@ -20,6 +27,8 @@ pub struct ShallowBitset {
     nb_non_zero: usize,
 }
 
+/// Sizes of the two set differences between a [`SparseBitset`] and a
+/// [`ShallowBitset`].
 #[derive(Default)]
 pub struct Difference {
     pub(crate) in_count: usize,
@@ -27,6 +36,7 @@ pub struct Difference {
 }
 
 impl SparseBitset {
+    /// The full set `0..n`.
     pub fn new(n: usize) -> Self {
         let mut state_manager = StateManager::default();
 
@@ -57,6 +67,7 @@ impl SparseBitset {
         }
     }
 
+    /// Number of elements.
     pub fn count(&self) -> usize {
         let mut count = 0;
         let nb_non_zero = self.state_manager.get_usize(self.nb_non_zero);
@@ -69,10 +80,13 @@ impl SparseBitset {
         count as usize
     }
 
+    /// Whether the set is empty.
     pub fn is_empty(&self) -> bool {
         self.state_manager.get_usize(self.nb_non_zero) == 0
     }
 
+    /// Intersects with `other` (with its complement when `invert`), saving the
+    /// current state for [`Self::restore`]. Returns the new size.
     pub fn intersect_with(&mut self, other: &Bitset, invert: bool) -> usize {
         self.state_manager.save_state();
 
@@ -96,6 +110,8 @@ impl SparseBitset {
         count as usize
     }
 
+    /// Size of the intersection with `other` (or its complement), without
+    /// changing the set.
     pub fn count_intersect_with(&self, other: &Bitset, invert: bool) -> usize {
         let size = self.state_manager.get_usize(self.nb_non_zero);
         let mut count = 0;
@@ -110,6 +126,7 @@ impl SparseBitset {
         count as usize
     }
 
+    /// Size of the intersection with each of `others`.
     pub fn count_intersect_with_many(&self, others: &[Bitset]) -> Vec<usize> {
         let mut counts = vec![0; others.len()];
         let size = self.state_manager.get_usize(self.nb_non_zero);
@@ -123,8 +140,8 @@ impl SparseBitset {
         counts
     }
 
+    /// The elements of the set.
     pub fn to_vec(&self) -> Vec<usize> {
-        // TODO
         let mut result = Vec::new();
         let nb_non_zero = self.state_manager.get_usize(self.nb_non_zero);
 
@@ -142,13 +159,13 @@ impl SparseBitset {
         result
     }
 
+    /// Undoes the last intersection.
     #[inline]
     pub fn restore(&mut self) {
         self.state_manager.restore_state();
     }
 }
 
-// Helpers for more readability
 impl From<&SparseBitset> for ShallowBitset {
     fn from(val: &SparseBitset) -> Self {
         let mut words = Vec::with_capacity(val.words.len());
@@ -167,6 +184,8 @@ impl From<&SparseBitset> for ShallowBitset {
     }
 }
 
+/// `in_count` counts the elements of `self` missing from `rhs`, and
+/// `out_count` the elements of `rhs` missing from `self`.
 impl Sub<&ShallowBitset> for &SparseBitset {
     type Output = Difference;
     fn sub(self, rhs: &ShallowBitset) -> Self::Output {
@@ -182,8 +201,9 @@ impl Sub<&ShallowBitset> for &SparseBitset {
             .map(|i| {
                 let idx = rhs.non_zero_words[i];
                 let self_size = self.state_manager.get_usize(self.nb_non_zero);
+                // TODO: `i` indexes the active words of `rhs`, not of `self`,
+                // so this does not check that word `idx` is active in `self`.
                 let self_word = if i < self_size {
-                    // TODO : Not clear
                     self.state_manager.get_u64(self.words[idx])
                 } else {
                     0
@@ -253,11 +273,7 @@ mod sparse_test {
 
         let mut feature = Bitset::new(BitsetInit::Empty(10));
 
-        // feature.set(5);
         feature.set(9);
-        // feature.set(3);
-        // feature.set(54);
-        // feature.set(32);
 
         println!("{:?}", cover.to_vec());
         assert_eq!(cover.count(), 10);
@@ -272,8 +288,5 @@ mod sparse_test {
         println!("{:?}", cover.to_vec());
 
         let _ = &cover - shallow_cover;
-
-        // let shallow : ShallowBitset = (&cover).into();
-        // println!("shallow : {:?}", shallow)
     }
 }

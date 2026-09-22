@@ -1,3 +1,6 @@
+//! LDS-DL8.5: anytime DL8.5 with a `DiscrepancyRule`, recording the error of
+//! every pass as JSON. Run with `--help` for the options.
+
 use clap::Parser;
 use dtrees_rs::algorithms::common::errors::NativeError;
 use dtrees_rs::algorithms::common::heuristics::{
@@ -56,7 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let result_path = result_file.join(format!("{depth}_{method}-{sub}.json"));
 
-    // Try to load previous results
+    // Resume from earlier results, if any.
     let mut result = match load_results(&result_path) {
         Some(res) if res.completed => {
             if !app.overwrite {

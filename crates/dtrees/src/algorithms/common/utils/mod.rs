@@ -3,6 +3,8 @@ pub mod heuristics;
 use crate::cover::Cover;
 use crate::globals::item;
 
+/// The features, among `candidates` (all of them when `None`) and other than
+/// `previous`, that leave at least `min_sup` instances on each side.
 pub fn find_valid_split_attributes(
     cover: &mut Cover,
     min_sup: usize,
@@ -49,6 +51,10 @@ pub fn find_valid_split_attributes(
     }
 }
 
+/// Class counts for every pair of candidates: `matrix[i][j]` counts the
+/// instances in the right branch of both `candidates[i]` and `candidates[j]`,
+/// and `matrix[i][i]` those in the right branch of `candidates[i]`. Every
+/// other leaf of a depth-2 tree follows by subtraction.
 pub fn build_labels_count_distribution_matrix(
     cover: &mut Cover,
     candidates: &[usize],
@@ -74,6 +80,7 @@ pub fn build_labels_count_distribution_matrix(
     matrix
 }
 
+/// Class counts of a child's sibling: the parent's counts minus the child's.
 #[inline]
 pub fn deduce_sibling_error(parent_supports: &[usize], child_supports: &[usize]) -> Vec<usize> {
     parent_supports
@@ -83,6 +90,7 @@ pub fn deduce_sibling_error(parent_supports: &[usize], child_supports: &[usize])
         .collect()
 }
 
+/// [`deduce_sibling_error`] writing into `buffer`.
 #[inline]
 pub fn deduce_sibling_error_with_buffer(parent: &[usize], sibling: &[usize], buffer: &mut [usize]) {
     for i in 0..parent.len() {

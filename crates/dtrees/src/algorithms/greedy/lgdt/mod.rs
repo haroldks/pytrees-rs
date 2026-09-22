@@ -10,6 +10,17 @@ pub mod builder;
 mod config;
 pub mod factories;
 
+/// LGDT, a less greedy decision tree learner.
+///
+/// Like CART, it builds the tree top-down one test at a time, but it chooses
+/// each test by solving a depth-2 tree at the node with a
+/// [`OptimalDepth2Tree`] solver and keeping its root. This two-level
+/// lookahead is cheap thanks to the depth-2 solver and makes the tree much
+/// less myopic than a purely greedy one.
+///
+/// Kiossou, Schaus, Nijssen and Aglin, *Efficient Lookahead Decision Trees*
+/// (IDA 2024). Build one with [`LGDTBuilder`](builder::LGDTBuilder) or the
+/// functions in [`factories`].
 pub struct LGDT<D>
 where
     D: OptimalDepth2Tree + ?Sized,
@@ -26,9 +37,7 @@ where
     fn fit(&mut self, cover: &mut Cover) -> Result<(), FitError> {
         let depth = self.config.max_depth.min(2);
         let root_tree = match self.search.fit(self.config.min_support, depth, cover, None) {
-            // The depth-2 search's way of saying that no split beats a leaf,
-            // as with a single class. The recursion below turns it into a
-            // leaf, and so must the root.
+            // No split beats a leaf (e.g. a single class): the tree is a leaf.
             Err(FitError::EmptyTree | FitError::EmptyCandidates) => {
                 self.tree = self.leaf_tree(cover);
                 return Ok(());
@@ -68,6 +77,8 @@ impl<D> LGDT<D>
 where
     D: OptimalDepth2Tree + ?Sized,
 {
+    /// Grows the subtree below `parent`, which tests `attribute`, with
+    /// `depth` levels left. Returns the error of the subtree.
     fn recursion(
         &self,
         depth: usize,
@@ -110,6 +121,8 @@ where
                     Ok(child_tree) => {
                         let mut error = Ok(child_tree.root_error());
                         let child_index = tree.create_child(parent, branch_value == 0);
+                        // A perfect depth-2 subtree is kept whole; otherwise
+                        // only its root is kept and the recursion continues.
                         if float_is_null(child_tree.root_error()) {
                             tree.update_subtree(
                                 child_index,
@@ -163,6 +176,7 @@ where
         tree
     }
 
+    /// The settings of the search.
     pub fn config(&self) -> &BaseSearchConfig {
         &self.config
     }
