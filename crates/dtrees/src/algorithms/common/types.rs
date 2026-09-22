@@ -154,19 +154,6 @@ pub enum NodeDataType {
     Tids,
 }
 
-/// How the cache is allocated. Stored in the configuration but not yet used
-/// by the search.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
-#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
-pub enum CacheInitStrategy {
-    /// Grow as needed.
-    DynamicAllocation,
-    /// Reserve the capacity given by the user.
-    UserAllocation,
-    /// No preallocation.
-    Disabled,
-}
-
 /// `(branch searched first, its lower bound, the other branch's lower bound)`.
 pub type BranchingChoice = (usize, f64, f64);
 

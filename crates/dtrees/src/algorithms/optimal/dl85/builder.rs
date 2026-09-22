@@ -1,7 +1,7 @@
 use crate::algorithms::common::errors::ErrorWrapper;
 use crate::algorithms::common::heuristics::Heuristic;
 use crate::algorithms::common::types::{
-    BranchingPolicy, CacheInitStrategy, LowerBoundPolicy, NodeDataType, OptimalDepth2Policy,
+    BranchingPolicy, LowerBoundPolicy, NodeDataType, OptimalDepth2Policy,
 };
 use crate::algorithms::optimal::depth2::OptimalDepth2Tree;
 use crate::algorithms::optimal::dl85::config::DL85Config;
@@ -165,18 +165,6 @@ where
     /// Sort the features by the heuristic at every node, not only at the root.
     pub fn always_sort(mut self, value: bool) -> Self {
         self.config.always_sort = value;
-        self
-    }
-
-    /// Initial capacity of the cache. Not yet used by the search.
-    pub fn cache_init_size(mut self, value: usize) -> Self {
-        self.config.cache_init_size = value;
-        self
-    }
-
-    /// How the cache is allocated. Not yet used by the search.
-    pub fn cache_init_strategy(mut self, value: CacheInitStrategy) -> Self {
-        self.config.cache_init_strategy = value;
         self
     }
 
