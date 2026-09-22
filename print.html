@@ -1,0 +1,1144 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>pytrees-rs</title>
+        <meta name="robots" content="noindex">
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Optimal and lookahead decision trees in Rust, with a scikit-learn API.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-e96d0476.css">
+        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex-7120d32a.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc-8f5b691d.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">pytrees-rs</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/haroldks/pytrees-rs" title="Git repository" aria-label="Git repository">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="pytrees-rs"><a class="header" href="#pytrees-rs">pytrees-rs</a></h1>
+<p>pytrees-rs learns anytime optimal decision trees. It is written mostly in
+Rust and comes with a Python wrapper that follows the scikit-learn API, so the
+estimators work with pipelines, grid search and cross-validation.</p>
+<p>A greedy learner such as CART picks, at each node, the split that looks best
+right now, and never revisits it. That is fast, but the tree it builds can be
+much worse than the best tree of the same size. The learners here look
+further ahead:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Estimator</th><th>Features</th><th>What it learns</th></tr>
+</thead>
+<tbody>
+<tr><td><a href="#dl85classifier"><code>DL85Classifier</code></a></td><td>binary</td><td>The optimal tree of a given depth (DL8.5)</td></tr>
+<tr><td><a href="#lgdtclassifier"><code>LGDTClassifier</code></a></td><td>binary</td><td>A tree grown top-down whose tests are chosen with a depth-2 lookahead (LGDT)</td></tr>
+<tr><td><a href="#contreeclassifier"><code>ConTreeClassifier</code></a></td><td>continuous</td><td>The optimal tree of a given depth (ConTree)</td></tr>
+<tr><td><a href="#dl85cluster"><code>DL85Cluster</code></a></td><td>binary</td><td>A clustering whose clusters are the leaves of an optimal tree</td></tr>
+</tbody>
+</table>
+</div>
+<p>An optimal tree is the tree with the fewest training errors among all trees
+of at most <code>max_depth</code> levels with at least <code>min_sup</code> training rows per leaf.
+Finding it is NP-hard, and on large datasets or deep trees the search may not
+finish. Two things make that manageable:</p>
+<ul>
+<li>Every search has a time limit (<code>max_time</code>) and returns the best tree found
+so far, with <code>status_</code> telling you whether it was proven optimal.</li>
+<li>The anytime searches find a good tree early and keep improving it. For
+DL8.5 they are configured with the <a href="#anytime-search-rules">search rules</a>; for
+ConTree with <code>use_lds=True</code>. Both estimators have a <code>fit_anytime</code> method
+that reports each improvement as it happens.</li>
+</ul>
+<p>Small optimal trees are often as accurate as much larger greedy ones, and they
+are easy to read: a depth-3 tree is at most seven tests.</p>
+<h2 id="where-to-go-next"><a class="header" href="#where-to-go-next">Where to go next</a></h2>
+<ul>
+<li><a href="#installation">Installation</a> and the <a href="#quick-start">quick start</a>.</li>
+<li>The <a href="estimators/README.html">estimators</a> chapter documents every parameter.</li>
+<li>The <a href="#command-line-tools-1">command line tools</a> and the <a href="#rust-crates">Rust crates</a> give access
+to the same algorithms without Python.</li>
+<li><a href="#publications">Publications</a> lists the papers behind each algorithm.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="installation"><a class="header" href="#installation">Installation</a></h1>
+<h2 id="from-pypi"><a class="header" href="#from-pypi">From PyPI</a></h2>
+<pre><code class="language-bash">pip install pytrees-rs
+</code></pre>
+<p>The package needs Python 3.10 or later, and installs NumPy, SciPy and
+scikit-learn. Prebuilt wheels are published for Linux (x86_64 and aarch64),
+macOS (Intel and Apple silicon) and Windows (x64). The package is imported as
+<code>pytrees</code>:</p>
+<pre><code class="language-python">import pytrees
+from pytrees import ConTreeClassifier, DL85Classifier, LGDTClassifier, DL85Cluster
+</code></pre>
+<h2 id="from-source"><a class="header" href="#from-source">From source</a></h2>
+<p>Building from source needs a Rust toolchain, version 1.77 or later. Install it
+with <a href="https://rustup.rs">rustup</a> if you do not have one. Then:</p>
+<pre><code class="language-bash">git clone https://github.com/haroldks/pytrees-rs.git
+cd pytrees-rs
+pip install .
+</code></pre>
+<p><code>pip</code> builds the Rust extension with <a href="https://www.maturin.rs">maturin</a>, which
+it installs on its own.</p>
+<p>For development, build the package in place instead, so that Python changes
+are picked up without reinstalling:</p>
+<pre><code class="language-bash">pip install maturin
+maturin develop --release
+pytest python/tests
+</code></pre>
+<h2 id="command-line-tools"><a class="header" href="#command-line-tools">Command line tools</a></h2>
+<p>The command line tools are plain Rust binaries:</p>
+<pre><code class="language-bash">cargo build --release -p dtrees-cli -p contree-cli
+./target/release/dtrees --help
+./target/release/con-tree --help
+</code></pre>
+<p>See <a href="#command-line-tools-1">Command line tools</a> for their options.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="quick-start"><a class="header" href="#quick-start">Quick start</a></h1>
+<h2 id="an-optimal-tree-on-continuous-data"><a class="header" href="#an-optimal-tree-on-continuous-data">An optimal tree on continuous data</a></h2>
+<p><code>ConTreeClassifier</code> works directly on numeric features:</p>
+<pre><code class="language-python">from sklearn.datasets import load_breast_cancer
+from sklearn.model_selection import train_test_split
+from pytrees import ConTreeClassifier
+
+X, y = load_breast_cancer(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
+
+clf = ConTreeClassifier(max_depth=2, min_sup=5, max_time=60)
+clf.fit(X_train, y_train)
+
+print(clf.status_)       # "optimal" if the search finished
+print(clf.train_error_)  # number of misclassified training rows
+print(clf.score(X_test, y_test))
+</code></pre>
+<p><code>status_</code> is <code>"optimal"</code> when the search proved that no tree of that depth
+makes fewer training errors. If the time limit is reached first, it is
+<code>"time_limit"</code> and the tree is the best one found.</p>
+<h2 id="an-optimal-tree-on-binary-data"><a class="header" href="#an-optimal-tree-on-binary-data">An optimal tree on binary data</a></h2>
+<p><code>DL85Classifier</code> and <code>LGDTClassifier</code> need features that are 0 or 1. Put a
+discretiser in front of them:</p>
+<pre><code class="language-python">from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import KBinsDiscretizer
+from pytrees import DL85Classifier, LGDTClassifier
+
+binarize = KBinsDiscretizer(n_bins=4, encode="onehot-dense")
+
+optimal = make_pipeline(binarize, DL85Classifier(max_depth=3, min_sup=5, max_time=60))
+optimal.fit(X_train, y_train)
+
+lookahead = make_pipeline(binarize, LGDTClassifier(max_depth=6, min_sup=5))
+lookahead.fit(X_train, y_train)
+
+print(optimal.score(X_test, y_test), lookahead.score(X_test, y_test))
+</code></pre>
+<p>DL8.5 finds the optimal tree, which gets expensive beyond depth 4 or 5 on
+datasets with many features. LGDT is not optimal but scales to deep trees.</p>
+<h2 id="watching-an-anytime-search"><a class="header" href="#watching-an-anytime-search">Watching an anytime search</a></h2>
+<p>On a hard problem, the anytime searches give you a good tree early.
+<code>fit_anytime</code> calls a function each time the tree improves:</p>
+<pre><code class="language-python">from pytrees import ConTreeClassifier
+
+def report(error, seconds, status):
+    print(f"{seconds:7.2f}s  error={error}  {status}")
+
+clf = ConTreeClassifier(max_depth=4, sort_by_heuristic=True, max_time=60)
+clf.fit_anytime(X_train, y_train, callback=report)
+</code></pre>
+<p>For DL8.5, pass one of the <a href="#anytime-search-rules">search rules</a>, for example
+<code>DL85Classifier(discrepancy=DiscrepancyRule())</code>, and call <code>fit_anytime</code> the
+same way.</p>
+<h2 id="looking-at-the-tree"><a class="header" href="#looking-at-the-tree">Looking at the tree</a></h2>
+<p>Every estimator stores its tree in <code>tree_</code>, and <code>to_dot</code> exports it to
+Graphviz:</p>
+<pre><code class="language-python">dot = clf.to_dot(feature_names=load_breast_cancer().feature_names)
+
+import graphviz            # pip install graphviz
+graphviz.Source(dot).render("tree", format="png")
+</code></pre>
+<p><code>apply(X)</code> returns the leaf each row reaches, and <code>decision_path(X)</code> the nodes
+it passes through. See <a href="#the-fitted-tree">The fitted tree</a>.</p>
+<h2 id="using-scikit-learn-tools"><a class="header" href="#using-scikit-learn-tools">Using scikit-learn tools</a></h2>
+<p>The estimators can be cloned, pickled and tuned like any other:</p>
+<pre><code class="language-python">from sklearn.model_selection import GridSearchCV
+
+search = GridSearchCV(
+    ConTreeClassifier(max_time=30),
+    {"max_depth": [1, 2, 3], "min_sup": [1, 5, 20]},
+    cv=5,
+)
+search.fit(X_train, y_train)
+print(search.best_params_)
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="estimators"><a class="header" href="#estimators">Estimators</a></h1>
+<p>All estimators live in the <code>pytrees</code> package and follow the scikit-learn
+conventions: parameters are set in the constructor, <code>fit</code> returns the
+estimator, fitted attributes end with an underscore, and the estimators can be
+cloned, pickled and used inside <code>Pipeline</code>, <code>GridSearchCV</code> or
+<code>cross_val_score</code>.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Estimator</th><th>Task</th><th>Features</th><th>Search</th></tr>
+</thead>
+<tbody>
+<tr><td><a href="#dl85classifier"><code>DL85Classifier</code></a></td><td>classification</td><td>binary</td><td>optimal, optionally anytime</td></tr>
+<tr><td><a href="#lgdtclassifier"><code>LGDTClassifier</code></a></td><td>classification</td><td>binary</td><td>greedy with a depth-2 lookahead</td></tr>
+<tr><td><a href="#contreeclassifier"><code>ConTreeClassifier</code></a></td><td>classification</td><td>continuous</td><td>optimal, optionally anytime</td></tr>
+<tr><td><a href="#dl85cluster"><code>DL85Cluster</code></a></td><td>clustering</td><td>binary</td><td>optimal</td></tr>
+</tbody>
+</table>
+</div>
+<p>Some behaviour is shared by all of them:</p>
+<ul>
+<li><strong>Labels.</strong> <code>y</code> can hold any labels <code>np.unique</code> accepts (integers, strings,
+and so on). <code>classes_</code> lists them, and <code>predict</code> returns them.</li>
+<li><strong>Binary features.</strong> DL8.5, LGDT and DL85Cluster only accept 0 and 1 in <code>X</code>
+and raise a <code>ValueError</code> otherwise, both in <code>fit</code> and in <code>predict</code>. Use a
+<code>Binarizer</code>, a <code>KBinsDiscretizer</code> with one-hot encoding, or your own
+thresholds to prepare the data.</li>
+<li><strong>The fitted tree.</strong> <code>tree_</code> is a <a href="#the-fitted-tree"><code>pytrees.tree.Tree</code></a> with the
+same layout as scikit-learn’s. <code>apply</code>, <code>decision_path</code> and <code>to_dot</code> work on
+it for every estimator.</li>
+<li><strong>Search results.</strong> <code>train_error_</code> is the training error of the tree,
+<code>status_</code> says why the search stopped, and <code>statistics_</code> holds counters such
+as the search time (<code>duration</code>, in seconds) and the size of the cache.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="dl85classifier"><a class="header" href="#dl85classifier">DL85Classifier</a></h1>
+<p><code>DL85Classifier</code> finds the decision tree of at most <code>max_depth</code> levels with
+the fewest training errors, on binary features. It implements DL8.5, a
+dynamic programming search with branch-and-bound and a cache of subproblems:
+the rows that reach a node depend only on the tests on the path to it, so each
+set of tests is solved once and reused.</p>
+<pre><code class="language-python">from pytrees import DL85Classifier
+
+clf = DL85Classifier(max_depth=3, min_sup=5, max_time=60)
+clf.fit(X, y)            # X holds only 0 and 1
+clf.predict(X_test)
+clf.status_              # "optimal" or "time_limit"
+</code></pre>
+<h2 id="parameters"><a class="header" href="#parameters">Parameters</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>min_sup</code></td><td><code>1</code></td><td>Minimum number of training rows in each leaf.</td></tr>
+<tr><td><code>max_depth</code></td><td><code>1</code></td><td>Maximum depth of the tree.</td></tr>
+<tr><td><code>max_error</code></td><td><code>None</code></td><td>Stop as soon as a tree with at most this error is found. <code>None</code> searches for the optimum.</td></tr>
+<tr><td><code>max_time</code></td><td><code>600.0</code></td><td>Seconds before the search stops with the best tree found so far.</td></tr>
+<tr><td><code>always_sort</code></td><td><code>True</code></td><td>Sort the features by <code>heuristic</code> at every node, rather than only at the root.</td></tr>
+<tr><td><code>heuristic</code></td><td><code>"none"</code></td><td>Order in which features are tried: <code>"none"</code>, <code>"gini"</code>, <code>"information_gain"</code> or <code>"weighted_entropy"</code>. It does not change the optimal tree, but a good order finds good trees sooner and prunes more. It also drives the <a href="#anytime-search-rules">search rules</a>.</td></tr>
+<tr><td><code>fast_d2</code></td><td><code>True</code></td><td>Solve the last two levels with a specialised depth-2 solver (from MurTree), which is much faster than the general search. Not used with <code>error_function_input="indices"</code>.</td></tr>
+<tr><td><code>similarity_lb</code></td><td><code>True</code></td><td>Bound the error of a node from similar nodes already solved, to prune earlier. Turned off when a search rule or an <code>error_function</code> is given.</td></tr>
+<tr><td><code>dynamic_branching</code></td><td><code>True</code></td><td>For each feature, search first the branch with the higher known lower bound, which leaves a tighter bound for the other one. Turned off when a search rule is given.</td></tr>
+<tr><td><code>error_function_input</code></td><td><code>"class_counts"</code></td><td>What a custom <code>error_function</code> receives: <code>"class_counts"</code> or <code>"indices"</code> (the rows in the node).</td></tr>
+<tr><td><code>discrepancy</code>, <code>gain</code>, <code>topk</code>, <code>restart</code>, <code>purity</code></td><td><code>None</code></td><td><a href="#anytime-search-rules">Search rules</a> that make the search anytime.</td></tr>
+<tr><td><code>error_function</code></td><td><code>None</code></td><td>A custom error for the leaves, see <a href="#custom-error-functions">below</a>.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="fitted-attributes"><a class="header" href="#fitted-attributes">Fitted attributes</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Attribute</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>classes_</code>, <code>n_classes_</code></td><td>The class labels and their number.</td></tr>
+<tr><td><code>n_features_in_</code></td><td>Number of features seen in <code>fit</code>.</td></tr>
+<tr><td><code>tree_</code></td><td>The <a href="#the-fitted-tree">fitted tree</a>, or <code>None</code> if the search found no tree.</td></tr>
+<tr><td><code>train_error_</code></td><td>Training error of the tree, as the error function measures it.</td></tr>
+<tr><td><code>status_</code></td><td><code>"optimal"</code>, or <code>"time_limit"</code> if the search stopped at <code>max_time</code>.</td></tr>
+<tr><td><code>statistics_</code></td><td><code>duration</code>, <code>cache_size</code>, <code>cache_hits</code>, <code>restarts</code>, <code>search_space_size</code> (nodes visited), <code>sibling_pruning</code>, <code>n_samples</code>, <code>n_features</code>, <code>error</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="anytime-search"><a class="header" href="#anytime-search">Anytime search</a></h2>
+<p>With the default settings DL8.5 is a depth-first search: it may spend all its
+time in one part of the search space and return a poor tree when the time
+limit hits. The <a href="#anytime-search-rules">search rules</a> fix that by restricting each pass of
+the search to the choices the heuristic prefers, then restarting with a
+wider budget until a pass completes. The last complete pass proves the tree
+optimal.</p>
+<pre><code class="language-python">from pytrees import DL85Classifier
+from pytrees.rules import DiscrepancyRule
+
+clf = DL85Classifier(
+    max_depth=5,
+    heuristic="information_gain",
+    discrepancy=DiscrepancyRule(),
+    max_time=300,
+)
+clf.fit_anytime(X, y, callback=lambda error, seconds, status: print(seconds, error, status))
+</code></pre>
+<p><code>fit_anytime(X, y, callback)</code> behaves like <code>fit</code>, and calls
+<code>callback(error, seconds, status)</code> whenever a pass improves the tree. While a
+rule still restricts the search, <code>status</code> is <code>"budget_exhausted"</code>; the last
+call has <code>"optimal"</code> or <code>"time_limit"</code>.</p>
+<h2 id="custom-error-functions"><a class="header" href="#custom-error-functions">Custom error functions</a></h2>
+<p>DL8.5 is not tied to the misclassification error. It finds the tree that
+minimises the sum of the errors of its leaves, for any error you define for a
+leaf. Pass it as <code>error_function</code>, a function that receives the content of a
+leaf and returns <code>(error, prediction)</code>, where <code>prediction</code> is the index of the
+predicted class in <code>classes_</code>.</p>
+<p>What the function receives depends on <code>error_function_input</code>:</p>
+<ul>
+<li><code>"class_counts"</code> (the default): the number of rows of each class in the
+leaf, in the order of <code>classes_</code>. This covers any error that depends only
+on the class distribution, such as costs that differ per class.</li>
+<li><code>"indices"</code>: the indices of the rows in the leaf. The error can then depend
+on anything you know about those rows: sample weights, another target,
+distances between rows, and so on.</li>
+</ul>
+<p>With class counts, for instance, missing class 1 can cost five times more than
+missing class 0:</p>
+<pre><code class="language-python">import numpy as np
+from pytrees import DL85Classifier
+
+costs = np.array([1.0, 5.0])   # cost of misclassifying a row of each class
+
+def cost_sensitive(class_counts):
+    counts = np.asarray(class_counts, dtype=float)
+    # Cost of predicting each class: every row of another class is an error.
+    per_prediction = [(costs * counts).sum() - costs[k] * counts[k] for k in range(len(counts))]
+    best = int(np.argmin(per_prediction))
+    return per_prediction[best], best
+
+clf = DL85Classifier(max_depth=3, error_function=cost_sensitive).fit(X, y)
+</code></pre>
+<p>With row indices, each row can carry its own weight:</p>
+<pre><code class="language-python">classes, y_index = np.unique(y, return_inverse=True)   # the encoding DL8.5 uses
+weights = np.asarray(sample_weight, dtype=float)
+
+def weighted_error(indices):
+    rows = np.asarray(indices, dtype=int)
+    # Weight of the rows each prediction would get wrong.
+    per_prediction = [weights[rows][y_index[rows] != k].sum() for k in range(len(classes))]
+    best = int(np.argmin(per_prediction))
+    return per_prediction[best], best
+
+clf = DL85Classifier(
+    max_depth=3, error_function=weighted_error, error_function_input="indices"
+).fit(X, y)
+</code></pre>
+<p>A few things change with a custom error:</p>
+<ul>
+<li>The similarity lower bound is turned off, because it assumes each row adds
+at most 1 to the error.</li>
+<li>With <code>"indices"</code>, the depth-2 solver is not used, because it works from
+class counts. The search is slower as a result.</li>
+<li>The function is called from Rust for every leaf the search evaluates, often
+thousands of times, so keep it cheap. An exception raised inside it stops
+the search and is raised again by <code>fit</code>.</li>
+<li><code>train_error_</code> is the error your function measured, not the number of
+misclassified rows.</li>
+</ul>
+<p><a href="#dl85cluster"><code>DL85Cluster</code></a> uses the same mechanism with row indices to
+learn clusterings.</p>
+<h2 id="reference"><a class="header" href="#reference">Reference</a></h2>
+<p>G. Aglin, S. Nijssen and P. Schaus. <em>Learning Optimal Decision Trees Using
+Caching Branch-and-Bound Search.</em> AAAI 2020. The search rules are described in
+the papers listed on the <a href="#anytime-search-rules">search rules</a> page.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="anytime-search-rules"><a class="header" href="#anytime-search-rules">Anytime search rules</a></h1>
+<p>The rules in <code>pytrees.rules</code> turn DL8.5 into an anytime search. Each rule
+restricts a pass of the search to part of the search space, usually the part
+the heuristic considers most promising. When a pass ends and a rule has cut
+something, the search restarts with every rule relaxed (its budget widened),
+reusing everything it cached. When a pass runs without any cut, the tree is
+optimal.</p>
+<p>This gives a good tree after the first, cheap passes, and the optimal tree if
+the search has time to finish. It is the framework of CA-DL8.5 (a complete
+anytime beam search), which generalises LDS-DL8.5 and Top-k-DL8.5.</p>
+<p>Rules are passed to <code>DL85Classifier</code> or <code>DL85Cluster</code> by keyword, and several
+can be combined:</p>
+<pre><code class="language-python">from pytrees import DL85Classifier
+from pytrees.rules import DiscrepancyRule, TopKRule
+
+clf = DL85Classifier(
+    max_depth=5,
+    heuristic="information_gain",   # the rules follow the heuristic's ranking
+    discrepancy=DiscrepancyRule(),
+    max_time=120,
+)
+</code></pre>
+<p>Rules work with the feature ranking, so set a <code>heuristic</code>: with
+<code>heuristic="none"</code> the ranking is just the column order. When a rule is given,
+<code>similarity_lb</code> and <code>dynamic_branching</code> are turned off.</p>
+<h2 id="how-budgets-grow"><a class="header" href="#how-budgets-grow">How budgets grow</a></h2>
+<p>Several rules have a budget that grows at each restart. <code>step_strategy</code> and
+<code>base</code> say how:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>step_strategy</code></th><th>Budgets</th></tr>
+</thead>
+<tbody>
+<tr><td><code>"monotonic"</code></td><td><code>0, base, 2·base, 3·base, …</code></td></tr>
+<tr><td><code>"exponential"</code></td><td><code>1, base, base², base³, …</code></td></tr>
+<tr><td><code>"luby"</code></td><td>running sums of the Luby sequence <code>1, 1, 2, 1, 1, 2, 4, …</code>, scaled by <code>base</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>Monotonic growth gives the finest control; exponential and Luby growth reach
+large budgets in fewer passes.</p>
+<h2 id="discrepancyrule"><a class="header" href="#discrepancyrule">DiscrepancyRule</a></h2>
+<p>Limited discrepancy search (LDS-DL8.5). At each node, the features are ranked
+by the heuristic, and choosing the feature of rank <code>i</code> costs <code>i</code>
+discrepancies. A pass only explores trees whose total cost, summed along the
+path from the root, is within the budget. The first pass therefore follows the
+heuristic exactly, like a greedy learner, and each later pass allows more
+deviations.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>initial_value</code></td><td><code>0</code></td><td>Budget of the first pass.</td></tr>
+<tr><td><code>limit</code></td><td><code>None</code></td><td>Largest budget; <code>None</code> grows it until the search is complete.</td></tr>
+<tr><td><code>step_strategy</code>, <code>base</code></td><td><code>"monotonic"</code>, <code>1</code></td><td>How the budget grows.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="topkrule"><a class="header" href="#topkrule">TopKRule</a></h2>
+<p>Top-k search. A pass with budget <code>k</code> only branches on the <code>k + 1</code> best-ranked
+features at each node, and <code>k</code> grows at each restart. Unlike the discrepancy
+budget, it applies to every node separately rather than to a whole path.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>initial_value</code></td><td><code>0</code></td><td><code>k</code> on the first pass.</td></tr>
+<tr><td><code>limit</code></td><td><code>None</code></td><td>Largest <code>k</code>; <code>None</code> grows it to every feature.</td></tr>
+<tr><td><code>step_strategy</code>, <code>base</code></td><td><code>"monotonic"</code>, <code>1</code></td><td>How <code>k</code> grows.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="gainrule"><a class="header" href="#gainrule">GainRule</a></h2>
+<p>Choosing a feature other than the best-ranked one loses the difference
+between their heuristic scores. A pass skips the paths whose accumulated loss
+exceeds a gap, and the gap widens at each restart. Where the discrepancy rule
+counts ranks, this rule measures how much worse the alternatives actually are.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>min_gain</code></td><td><code>0.0</code></td><td>Gap of the first pass.</td></tr>
+<tr><td><code>epsilon</code></td><td><code>1e-4</code></td><td>Step by which the gap widens.</td></tr>
+<tr><td><code>limit</code></td><td><code>6.0</code></td><td>Largest gap; usually about the maximum depth.</td></tr>
+<tr><td><code>step_strategy</code>, <code>base</code></td><td><code>"monotonic"</code>, <code>1</code></td><td>How the gap grows.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="purityrule"><a class="header" href="#purityrule">PurityRule</a></h2>
+<p>A pass does not split nodes whose share of correctly classified rows is at
+least a threshold; the threshold rises at each restart until every node may be
+split.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>min_purity</code></td><td><code>0.0</code></td><td>Threshold of the first pass.</td></tr>
+<tr><td><code>epsilon</code></td><td><code>1e-4</code></td><td>Amount the threshold rises by at each restart.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="restartrule"><a class="header" href="#restartrule">RestartRule</a></h2>
+<p>Ends each pass after <code>limit</code> seconds and starts a new one, keeping the cache.
+Combined with a heuristic ordering, this periodically sends the search back
+to the most promising part of the space.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>limit</code></td><td><code>1.0</code></td><td>Seconds per pass.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="references"><a class="header" href="#references">References</a></h2>
+<ul>
+<li>H. Kiossou, P. Schaus, S. Nijssen and V. R. Houndji. <em>Time Constrained DL8.5
+Using Limited Discrepancy Search.</em> ECML PKDD 2022.</li>
+<li>H. Kiossou and P. Schaus. <em>A Generic Complete Anytime Beam Search for
+Optimal Decision Tree.</em> IDA 2026.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="lgdtclassifier"><a class="header" href="#lgdtclassifier">LGDTClassifier</a></h1>
+<p><code>LGDTClassifier</code> grows a tree top-down, like CART, but chooses each test with
+a two-level lookahead. At each node it computes the best tree of depth 2 for
+the rows in the node, keeps only its root test, and repeats on each child.
+A single greedy split can miss tests that only pay off one level down (XOR is
+the classic example); a depth-2 lookahead does not.</p>
+<p>The lookahead uses the same specialised depth-2 solver as DL8.5, which counts
+the classes of every pair of features once and derives every depth-2 tree from
+those counts. That keeps LGDT fast enough for deep trees on large datasets,
+where an optimal search would not finish. Features must be binary.</p>
+<pre><code class="language-python">from pytrees import LGDTClassifier
+
+clf = LGDTClassifier(max_depth=8, min_sup=5).fit(X, y)
+</code></pre>
+<h2 id="parameters-1"><a class="header" href="#parameters-1">Parameters</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>min_sup</code></td><td><code>1</code></td><td>Minimum number of training rows in each leaf.</td></tr>
+<tr><td><code>max_depth</code></td><td><code>2</code></td><td>Maximum depth of the tree. At depth 2 or less the tree is optimal (for <code>criterion="error"</code>).</td></tr>
+<tr><td><code>criterion</code></td><td><code>"error"</code></td><td>What the depth-2 lookahead optimises: <code>"error"</code> (misclassifications) or <code>"information_gain"</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="fitted-attributes-1"><a class="header" href="#fitted-attributes-1">Fitted attributes</a></h2>
+<p><code>classes_</code>, <code>n_classes_</code>, <code>n_features_in_</code>, <code>tree_</code> and <code>train_error_</code>, as
+described for <a href="#dl85classifier">DL85Classifier</a>. <code>statistics_</code> holds the error,
+duration and sizes of the problem.</p>
+<h2 id="reference-1"><a class="header" href="#reference-1">Reference</a></h2>
+<p>H. Kiossou, P. Schaus, S. Nijssen and G. Aglin. <em>Efficient Lookahead Decision
+Trees.</em> IDA 2024.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="contreeclassifier"><a class="header" href="#contreeclassifier">ConTreeClassifier</a></h1>
+<p><code>ConTreeClassifier</code> finds the decision tree of at most <code>max_depth</code> levels with
+the fewest training errors, directly on continuous features: no binarisation
+is needed. Candidate thresholds lie halfway between consecutive distinct
+values of each feature, and a row goes left when <code>x[feature] &lt;= threshold</code>.</p>
+<p>The exact search is ConTree, a depth-first branch-and-bound. Its key idea is
+that moving a threshold only moves rows from one child to the other, so the
+errors already computed for some thresholds bound the errors of their
+neighbours, and whole intervals of thresholds can be skipped at once.</p>
+<pre><code class="language-python">from pytrees import ConTreeClassifier
+
+clf = ConTreeClassifier(max_depth=3, min_sup=5, max_time=60).fit(X, y)
+clf.status_        # "optimal", "time_limit", ...
+</code></pre>
+<h2 id="anytime-search-1"><a class="header" href="#anytime-search-1">Anytime search</a></h2>
+<p>The exact search completes the left subtree of a split before looking at the
+right one, so when the time limit is short it can end with a poor tree. With
+<code>use_lds=True</code> (or <code>fit_anytime</code>), the search runs in passes of growing
+<em>limited discrepancy</em> budget instead: the first pass only follows the features
+and thresholds ranked best by the Gini index, and each pass allows more
+deviations from that ranking. A good tree is available after the first passes,
+and a pass that completes without being cut proves the tree optimal.</p>
+<pre><code class="language-python">clf = ConTreeClassifier(max_depth=5, sort_by_heuristic=True, split_selection="first")
+clf.fit_anytime(X, y, callback=lambda error, seconds, status: print(seconds, error))
+</code></pre>
+<p>Set <code>sort_by_heuristic=True</code> with the anytime search, since the discrepancy
+budget follows the Gini ranking.</p>
+<h2 id="parameters-2"><a class="header" href="#parameters-2">Parameters</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>max_depth</code></td><td><code>3</code></td><td>Maximum depth of the tree. The cost grows steeply with it.</td></tr>
+<tr><td><code>min_sup</code></td><td><code>1</code></td><td>Minimum number of training rows in each leaf. Interval pruning is only used when this is 1, so larger values make the search slower.</td></tr>
+<tr><td><code>max_error</code></td><td><code>None</code></td><td>Stop once a tree with at most this many errors is found. <code>None</code> searches for the optimum.</td></tr>
+<tr><td><code>max_time</code></td><td><code>600.0</code></td><td>Seconds before the search stops with the best tree found so far.</td></tr>
+<tr><td><code>max_gap</code></td><td><code>0</code></td><td>Accept a tree within this many errors of the optimum. Larger values prune more and finish sooner.</td></tr>
+<tr><td><code>split_selection</code></td><td><code>"mid"</code></td><td>Which candidate threshold of an interval is evaluated next: <code>"mid"</code> bisects the interval, <code>"first"</code> tries thresholds one at a time (in Gini order with <code>sort_by_heuristic</code>), <code>"random"</code> picks one at random.</td></tr>
+<tr><td><code>sort_by_heuristic</code></td><td><code>False</code></td><td>Try features and thresholds in Gini order. Usually finds a good tree sooner, which prunes more.</td></tr>
+<tr><td><code>fast_d2</code></td><td><code>True</code></td><td>Solve depth-2 subtrees with a specialised solver. It is exact and much faster than the general search.</td></tr>
+<tr><td><code>use_lds</code></td><td><code>False</code></td><td>Use the anytime search in <code>fit</code>.</td></tr>
+<tr><td><code>budget_schedule</code></td><td><code>"diagonal"</code></td><td>How the anytime search widens its budgets between passes. It has two budgets, the discrepancy over features and the number of thresholds tried per feature. <code>"diagonal"</code> grows their sum by one per pass; <code>"square"</code> completes every budget pair up to <code>(k, k)</code> before moving to <code>k + 1</code>.</td></tr>
+<tr><td><code>random_state</code></td><td><code>None</code></td><td>Seed for <code>split_selection="random"</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="fitted-attributes-2"><a class="header" href="#fitted-attributes-2">Fitted attributes</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Attribute</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>classes_</code>, <code>n_classes_</code></td><td>The class labels and their number.</td></tr>
+<tr><td><code>n_features_in_</code></td><td>Number of features seen in <code>fit</code>.</td></tr>
+<tr><td><code>tree_</code></td><td>The <a href="#the-fitted-tree">fitted tree</a>.</td></tr>
+<tr><td><code>train_error_</code></td><td>Training misclassifications of the tree.</td></tr>
+<tr><td><code>status_</code></td><td><code>"optimal"</code>, <code>"time_limit"</code>, <code>"budget_exhausted"</code> (the anytime search had no larger budget to try) or <code>"error_bound_reached"</code> (<code>max_gap</code> was reached). Only <code>"optimal"</code> means the tree is proven best.</td></tr>
+<tr><td><code>statistics_</code></td><td><code>duration</code>, <code>cache_size</code>, <code>cache_hits</code>, <code>general_solver_calls</code>, <code>specialized_solver_calls</code>, <code>n_samples</code>, <code>n_features</code>, <code>error</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="references-1"><a class="header" href="#references-1">References</a></h2>
+<ul>
+<li>C. E. Briţa, J. G. M. van der Linden and E. Demirović. <em>Optimal
+Classification Trees for Continuous Feature Data Using Dynamic Programming
+with Branch-and-Bound.</em> AAAI 2025. (The exact search.)</li>
+<li>H. Kiossou, P. Schaus and S. Nijssen. <em>Anytime Optimal Decision Tree
+Learning with Continuous Features.</em> ECML PKDD 2026. (The anytime search.)</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="dl85cluster"><a class="header" href="#dl85cluster">DL85Cluster</a></h1>
+<p><code>DL85Cluster</code> clusters rows with a decision tree: the tree splits the rows on
+binary features, and each leaf is a cluster. DL8.5 searches for the tree whose
+clusters are tightest, by default the one that minimises the sum of the
+Euclidean distances from each row to the centroid of its cluster. The result
+describes each cluster by a short rule, the path to its leaf.</p>
+<pre><code class="language-python">import numpy as np
+from pytrees import DL85Cluster
+
+X = np.random.default_rng(0).integers(0, 2, size=(200, 8))
+model = DL85Cluster(max_depth=2, min_sup=10).fit(X)
+model.labels_          # the cluster of each row
+model.n_clusters_      # at most 2 ** max_depth
+print(model.to_dot())
+</code></pre>
+<p>The tree must split on binary features, but the distances can be measured in
+other data: pass <code>X_error</code> to <code>fit</code>, with one row per row of <code>X</code>. This lets you
+describe clusters of continuous measurements with interpretable binary
+attributes:</p>
+<pre><code class="language-python">model = DL85Cluster(max_depth=3, min_sup=20).fit(X_binary, X_error=X_measurements)
+</code></pre>
+<h2 id="parameters-3"><a class="header" href="#parameters-3">Parameters</a></h2>
+<p><code>min_sup</code>, <code>max_depth</code>, <code>max_error</code>, <code>max_time</code>, <code>always_sort</code>, <code>heuristic</code>,
+<code>dynamic_branching</code> and the <a href="#anytime-search-rules">search rules</a> work as for
+<a href="#dl85classifier">DL85Classifier</a>; here <code>min_sup</code> is the minimum cluster size.
+<code>similarity_lb</code> has no effect, because the similarity bound is only valid for
+the misclassification error.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>error_function</code></td><td><code>None</code></td><td><code>error_function(indices) -&gt; (error, value)</code>, called with the row indices of a candidate cluster. Replaces the distance to the centroid, so any measure of how tight a cluster is can be used. <code>value</code> is ignored.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="fitted-attributes-3"><a class="header" href="#fitted-attributes-3">Fitted attributes</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Attribute</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>labels_</code></td><td>Cluster of each training row, from 0 to <code>n_clusters_ - 1</code>.</td></tr>
+<tr><td><code>n_clusters_</code></td><td>Number of clusters (leaves).</td></tr>
+<tr><td><code>tree_</code></td><td>The <a href="#the-fitted-tree">fitted tree</a>; each leaf’s <code>value</code> is its cluster number.</td></tr>
+<tr><td><code>train_error_</code></td><td>Error of the clustering, as the error function measures it.</td></tr>
+<tr><td><code>status_</code></td><td><code>"optimal"</code> or <code>"time_limit"</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>predict(X)</code> assigns new rows to clusters, and <code>fit_predict(X)</code> does both
+steps at once.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="the-fitted-tree"><a class="header" href="#the-fitted-tree">The fitted tree</a></h1>
+<p>Every estimator stores its tree in <code>tree_</code>, an instance of
+<code>pytrees.tree.Tree</code>. It uses the layout of scikit-learn’s own trees: one entry
+per node in flat NumPy arrays, node 0 being the root.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Array</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>children_left</code>, <code>children_right</code></td><td>Indices of the children of each node, <code>-1</code> at a leaf.</td></tr>
+<tr><td><code>feature</code></td><td>Feature tested by each node, <code>-1</code> at a leaf.</td></tr>
+<tr><td><code>threshold</code></td><td>Threshold of each test, <code>NaN</code> at a leaf. A row goes left when <code>x[feature] &lt;= threshold</code>. On binary features the threshold is 0.5, so 0 goes left.</td></tr>
+<tr><td><code>value</code></td><td>What each leaf predicts, <code>-1</code> at an internal node: an index into the estimator’s <code>classes_</code>, or a cluster number.</td></tr>
+<tr><td><code>error</code></td><td>Error of the subtree under each node.</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>node_count</code>, <code>n_leaves</code> and <code>max_depth</code> give the size of the tree.</p>
+<h2 id="methods"><a class="header" href="#methods">Methods</a></h2>
+<p>The estimators expose these directly, after checking their input:</p>
+<ul>
+<li><code>apply(X)</code>: the index of the leaf each row reaches.</li>
+<li><code>decision_path(X)</code>: a sparse matrix of shape <code>(n_samples, node_count)</code>
+marking the nodes each row passes through.</li>
+<li><code>to_dot(feature_names=None, class_names=None)</code>: the tree in Graphviz DOT
+format. Feature names default to the column names when <code>fit</code> received a
+pandas DataFrame, and class names to <code>classes_</code>.</li>
+</ul>
+<pre><code class="language-python">clf.apply(X[:3])                  # leaf index of each row
+clf.decision_path(X[:3]).toarray()
+open("tree.dot", "w").write(clf.to_dot(feature_names=names))
+</code></pre>
+<p>Render the DOT output with the <code>dot</code> program (<code>dot -Tpng tree.dot -o tree.png</code>)
+or the <code>graphviz</code> Python package.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="command-line-tools-1"><a class="header" href="#command-line-tools-1">Command line tools</a></h1>
+<p>Two binaries give access to the algorithms without Python. Build them with:</p>
+<pre><code class="language-bash">cargo build --release -p dtrees-cli -p contree-cli
+</code></pre>
+<p>Both read datasets as text files with one row per line, values separated by
+whitespace, and the class label (an integer from 0) in the first column.
+Lines starting with <code>#</code> are ignored.</p>
+<pre><code class="language-text">1 1 0 0 1 0 1
+0 0 1 0 1 1 0
+</code></pre>
+<h2 id="dtrees"><a class="header" href="#dtrees">dtrees</a></h2>
+<p><code>dtrees</code> runs DL8.5, LGDT and the depth-2 solver on binary features (every
+value after the label must be 0 or 1). The common options come before the
+subcommand:</p>
+<pre><code class="language-bash">dtrees --input data.txt --print-tree --print-stats dl85 --depth 3 --support 5 --timeout 60
+dtrees --input data.txt --print-tree lgdt --depth 6
+dtrees --input data.txt --print-tree d2 --depth 2
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Option</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>-i, --input</code></td><td>The dataset file.</td></tr>
+<tr><td><code>--print-tree</code>, <code>--print-stats</code></td><td>Print the tree and the search statistics.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="dl85"><a class="header" href="#dl85"><code>dl85</code></a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Option</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>-d, --depth</code></td><td>required</td><td>Maximum depth of the tree.</td></tr>
+<tr><td><code>-s, --support</code></td><td><code>1</code></td><td>Minimum number of rows in each leaf.</td></tr>
+<tr><td><code>-t, --timeout</code></td><td>none</td><td>Time limit in seconds.</td></tr>
+<tr><td><code>--heuristic</code></td><td><code>no-heuristic</code></td><td>Feature order: <code>no-heuristic</code>, <code>gini-index</code>, <code>information-gain</code>, <code>weighted-entropy</code>.</td></tr>
+<tr><td><code>--depth2-policy</code></td><td><code>enabled</code></td><td>Use the depth-2 solver for the last two levels.</td></tr>
+<tr><td><code>--lb</code></td><td><code>disabled</code></td><td><code>similarity</code> enables the similarity lower bound.</td></tr>
+<tr><td><code>-b, --branching-policy</code></td><td><code>default</code></td><td><code>dynamic</code> searches first the branch with the higher lower bound.</td></tr>
+<tr><td><code>--always-sort</code></td><td></td><td>Sort the features by the heuristic at every node, not only at the root.</td></tr>
+<tr><td><code>--max-error</code></td><td><code>inf</code></td><td>Initial upper bound on the error.</td></tr>
+<tr><td><code>--print-config</code></td><td></td><td>Print the configuration.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="lgdt-and-d2"><a class="header" href="#lgdt-and-d2"><code>lgdt</code> and <code>d2</code></a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Option</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>-d, --depth</code></td><td>required for <code>lgdt</code>, <code>2</code> for <code>d2</code></td><td>Maximum depth (1 or 2 for <code>d2</code>).</td></tr>
+<tr><td><code>-s, --support</code></td><td><code>1</code></td><td>Minimum number of rows in each leaf.</td></tr>
+<tr><td><code>-o, --objective</code></td><td><code>error</code></td><td>What the tree (<code>d2</code>) or the lookahead (<code>lgdt</code>) optimises: <code>error</code> (misclassifications) or <code>information-gain</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>dtrees &lt;command&gt; --help</code> lists every option.</p>
+<h2 id="con-tree"><a class="header" href="#con-tree">con-tree</a></h2>
+<p><code>con-tree</code> runs ConTree on continuous features:</p>
+<pre><code class="language-bash">con-tree --input data.txt --depth 3 --sort-by-heuristic --print-tree --print-stats
+con-tree --input data.txt --depth 5 --use-lds --sort-by-heuristic --time-limit 60 --print-stats
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Option</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>-i, --input</code></td><td>required</td><td>The dataset file.</td></tr>
+<tr><td><code>-d, --depth</code></td><td>required</td><td>Maximum depth of the tree.</td></tr>
+<tr><td><code>-s, --support</code></td><td><code>1</code></td><td>Minimum number of rows in each leaf.</td></tr>
+<tr><td><code>-t, --time-limit</code></td><td><code>600</code></td><td>Time limit in seconds.</td></tr>
+<tr><td><code>--max-gap</code></td><td><code>0</code></td><td>Error gap to the optimum that is tolerated.</td></tr>
+<tr><td><code>--max-error</code></td><td>none</td><td>Initial upper bound on the error.</td></tr>
+<tr><td><code>--sort-by-heuristic</code></td><td></td><td>Explore features and thresholds in Gini order.</td></tr>
+<tr><td><code>--split-selection-strategy</code></td><td><code>mid</code></td><td><code>mid</code>, <code>first</code> or <code>random</code>; see <a href="#contreeclassifier">ConTreeClassifier</a>.</td></tr>
+<tr><td><code>--no-fast-d2</code></td><td></td><td>Disable the depth-2 solver.</td></tr>
+<tr><td><code>--use-lds</code></td><td></td><td>Use the anytime search.</td></tr>
+<tr><td><code>--budget-schedule</code></td><td><code>diagonal</code></td><td><code>diagonal</code> or <code>square</code>.</td></tr>
+<tr><td><code>--print-tree</code>, <code>--print-stats</code></td><td></td><td>Print the tree, and the statistics with the reason the search stopped.</td></tr>
+</tbody>
+</table>
+</div>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="rust-crates"><a class="header" href="#rust-crates">Rust crates</a></h1>
+<p>The Python package is a thin layer over two Rust libraries, which can be used
+on their own. They are not published on crates.io yet; depend on them from
+the repository:</p>
+<pre><code class="language-toml">[dependencies]
+dtrees-rs = { git = "https://github.com/haroldks/pytrees-rs" }
+contree-rs = { git = "https://github.com/haroldks/pytrees-rs" }
+</code></pre>
+<p>The full API documentation is <a href="api/index.html">published with this site</a>;
+<code>cargo doc --open -p dtrees-rs -p contree-rs</code> builds it locally.</p>
+<h2 id="dtrees-rs"><a class="header" href="#dtrees-rs">dtrees-rs</a></h2>
+<p>Decision trees over binary features: DL8.5, the search rules that make it
+anytime, LGDT and the depth-2 solvers. Data is loaded into a <code>Cover</code>, which
+tracks the rows reaching the current node of the search.</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use dtrees_rs::algorithms::greedy::factories::with_error_minimizer;
+use dtrees_rs::algorithms::TreeSearchAlgorithm;
+use dtrees_rs::reader::data_reader::DataReader;
+use std::path::Path;
+
+let mut cover = DataReader::default().read_file(Path::new("data.txt"))?;
+let mut lgdt = with_error_minimizer().max_depth(4).min_support(5).build()?;
+lgdt.fit(&amp;mut cover)?;
+println!("{}", lgdt.tree());
+<span class="boring">}</span></code></pre>
+<p>DL8.5 is assembled with <code>DL85Builder</code>, which takes the cache, the depth-2
+solver, the error function and the heuristic as separate parts, and any number
+of search rules:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use dtrees_rs::algorithms::common::errors::NativeError;
+use dtrees_rs::algorithms::common::heuristics::InformationGain;
+use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
+use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
+use dtrees_rs::algorithms::optimal::rules::{DiscrepancyRule, Monotonic};
+use dtrees_rs::algorithms::TreeSearchAlgorithm;
+use dtrees_rs::caching::Trie;
+
+let error_fn = Box::&lt;NativeError&gt;::default();
+let mut dl85 = DL85Builder::default()
+    .max_depth(4)
+    .min_support(5)
+    .max_time(60.0)
+    .always_sort(true)
+    .add_search_rule(Box::new(DiscrepancyRule::new(usize::MAX, Box::&lt;Monotonic&gt;::default())))
+    .cache(Box::&lt;Trie&gt;::default())
+    .heuristic(Box::&lt;InformationGain&gt;::default())
+    .depth2_search(Box::new(ErrorMinimizer::new(error_fn.clone())))
+    .error_function(error_fn)
+    .build()?;
+dl85.fit(&amp;mut cover)?;
+<span class="boring">}</span></code></pre>
+<p>The <code>examples/</code> directory of the crate has one program per search rule.</p>
+<h3 id="custom-error-functions-1"><a class="header" href="#custom-error-functions-1">Custom error functions</a></h3>
+<p>DL8.5 minimises the sum of the errors of the leaves, and the error of a leaf
+is whatever the <code>ErrorWrapper</code> passed to <code>error_function</code> computes. It
+receives the class counts of the leaf, or its row ids when the builder is set
+to <code>node_exposed_data(NodeDataType::Tids)</code>, and returns
+<code>(error, predicted class)</code>:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use dtrees_rs::algorithms::common::errors::ErrorWrapper;
+
+/// Misclassification cost that differs per class.
+#[derive(Clone)]
+struct CostSensitive {
+    costs: Vec&lt;f64&gt;,
+}
+
+impl ErrorWrapper for CostSensitive {
+    fn compute(&amp;self, class_counts: &amp;[usize]) -&gt; (f64, f64) {
+        let total: f64 = class_counts.iter().zip(&amp;self.costs).map(|(&amp;n, c)| n as f64 * c).sum();
+        // Predict the class whose rows are the costliest to get wrong.
+        (0..class_counts.len())
+            .map(|k| (total - class_counts[k] as f64 * self.costs[k], k as f64))
+            .min_by(|a, b| a.0.total_cmp(&amp;b.0))
+            .unwrap_or((0.0, 0.0))
+    }
+}
+
+let error_fn = Box::new(CostSensitive { costs: vec![1.0, 5.0] });
+let mut dl85 = DL85Builder::default()
+    .max_depth(3)
+    .cache(Box::&lt;Trie&gt;::default())
+    .heuristic(Box::&lt;NoHeuristic&gt;::default())
+    .depth2_search(Box::new(ErrorMinimizer::new(error_fn.clone())))
+    .error_function(error_fn)
+    .build()?;
+<span class="boring">}</span></code></pre>
+<p>A plain function works too, through <code>NativeError::new</code>. Two options assume
+the misclassification error: the similarity lower bound
+(<code>LowerBoundPolicy::Similarity</code>) is only valid when each row adds at most 1
+to the error, and the depth-2 solver needs class counts, so it is skipped
+with row ids.</p>
+<h2 id="contree-rs"><a class="header" href="#contree-rs">contree-rs</a></h2>
+<p>Optimal decision trees over continuous features: <code>ConTree</code> (exact) and
+<code>ConTreeLds</code> (anytime).</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use contree::algorithms::ConTree;
+use contree::common::{PointSelector, SearchConfig, SearchStatus};
+use contree::data::Dataset;
+
+// Row-major values and labels 0..k.
+let dataset = Dataset::from_rows(&amp;values, &amp;labels, n_features)?;
+let config = SearchConfig::new(1, 3, 600.0, 0, usize::MAX, false, true, PointSelector::Mid);
+let outcome = ConTree::with_config(config).fit(&amp;dataset)?;
+
+if outcome.status == SearchStatus::Optimal {
+    println!("{} training errors\n{}", outcome.error(), outcome.tree);
+}
+<span class="boring">}</span></code></pre>
+<p><code>SearchConfig::new</code> takes, in order: minimum support, maximum depth, time
+limit, tolerated gap, initial error bound, Gini ordering, depth-2 solver and
+point selector. <code>ConTreeLds</code> is built the same way; <code>with_schedule</code> chooses
+its budget schedule and <code>trajectory()</code> returns every improvement as
+<code>(seconds, error)</code>.</p>
+<p>The library is imported as <code>contree</code> (package <code>contree-rs</code>).</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="publications"><a class="header" href="#publications">Publications</a></h1>
+<p>The algorithms in pytrees-rs were introduced in the following papers. If you
+use them in your work, please cite the relevant one.</p>
+<p><strong>Time Constrained DL8.5 Using Limited Discrepancy Search.</strong>
+H. Kiossou, P. Schaus, S. Nijssen and V. R. Houndji.
+ECML PKDD 2022, LNCS 13717, pp. 443-459.
+<a href="https://doi.org/10.1007/978-3-031-26419-1_27">doi:10.1007/978-3-031-26419-1_27</a></p>
+<p>Limited discrepancy search for DL8.5 (LDS-DL8.5), so that the search returns
+good trees under a time limit. In pytrees: <code>DL85Classifier</code> with a
+<a href="#discrepancyrule"><code>DiscrepancyRule</code></a>.</p>
+<p><strong>Efficient Lookahead Decision Trees.</strong>
+H. Kiossou, P. Schaus, S. Nijssen and G. Aglin.
+IDA 2024, pp. 133-144.
+<a href="https://doi.org/10.1007/978-3-031-58553-1_11">doi:10.1007/978-3-031-58553-1_11</a></p>
+<p>LGDT, a top-down learner that chooses each test with an efficient depth-2
+lookahead. In pytrees: <a href="#lgdtclassifier"><code>LGDTClassifier</code></a>.</p>
+<p><strong>A Generic Complete Anytime Beam Search for Optimal Decision Tree.</strong>
+H. Kiossou and P. Schaus.
+IDA 2026.
+<a href="https://doi.org/10.1007/978-3-032-23833-7_8">doi:10.1007/978-3-032-23833-7_8</a>,
+<a href="https://arxiv.org/abs/2508.06064">arXiv:2508.06064</a></p>
+<p>CA-DL8.5, a framework that generalises LDS-DL8.5 and Top-k-DL8.5: rules
+restrict each pass of the search and are relaxed at each restart. In pytrees:
+the <a href="#anytime-search-rules">search rules</a> of <code>DL85Classifier</code>.</p>
+<p><strong>Anytime Optimal Decision Tree Learning with Continuous Features.</strong>
+H. Kiossou, P. Schaus and S. Nijssen.
+ECML PKDD 2026.
+<a href="https://arxiv.org/abs/2601.14765">arXiv:2601.14765</a></p>
+<p>An anytime version of ConTree based on limited discrepancy search. In
+pytrees: <a href="#contreeclassifier"><code>ConTreeClassifier</code></a> with <code>use_lds=True</code> or
+<code>fit_anytime</code>.</p>
+<h2 id="related-work"><a class="header" href="#related-work">Related work</a></h2>
+<ul>
+<li>G. Aglin, S. Nijssen and P. Schaus. <em>Learning Optimal Decision Trees Using
+Caching Branch-and-Bound Search.</em> AAAI 2020. DL8.5; the original
+implementation is <a href="https://github.com/aia-uclouvain/pydl8.5">pydl8.5</a>.</li>
+<li>E. Demirović, A. Lukina, E. Hebrard, J. Chan, J. Bailey, C. Leckie,
+K. Ramamohanarao and P. J. Stuckey. <em>MurTree: Optimal Decision Trees via
+Dynamic Programming and Search.</em> JMLR 23, 2022. The depth-2 solver used by
+DL8.5 and LGDT.</li>
+<li>C. E. Briţa, J. G. M. van der Linden and E. Demirović. <em>Optimal
+Classification Trees for Continuous Feature Data Using Dynamic Programming
+with Branch-and-Bound.</em> AAAI 2025. ConTree; the original implementation is
+<a href="https://github.com/ConSol-Lab/contree">ConSol-Lab/contree</a>.</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-09f2665d.js"></script>
+
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-609e4cb8.js"></script>
+
+        <!-- Custom JS scripts -->
+
+        <script>
+        window.addEventListener('load', function() {
+            window.setTimeout(window.print, 100);
+        });
+        </script>
+
+
+    </div>
+    </body>
+</html>
