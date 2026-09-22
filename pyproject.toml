@@ -24,7 +24,14 @@ Documentation = "https://haroldks.github.io/pytrees-rs/"
 
 # Only for working on the repository (`uv sync`); never installed by users.
 [dependency-groups]
-dev = ["maturin>=1.8,<2.0", "pytest>=7", "pre-commit"]
+dev = [
+    "maturin>=1.8,<2.0",
+    "pytest>=7",
+    "pre-commit",
+    # check_estimator runs its pandas and array API checks only with these.
+    "pandas",
+    "array-api-strict",
+]
 
 [tool.maturin]
 # The compiled module is `pytrees._native`; the pure-Python package around it

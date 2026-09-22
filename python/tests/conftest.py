@@ -1,4 +1,11 @@
+import os
 import pathlib
+
+# scikit-learn's check_estimator skips its array API check unless SciPy's
+# array API support is on, and ConTree's test counts a skipped check as a
+# failure. It must be set before SciPy is first imported.
+os.environ.setdefault("SCIPY_ARRAY_API", "1")
+
 
 import numpy as np
 import pytest
