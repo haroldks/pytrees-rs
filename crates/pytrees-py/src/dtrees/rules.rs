@@ -11,6 +11,7 @@ use pyo3::prelude::*;
 
 use crate::dtrees::options;
 
+/// `pytrees.rules.DiscrepancyRule`.
 #[derive(FromPyObject)]
 pub(crate) struct DiscrepancySpec {
     #[pyo3(attribute)]
@@ -31,6 +32,7 @@ impl DiscrepancySpec {
     }
 }
 
+/// `pytrees.rules.GainRule`.
 #[derive(FromPyObject)]
 pub(crate) struct GainSpec {
     #[pyo3(attribute)]
@@ -52,6 +54,7 @@ impl GainSpec {
     }
 }
 
+/// `pytrees.rules.PurityRule`.
 #[derive(FromPyObject)]
 pub(crate) struct PuritySpec {
     #[pyo3(attribute)]
@@ -66,6 +69,7 @@ impl PuritySpec {
     }
 }
 
+/// `pytrees.rules.TopKRule`.
 #[derive(FromPyObject)]
 pub(crate) struct TopKSpec {
     #[pyo3(attribute)]
@@ -85,6 +89,7 @@ impl TopKSpec {
     }
 }
 
+/// `pytrees.rules.RestartRule`: restarts the search every `limit` seconds.
 #[derive(FromPyObject)]
 pub(crate) struct RestartSpec {
     #[pyo3(attribute)]

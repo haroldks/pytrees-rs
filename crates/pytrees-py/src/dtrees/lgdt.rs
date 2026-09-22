@@ -44,7 +44,7 @@ fn run<D: OptimalDepth2Tree + Send + ?Sized>(
     mut learner: LGDT<D>,
     cover: &mut Cover,
 ) -> PyResult<Tree> {
-    // As for DL8.5: other Python threads keep running during the search.
+    // Release the GIL during the search.
     py.detach(|| learner.fit(cover))
         .map_err(|err| PyRuntimeError::new_err(format!("LGDT failed: {err}")))?;
     Ok(learner.tree().clone())

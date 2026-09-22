@@ -4,102 +4,102 @@ use dtrees_rs::algorithms::common::types::{
 };
 use std::path::PathBuf;
 
+/// Command line arguments of `dtrees`.
 #[derive(Debug, Parser)]
 #[clap(name = "dt-trees", version, author, about)]
 pub struct MainApp {
-    /// Dataset input file path
+    /// Dataset file: one instance per line, label first, binary features
     #[clap(short, long, value_parser)]
     pub input: PathBuf,
 
     #[clap(subcommand)]
     pub command: ArgCommand,
 
-    /// Printing Statistics and Constraints
+    /// Print the search statistics
     #[arg(long, default_value_t = false)]
     pub print_stats: bool,
 
-    /// Printing Tree
+    /// Print the tree
     #[arg(long, default_value_t = false)]
     pub print_tree: bool,
 }
 
+/// The algorithm to run.
 #[derive(Debug, Subcommand)]
 pub enum ArgCommand {
-    /// DL8.5 Optimal search Algorithm with no depth limit and classification error as criterion.
-    /// TODO : More arguments will be added to support LDS.
+    /// DL8.5: the optimal tree of a given depth, minimising the classification error
     DL85 {
-        /// Minimum support
+        /// Minimum number of instances in each leaf
         #[arg(short, long, default_value_t = 1)]
         support: usize,
 
-        /// Maximum depth
+        /// Maximum depth of the tree
         #[arg(short, long)]
         depth: usize,
 
-        /// Sorting Features based on heuristic only at the root (true) or at each node
+        /// Sort the features by the heuristic at every node (true) or only at the root
         #[arg(long, default_value_t = true)]
         always_sort: bool,
 
-        /// Use Murtree Specialization Algorithm
+        /// Use the depth-2 solver for the last two levels
         #[arg(long, value_enum, default_value_t = OptimalDepth2Policy::Enabled)]
         depth2_policy: OptimalDepth2Policy,
 
-        /// Lower bound heuristic strategy
+        /// Lower bound used to prune subproblems
         #[arg(long="lb", value_enum, default_value_t = LowerBoundPolicy::Disabled)]
         lower_bound_policy: LowerBoundPolicy,
 
-        /// Branching type
+        /// Which branch of a feature is searched first
         #[arg(short, long, value_enum, default_value_t = BranchingPolicy::Default)]
         branching_policy: BranchingPolicy,
 
-        /// Sorting heuristic
+        /// Heuristic used to order the features
         #[arg(long, value_enum, default_value_t = SearchHeuristic::NoHeuristic)]
         heuristic: SearchHeuristic,
 
-        /// Tree error initial upper bound
+        /// Initial upper bound on the tree error
         #[arg(long, default_value_t = <f64>::INFINITY)]
         max_error: f64,
 
-        /// Maximum time allowed to the search
+        /// Time limit in seconds
         #[clap(long, short)]
         timeout: Option<f64>,
 
-        /// Printing Config
+        /// Print the configuration
         #[arg(long, default_value_t = false)]
         print_config: bool,
     },
 
-    /// Optimal depth 2 algorithms using Error or Information as criterion
+    /// A tree of depth 1 or 2, minimising the error or maximising information gain
     D2 {
-        /// Minimum support
+        /// Minimum number of instances in each leaf
         #[arg(short, long, default_value_t = 1)]
         support: usize,
 
-        /// Depth
-        /// The depth you want. The algorithm is optimized for depth 1 and 2 and won't work for more than that
+        /// Depth of the tree: 1 or 2
         #[arg(short, long, default_value_t = 2)]
         depth: usize,
 
-        /// Objective to optimise. Error or Information Gain
+        /// Objective: error or information gain
         #[arg(short, long, value_enum, default_value_t = SearchStrategy::Depth2ErrorMinimizer)]
         objective: SearchStrategy,
     },
 
-    /// Less greedy decision tree approach using misclassification or information gain tree as sliding window
+    /// LGDT: a greedy tree whose tests are chosen with a depth-2 lookahead
     Lgdt {
-        /// Minimum support
+        /// Minimum number of instances in each leaf
         #[arg(short, long, default_value_t = 1)]
         support: usize,
 
-        /// Maximum depth
+        /// Maximum depth of the tree
         #[arg(short, long)]
         depth: usize,
 
-        /// Objective function inside
+        /// Objective of the depth-2 lookahead: error or information gain
         #[arg(short, long, value_enum, default_value_t = SearchStrategy::Depth2ErrorMinimizer)]
         objective: SearchStrategy,
 
-        /// Printing Config
+        /// Print the configuration
         #[arg(long, default_value_t = false)]
         print_config: bool,
     },

@@ -178,9 +178,8 @@ impl RawDL85 {
         y: Option<PyReadonlyArray1<'_, i64>>,
     ) -> PyResult<()> {
         let mut cover = data::cover(&x, y.as_ref())?;
-        // The search can run for minutes; holding the GIL through it would
-        // block every other thread in the process. A Python error function
-        // takes the GIL back for each call.
+        // Release the GIL: the search can run for minutes. A Python error
+        // function takes it back for each call.
         let learner = &mut self.learner;
         let outcome = py.detach(|| learner.fit(&mut cover));
         raise_stored(&self.failure)?;

@@ -1,8 +1,7 @@
 //! The string options the Python estimators take, parsed into dtrees types.
 //!
-//! Strings rather than Python enums, because scikit-learn has to clone,
-//! pickle and compare parameters, and a `#[pyclass]` enum does none of that.
-//! Each parser names the accepted values when it rejects one.
+//! Options are plain strings so that scikit-learn can clone, pickle and
+//! compare them. Each parser lists the accepted values when it rejects one.
 
 use dtrees_rs::algorithms::common::heuristics::{
     GiniIndex, Heuristic, InformationGain, NoHeuristic, WeightedEntropy,

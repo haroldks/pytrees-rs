@@ -1,16 +1,14 @@
 //! `pytrees._native`: the compiled half of the `pytrees` package.
 //!
-//! One submodule per library, both thin: they turn numpy arrays into the
-//! library's data type, run the search, and hand the result back. Everything
-//! users see -- parameters, validation, scikit-learn behaviour -- lives in
-//! the Python package around this module.
+//! Each submodule turns numpy arrays into a library's data type, runs the
+//! search, and returns the result. Parameters, validation and the
+//! scikit-learn interface live in the Python package around this module.
 //!
 //! - `pytrees._native.dtrees`: `RawDL85` and `RawLGDT`, over binary features
 //! - `pytrees._native.contree`: `RawConTree`, over continuous features
 //! - `pytrees._native.tree`: `apply`, which every estimator's `Tree` uses
 
-// A library hands text back to its caller rather than printing it; the
-// binaries and examples print. Tests may print.
+// Library code returns text to its caller instead of printing it.
 #![cfg_attr(not(test), warn(clippy::print_stdout, clippy::print_stderr))]
 
 use pyo3::prelude::*;

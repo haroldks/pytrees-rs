@@ -1,8 +1,8 @@
 //! Python bindings for `contree`.
 //!
-//! This module is deliberately thin: it converts numpy arrays to a `Dataset`,
-//! runs the search with the GIL released, and hands back the tree as arrays.
-//! Everything that looks like scikit-learn lives in the Python layer on top.
+//! Converts numpy arrays to a `Dataset`, runs the search with the GIL
+//! released, and returns the tree as arrays. The scikit-learn interface is in
+//! `pytrees.supervised.contree`.
 
 use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2, PyUntypedArrayMethods};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
@@ -15,8 +15,8 @@ use contree::data::view::DataView;
 use contree::data::{Dataset, DatasetError};
 use contree::tree::{Tree, TreeError};
 
-/// Bad input is a `ValueError`; a broken invariant inside the search is a
-/// `RuntimeError`, because it is our bug and not the caller's.
+/// Bad input becomes a `ValueError`; a broken invariant inside the search, a
+/// bug in the library, becomes a `RuntimeError`.
 fn search_err(err: SearchError) -> PyErr {
     match err {
         SearchError::Tree(_) => PyRuntimeError::new_err(err.to_string()),
@@ -50,8 +50,7 @@ fn status_name(status: SearchStatus) -> &'static str {
     }
 }
 
-/// Everything the constructor was given, kept verbatim so the Python layer can
-/// hand it straight back to `get_params`.
+/// The constructor arguments, kept as given.
 #[derive(Clone, Copy)]
 struct Params {
     min_sup: usize,
@@ -179,8 +178,7 @@ impl RawConTree {
         let dataset = Self::dataset(&x, &y)?;
         let params = self.params;
 
-        // The search is pure Rust and can run for minutes; holding the GIL
-        // through it would block every other thread in the process.
+        // Release the GIL: the search can run for minutes.
         let outcome = py.detach(|| {
             if params.use_lds {
                 let mut solver = ConTreeLds::new(
@@ -228,9 +226,7 @@ impl RawConTree {
     /// Runs the anytime search, reporting each improvement as it happens.
     ///
     /// `callback(error, seconds, status)` is invoked whenever a pass finds a
-    /// better tree. This is the crate's distinguishing feature and the reason
-    /// the LDS solver exists; without it a caller can only wait for the final
-    /// answer.
+    /// better tree.
     #[pyo3(signature = (x, y, callback = None))]
     fn fit_anytime(
         &mut self,
@@ -295,8 +291,6 @@ impl RawConTree {
     /// The tree as flat arrays, in the shape scikit-learn's own `tree_` uses.
     ///
     /// `children_left[i] == -1` marks a leaf, whose prediction is `value[i]`.
-    /// This beats handing back a JSON dict: a caller can walk or plot the whole
-    /// tree without parsing anything.
     fn tree_arrays<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let fitted = self.fitted()?;
         let nodes = fitted.tree.nodes();
@@ -364,12 +358,6 @@ impl RawConTree {
     fn error(&self) -> PyResult<usize> {
         Ok(self.fitted()?.statistics.error)
     }
-
-    // --- pickle -----------------------------------------------------------
-    //
-    // A `#[pyclass]` is not picklable by default, and an estimator that cannot
-    // be pickled cannot be cached, sent to a worker process, or saved --
-    // `sklearn.utils.estimator_checks.check_estimator` rejects it outright.
 }
 
 /// Fills `pytrees._native.contree`.
