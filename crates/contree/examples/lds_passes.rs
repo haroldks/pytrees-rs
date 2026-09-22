@@ -6,27 +6,31 @@ use contree::reader::data_reader::DataReader;
 use std::path::Path;
 use std::time::Instant;
 
-fn main() {
+const USAGE: &str =
+    "usage: lds_passes <dataset.txt> <depth> <first|mid> <limit> [schedule] [max-passes]";
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let a: Vec<String> = std::env::args().collect();
-    let (path, depth, sel, limit) = (
-        &a[1],
-        a[2].parse().unwrap(),
-        &a[3],
-        a[4].parse::<f64>().unwrap(),
-    );
+    if a.len() < 5 {
+        return Err(USAGE.into());
+    }
+    let (path, depth, sel, limit) = (&a[1], a[2].parse()?, &a[3], a[4].parse::<f64>()?);
     let sel = if sel == "first" {
         PointSelector::First
     } else {
         PointSelector::Mid
     };
-    let ds = DataReader::default().read_file(Path::new(path)).unwrap();
+    let ds = DataReader::default().read_file(Path::new(path))?;
     // Optional: budget schedule, and a cap on the number of passes (for a
     // deterministic comparison of work done).
     let schedule: ScheduleKind = a
         .get(5)
-        .map_or(Ok(ScheduleKind::default()), |x| x.parse())
-        .unwrap();
-    let max_passes: usize = a.get(6).map_or(usize::MAX, |x| x.parse().unwrap());
+        .map_or(Ok(ScheduleKind::default()), |x| x.parse())?;
+    let max_passes: usize = a
+        .get(6)
+        .map(|x| x.parse())
+        .transpose()?
+        .unwrap_or(usize::MAX);
     let mut s =
         ConTreeLds::new(1, depth, limit, usize::MAX, sel, 0, true, true).with_schedule(schedule);
     let view = DataView::root(&ds, true);
@@ -55,4 +59,5 @@ fn main() {
         }
     }
     println!("status: {}  passes: {passes}", s.status());
+    Ok(())
 }

@@ -98,7 +98,7 @@ fn main() -> Result<(), DataReaderError> {
                 remove_file(&result_path).expect("Error in removing function");
             }
             Res {
-                name: file_name.to_str().unwrap().to_string(),
+                name: file_name.to_string_lossy().into_owned(),
                 depth,
                 support: app.support,
                 runtimes: Vec::with_capacity(100),
@@ -117,7 +117,7 @@ fn main() -> Result<(), DataReaderError> {
         Some(res) => res,
 
         None => Res {
-            name: file_name.to_str().unwrap().to_string(),
+            name: file_name.to_string_lossy().into_owned(),
             depth,
             support: app.support,
             completed: false,

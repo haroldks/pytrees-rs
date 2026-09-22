@@ -22,7 +22,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     assert!(app.input.exists(), "File does not exist");
 
-    let file = app.input.to_str().unwrap();
+    let file = app
+        .input
+        .to_str()
+        .ok_or("the input path is not valid UTF-8")?;
     let depth = app.depth;
     let support = app.support;
     let fast_d2 = app.fast_d2;

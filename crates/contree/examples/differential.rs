@@ -138,7 +138,7 @@ impl Tally {
     }
 }
 
-fn main() {
+fn main() -> std::io::Result<()> {
     let mut rng = Lcg(0x5eed);
     let (mut exhaustive, mut specialized, mut anytime, mut exhaustive_first) = (
         Tally::default(),
@@ -173,8 +173,8 @@ fn main() {
                 out.push('\n');
             }
             let dir = std::path::PathBuf::from(dir);
-            std::fs::create_dir_all(&dir).unwrap();
-            std::fs::write(dir.join(format!("case{case}.txt")), out).unwrap();
+            std::fs::create_dir_all(&dir)?;
+            std::fs::write(dir.join(format!("case{case}.txt")), out)?;
         }
         let rows: Vec<usize> = (0..n_rows).collect();
 
@@ -278,4 +278,5 @@ fn main() {
             schedules[si][pi].report(&format!("LDS+Gini {schedule} {selector}"), lds_runs);
         }
     }
+    Ok(())
 }

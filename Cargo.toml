@@ -45,6 +45,9 @@ large_enum_variant = "warn"
 needless_collect = "warn"
 redundant_clone = "warn"
 unnecessary_wraps = "warn"
+# No unwrap outside tests (clippy.toml allows them there). An expect is for
+# an invariant, and its message says what the invariant is.
+unwrap_used = "warn"
 
 [profile.release]
 lto = "fat"
