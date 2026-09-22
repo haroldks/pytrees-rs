@@ -1,116 +1,52 @@
 # Installation
 
-This guide will help you install pytrees-rs on your system. We provide multiple installation methods to suit different needs and environments.
-
-## Prerequisites
-
-Before installing pytrees-rs, ensure you have the following:
-
-### Python Requirements
-- **Python 3.10 or higher**
-- **pip** package manager
-- **NumPy** (automatically installed with pytrees-rs)
-
-### For Source Installation
-- **Rust toolchain** (1.70.0 or higher)
-- **Git** (for cloning the repository)
-
-### Installing Rust
-
-If you need to install Rust, use the official installer:
-
-```bash
-# Install Rust using rustup (recommended)
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# Restart your shell or run:
-source ~/.cargo/env
-
-# Verify installation
-rustc --version
-cargo --version
-```
-
-**Alternative methods:**
-- **macOS**: `brew install rust`
-- **Ubuntu/Debian**: `sudo apt install rustc cargo`
-- **Windows**: Download from [rustup.rs](https://rustup.rs/)
-
-## Installation Methods
-
-### Method 1: PyPI Installation
+## From PyPI
 
 ```bash
 pip install pytrees-rs
 ```
 
-### Method 2: Building from Source (Current Method)
+The package needs Python 3.10 or later, and installs NumPy, SciPy and
+scikit-learn. Prebuilt wheels are published for Linux (x86_64 and aarch64),
+macOS (Intel and Apple silicon) and Windows (x64). The package is imported as
+`pytrees`:
 
-This is currently the primary installation method:
+```python
+import pytrees
+from pytrees import ConTreeClassifier, DL85Classifier, LGDTClassifier, DL85Cluster
+```
+
+## From source
+
+Building from source needs a Rust toolchain, version 1.77 or later. Install it
+with [rustup](https://rustup.rs) if you do not have one. Then:
 
 ```bash
-# Clone the repository
 git clone https://github.com/haroldks/pytrees-rs.git
 cd pytrees-rs
-
-# Build the Rust binary
-cargo build --release
-
-# Install Python package
-cd pytrees-rs  # Navigate to Python package directory
 pip install .
 ```
 
-### Method 3: Binary Installation Only
+`pip` builds the Rust extension with [maturin](https://www.maturin.rs), which
+it installs on its own.
 
-If you only need the command-line interface:
-
-```bash
-# Clone and build
-git clone https://github.com/haroldks/pytrees-rs.git
-cd pytrees-rs
-cargo build --release
-
-# Create symbolic link (Unix-based systems)
-ln -s $(pwd)/target/release/dtrees-rs $HOME/.local/bin/dtrees-rs
-
-# Or copy to system path
-sudo cp target/release/dtrees-rs /usr/local/bin/
-```
-
-## Basic Usage
-
-After installation, verify that PyTrees-RS is working:
-
-### Python Library Test
-
-```python
-# Test basic import
-import pytrees
-from pytrees import DL85Classifier, LGDTClassifier
-
-# Quick functionality test
-from sklearn.datasets import make_classification
-X, y = make_classification(n_samples=100, n_features=5, random_state=42)
-X = (X > 0).astype(float)
-clf = DL85Classifier(max_depth=2, min_sup=5)
-clf.fit(X, y)
-print(f"Accuracy: {clf.score(X, y):.3f}")
-```
-
-### Command Line Test
+For development, build the package in place instead, so that Python changes
+are picked up without reinstalling:
 
 ```bash
-# Test binary installation
-dtrees-rs --help
+pip install maturin
+maturin develop --release
+pytest python/tests
 ```
 
-## Next Steps
+## Command line tools
 
-Once installed successfully:
+The command line tools are plain Rust binaries:
 
-1. **[Quick Start Guide](./quickstart.md)**: Build your first optimal tree
-2. **[Python Library](./python/README.md)**: Explore the API
-3. **[Examples](./examples/classification.md)**: See real applications
+```bash
+cargo build --release -p dtrees-cli -p contree-cli
+./target/release/dtrees-rs --help
+./target/release/con-tree --help
+```
 
-
+See [Command line tools](cli.md) for their options.
