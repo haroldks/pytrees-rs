@@ -10,8 +10,8 @@ dtrees-rs = { git = "https://github.com/haroldks/pytrees-rs" }
 contree-rs = { git = "https://github.com/haroldks/pytrees-rs" }
 ```
 
-Run `cargo doc --open -p dtrees-rs -p contree-rs` for the full API
-documentation.
+The full API documentation is [published with this site](api/index.html);
+`cargo doc --open -p dtrees-rs -p contree-rs` builds it locally.
 
 ## dtrees-rs
 

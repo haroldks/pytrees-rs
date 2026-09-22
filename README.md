@@ -122,7 +122,8 @@ and a row goes left when `x[feature] <= threshold`.
 
 The [documentation](https://haroldks.github.io/pytrees-rs/) covers every
 estimator and parameter, the anytime search rules, the command line tools and
-the Rust crates in more detail.
+the Rust crates in more detail. The Rust API documentation is at
+[haroldks.github.io/pytrees-rs/api](https://haroldks.github.io/pytrees-rs/api/).
 
 ## Repository layout
 
