@@ -1,0 +1,20 @@
+[package]
+name = "dtrees-cli"
+description = "Command line driver for the dtrees decision tree searches."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+# Keeps the binary's historical name, so existing scripts still work.
+[[bin]]
+name = "dtrees"
+path = "src/main.rs"
+
+[dependencies]
+dtrees-rs = { workspace = true, features = ["cli"] }
+clap.workspace = true
+
+[lints]
+workspace = true

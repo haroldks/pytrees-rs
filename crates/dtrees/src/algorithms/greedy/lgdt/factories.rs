@@ -1,0 +1,15 @@
+//! Ready-made LGDT builders.
+
+use crate::algorithms::common::errors::NativeError;
+use crate::algorithms::greedy::lgdt::builder::LGDTBuilder;
+use crate::algorithms::optimal::depth2::{ErrorMinimizer, InfoGainMaximizer};
+
+/// An LGDT builder whose lookahead maximises information gain.
+pub fn with_info_gain() -> LGDTBuilder<InfoGainMaximizer<NativeError>> {
+    LGDTBuilder::default().search(Box::<InfoGainMaximizer<NativeError>>::default())
+}
+
+/// An LGDT builder whose lookahead minimises the error.
+pub fn with_error_minimizer() -> LGDTBuilder<ErrorMinimizer<NativeError>> {
+    LGDTBuilder::default().search(Box::<ErrorMinimizer<NativeError>>::default())
+}

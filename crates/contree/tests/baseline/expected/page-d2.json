@@ -1,0 +1,50 @@
+{
+  "counters": {
+    "cache_hits": 33424,
+    "cache_size": 170821,
+    "general_solver_call": 208252,
+    "num_features": 10,
+    "num_samples": 5473,
+    "specialized_solver_call": 0
+  },
+  "dataset": "page",
+  "depth": 2,
+  "error": 253,
+  "flags": {
+    "fast_d2": false,
+    "sort_by_heuristic": false,
+    "use_lds": false
+  },
+  "support": 1,
+  "tree": {
+    "error": 253,
+    "feature": 0,
+    "left": {
+      "error": 35,
+      "feature": 6,
+      "left": {
+        "error": 5,
+        "leaf": 0
+      },
+      "right": {
+        "error": 30,
+        "leaf": 1
+      },
+      "split": 0.00015852684699232944
+    },
+    "right": {
+      "error": 218,
+      "feature": 3,
+      "left": {
+        "error": 9,
+        "leaf": 2
+      },
+      "right": {
+        "error": 209,
+        "leaf": 0
+      },
+      "split": 0.0005263634721495438
+    },
+    "split": 0.001967621419676214
+  }
+}

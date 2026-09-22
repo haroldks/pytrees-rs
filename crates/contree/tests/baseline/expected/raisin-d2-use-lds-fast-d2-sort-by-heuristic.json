@@ -1,0 +1,50 @@
+{
+  "counters": {
+    "cache_hits": 0,
+    "cache_size": 1,
+    "general_solver_call": 0,
+    "num_features": 7,
+    "num_samples": 900,
+    "specialized_solver_call": 238
+  },
+  "dataset": "raisin",
+  "depth": 2,
+  "error": 109,
+  "flags": {
+    "fast_d2": true,
+    "sort_by_heuristic": true,
+    "use_lds": true
+  },
+  "support": 1,
+  "tree": {
+    "error": 109,
+    "feature": 5,
+    "left": {
+      "error": 30,
+      "feature": 1,
+      "left": {
+        "error": 10,
+        "leaf": 0
+      },
+      "right": {
+        "error": 20,
+        "leaf": 1
+      },
+      "split": 0.2187553452848061
+    },
+    "right": {
+      "error": 79,
+      "feature": 1,
+      "left": {
+        "error": 54,
+        "leaf": 0
+      },
+      "right": {
+        "error": 25,
+        "leaf": 1
+      },
+      "split": 0.2552751979272543
+    },
+    "split": 0.6483915394631627
+  }
+}

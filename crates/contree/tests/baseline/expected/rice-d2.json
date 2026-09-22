@@ -1,0 +1,50 @@
+{
+  "counters": {
+    "cache_hits": 147065,
+    "cache_size": 593718,
+    "general_solver_call": 749076,
+    "num_features": 7,
+    "num_samples": 3810,
+    "specialized_solver_call": 0
+  },
+  "dataset": "rice",
+  "depth": 2,
+  "error": 257,
+  "flags": {
+    "fast_d2": false,
+    "sort_by_heuristic": false,
+    "use_lds": false
+  },
+  "support": 1,
+  "tree": {
+    "error": 257,
+    "feature": 1,
+    "left": {
+      "error": 109,
+      "feature": 2,
+      "left": {
+        "error": 104,
+        "leaf": 1
+      },
+      "right": {
+        "error": 5,
+        "leaf": 0
+      },
+      "split": 0.5114856560010678
+    },
+    "right": {
+      "error": 148,
+      "feature": 2,
+      "left": {
+        "error": 26,
+        "leaf": 1
+      },
+      "right": {
+        "error": 122,
+        "leaf": 0
+      },
+      "split": 0.48489414672495906
+    },
+    "split": 0.5025847079429104
+  }
+}

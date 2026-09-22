@@ -1,0 +1,50 @@
+{
+  "counters": {
+    "cache_hits": 0,
+    "cache_size": 1,
+    "general_solver_call": 0,
+    "num_features": 18,
+    "num_samples": 2310,
+    "specialized_solver_call": 218
+  },
+  "dataset": "segment",
+  "depth": 2,
+  "error": 990,
+  "flags": {
+    "fast_d2": true,
+    "sort_by_heuristic": true,
+    "use_lds": false
+  },
+  "support": 1,
+  "tree": {
+    "error": 990,
+    "feature": 1,
+    "left": {
+      "error": 910,
+      "feature": 8,
+      "left": {
+        "error": 910,
+        "leaf": 1
+      },
+      "right": {
+        "error": 0,
+        "leaf": 2
+      },
+      "split": 0.5784764306521746
+    },
+    "right": {
+      "error": 80,
+      "feature": 13,
+      "left": {
+        "error": 37,
+        "leaf": 3
+      },
+      "right": {
+        "error": 43,
+        "leaf": 0
+      },
+      "split": 0.2335827092138664
+    },
+    "split": 0.5687362499999999
+  }
+}

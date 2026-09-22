@@ -1,0 +1,86 @@
+{
+  "counters": {
+    "cache_hits": 22,
+    "cache_size": 1523,
+    "general_solver_call": 1584,
+    "num_features": 18,
+    "num_samples": 2310,
+    "specialized_solver_call": 78540
+  },
+  "dataset": "segment",
+  "depth": 3,
+  "error": 278,
+  "flags": {
+    "fast_d2": true,
+    "sort_by_heuristic": false,
+    "use_lds": false
+  },
+  "support": 1,
+  "tree": {
+    "error": 278,
+    "feature": 11,
+    "left": {
+      "error": 226,
+      "feature": 17,
+      "left": {
+        "error": 158,
+        "feature": 17,
+        "left": {
+          "error": 25,
+          "leaf": 1
+        },
+        "right": {
+          "error": 133,
+          "leaf": 6
+        },
+        "split": 0.14785660397852451
+      },
+      "right": {
+        "error": 68,
+        "feature": 1,
+        "left": {
+          "error": 51,
+          "leaf": 4
+        },
+        "right": {
+          "error": 17,
+          "leaf": 3
+        },
+        "split": 0.5687362499999999
+      },
+      "split": 0.20136706611117594
+    },
+    "right": {
+      "error": 52,
+      "feature": 1,
+      "left": {
+        "error": 49,
+        "feature": 8,
+        "left": {
+          "error": 48,
+          "leaf": 5
+        },
+        "right": {
+          "error": 1,
+          "leaf": 2
+        },
+        "split": 0.5317519688396428
+      },
+      "right": {
+        "error": 3,
+        "feature": 13,
+        "left": {
+          "error": 0,
+          "leaf": 3
+        },
+        "right": {
+          "error": 3,
+          "leaf": 0
+        },
+        "split": 0.21417482679865393
+      },
+      "split": 0.5978970833333332
+    },
+    "split": 0.15634309528509444
+  }
+}

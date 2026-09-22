@@ -1,0 +1,41 @@
+{
+  "counters": {
+    "cache_hits": 0,
+    "cache_size": 1,
+    "general_solver_call": 0,
+    "num_features": 5,
+    "num_samples": 4839,
+    "specialized_solver_call": 250
+  },
+  "dataset": "wilt",
+  "depth": 2,
+  "error": 138,
+  "flags": {
+    "fast_d2": true,
+    "sort_by_heuristic": false,
+    "use_lds": true
+  },
+  "support": 1,
+  "tree": {
+    "error": 138,
+    "feature": 1,
+    "left": {
+      "error": 97,
+      "feature": 2,
+      "left": {
+        "error": 74,
+        "leaf": 1
+      },
+      "right": {
+        "error": 23,
+        "leaf": 0
+      },
+      "split": 0.03808411882779983
+    },
+    "right": {
+      "error": 41,
+      "leaf": 1
+    },
+    "split": 0.060853980660963765
+  }
+}

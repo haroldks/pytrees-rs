@@ -1,0 +1,86 @@
+{
+  "counters": {
+    "cache_hits": 0,
+    "cache_size": 1359,
+    "general_solver_call": 1358,
+    "num_features": 7,
+    "num_samples": 3810,
+    "specialized_solver_call": 295957
+  },
+  "dataset": "rice",
+  "depth": 3,
+  "error": 243,
+  "flags": {
+    "fast_d2": true,
+    "sort_by_heuristic": false,
+    "use_lds": false
+  },
+  "support": 1,
+  "tree": {
+    "error": 243,
+    "feature": 0,
+    "left": {
+      "error": 76,
+      "feature": 5,
+      "left": {
+        "error": 68,
+        "feature": 2,
+        "left": {
+          "error": 57,
+          "leaf": 1
+        },
+        "right": {
+          "error": 11,
+          "leaf": 0
+        },
+        "split": 0.49756565085762094
+      },
+      "right": {
+        "error": 8,
+        "feature": 3,
+        "left": {
+          "error": 2,
+          "leaf": 0
+        },
+        "right": {
+          "error": 6,
+          "leaf": 1
+        },
+        "split": 0.5030418104182218
+      },
+      "split": 0.4120253340365682
+    },
+    "right": {
+      "error": 167,
+      "feature": 2,
+      "left": {
+        "error": 45,
+        "feature": 4,
+        "left": {
+          "error": 45,
+          "leaf": 1
+        },
+        "right": {
+          "error": 0,
+          "leaf": 0
+        },
+        "split": 0.7137721654047059
+      },
+      "right": {
+        "error": 122,
+        "feature": 1,
+        "left": {
+          "error": 5,
+          "leaf": 1
+        },
+        "right": {
+          "error": 117,
+          "leaf": 0
+        },
+        "split": 0.5047047646792509
+      },
+      "split": 0.48441993766012237
+    },
+    "split": 0.41367683506424924
+  }
+}

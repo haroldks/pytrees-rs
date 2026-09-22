@@ -1,0 +1,2 @@
+# Tests may unwrap; everything else may not (see [workspace.lints.clippy]).
+allow-unwrap-in-tests = true

@@ -1,0 +1,50 @@
+{
+  "counters": {
+    "cache_hits": 0,
+    "cache_size": 1,
+    "general_solver_call": 0,
+    "num_features": 4,
+    "num_samples": 1372,
+    "specialized_solver_call": 47
+  },
+  "dataset": "bank",
+  "depth": 2,
+  "error": 100,
+  "flags": {
+    "fast_d2": true,
+    "sort_by_heuristic": false,
+    "use_lds": false
+  },
+  "support": 1,
+  "tree": {
+    "error": 100,
+    "feature": 1,
+    "left": {
+      "error": 99,
+      "feature": 0,
+      "left": {
+        "error": 63,
+        "leaf": 1
+      },
+      "right": {
+        "error": 36,
+        "leaf": 0
+      },
+      "split": 0.5742681482523131
+    },
+    "right": {
+      "error": 1,
+      "feature": 0,
+      "left": {
+        "error": 1,
+        "leaf": 1
+      },
+      "right": {
+        "error": 0,
+        "leaf": 0
+      },
+      "split": 0.26502692022009244
+    },
+    "split": 0.7115334929858894
+  }
+}

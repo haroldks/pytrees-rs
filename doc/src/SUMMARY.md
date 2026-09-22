@@ -1,13 +1,16 @@
 # Summary
 
-- [Introduction](./README.md)
+[Introduction](./README.md)
+
 - [Installation](./installation.md)
-- [Quickstart](./quickstart.md)
-
-[//]: # (- [Binary Use]&#40;./usage.md&#41;)
-
-[//]: # (- [Python Library]&#40;./python/README.md&#41;)
-
-[//]: # (  - [Using DL8.5]&#40;./python/dl85.md&#41;)
-
-[//]: # (  - [Using LGDT]&#40;./python/lgdt.md&#41;)
+- [Quick start](./quickstart.md)
+- [Estimators](./estimators/README.md)
+  - [DL85Classifier](./estimators/dl85.md)
+  - [Anytime search rules](./estimators/rules.md)
+  - [LGDTClassifier](./estimators/lgdt.md)
+  - [ConTreeClassifier](./estimators/contree.md)
+  - [DL85Cluster](./estimators/clustering.md)
+  - [The fitted tree](./estimators/tree.md)
+- [Command line tools](./cli.md)
+- [Rust crates](./rust.md)
+- [Publications](./publications.md)

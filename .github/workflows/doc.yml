@@ -1,28 +1,49 @@
-# From https://github.com/zjp-CN/mdbook-template
-# Simple workflow for deploying static content to GitHub Pages
-name: Deploy mdBook
+# Builds the documentation site (mdBook) and the Rust API docs (rustdoc), and
+# publishes both to GitHub Pages: the book at the root, the API docs at /api/.
+name: Documentation
+
 on:
-  # Runs on pushes targeting the default branch
   push:
-    branches: ["master"]
-  workflow_run:
-    workflows: ["Mdbook build"]
+    branches: [master]
+  workflow_dispatch:
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v3
-      - run: rustup toolchain update nightly && rustup default nightly
-      - run: cargo install mdbook
-      - name: Build mdbook
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: mdbook
+      - name: Build the book
+        run: mdbook build doc
+      - name: Build the API docs
+        # pytrees-py is left out: it links against libpython.
+        run: cargo doc --no-deps --all-features -p dtrees-rs -p contree-rs
+      - name: Add the API docs to the site
         run: |
-          cd doc
-          mdbook build
+          cp -r target/doc doc/book/api
+          cat > doc/book/api/index.html <<'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head><meta charset="utf-8"><title>pytrees-rs API documentation</title></head>
+          <body>
+          <h1>Rust API documentation</h1>
+          <ul>
+          <li><a href="dtrees_rs/index.html">dtrees-rs</a>: DL8.5, LGDT and the search rules, over binary features</li>
+          <li><a href="contree/index.html">contree-rs</a>: ConTree and its anytime variant, over continuous features</li>
+          </ul>
+          <p><a href="../index.html">Back to the documentation</a></p>
+          </body>
+          </html>
+          EOF
       - name: Deploy
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4
         with:
           publish_branch: gh-pages
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./doc/book/
+          publish_dir: ./doc/book
           force_orphan: true
