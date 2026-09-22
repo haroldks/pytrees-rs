@@ -1,11 +1,16 @@
 use std::collections::HashMap;
 
-/// Bound structure representing an interval with metadata about previous splits
+/// An interval of candidate thresholds still to be searched, as indices into
+/// the list of possible splits.
 #[derive(Debug, Clone, Copy)]
 pub struct Bound {
+    /// First candidate of the interval (inclusive).
     pub left_bound: usize,
+    /// Last candidate of the interval (inclusive).
     pub right_bound: usize,
+    /// The evaluated split just left of the interval, if any.
     pub last_split_left_index: Option<usize>,
+    /// The evaluated split just right of the interval, if any.
     pub last_split_right_index: Option<usize>,
 }
 
@@ -24,12 +29,12 @@ impl Bound {
         }
     }
 
-    /// Check if the interval is valid (left <= right)
+    /// Whether the interval still contains a candidate.
     pub fn is_valid(&self) -> bool {
         self.left_bound <= self.right_bound
     }
 
-    /// Mark interval as invalid
+    /// Empties the interval.
     pub fn invalidate(&mut self) {
         self.left_bound = 1;
         self.right_bound = 0;
@@ -38,26 +43,31 @@ impl Bound {
     }
 }
 
-/// IntervalsPruner performs branch-and-bound pruning on split intervals
-/// to reduce the search space when finding optimal decision tree splits.
+/// Prunes intervals of candidate thresholds for one feature.
+///
+/// Moving a threshold to the right only adds instances to the left child and
+/// removes them from the right child, so child errors are monotone in the
+/// threshold. From the errors of the thresholds already evaluated, the pruner
+/// derives which neighbouring thresholds cannot beat the incumbent, following
+/// the ConTree algorithm (Brită et al., AAAI 2025).
 pub struct IntervalsPruner<'a> {
     possible_split_indexes: &'a [usize],
-    /// Every rule here rests on the same monotonicity argument, and a minimum
-    /// support constraint breaks it. See [`IntervalsPruner::is_sound`].
+    /// Whether the pruning rules apply. See [`IntervalsPruner::is_sound`].
     sound: bool,
     pub rightmost_zero_index: Option<usize>,
     pub leftmost_zero_index: Option<usize>,
     max_gap: usize,
-    /// Maps split index -> (left_score, right_score)
+    /// Maps an evaluated split index to its `(left_score, right_score)`.
     evaluated_indices_record: HashMap<usize, (usize, usize)>,
 }
 
 impl<'a> IntervalsPruner<'a> {
-    /// Creates a new IntervalsPruner
+    /// Creates a pruner over the candidate thresholds of one feature.
     ///
     /// # Arguments
-    /// * `possible_split_indexes` - Reference to vector of possible split indices
-    /// * `max_gap` - Maximum allowable gap for suboptimal solutions
+    /// * `possible_split_indexes` - Sorted positions of the candidate thresholds.
+    /// * `max_gap` - Error gap tolerated with respect to the optimum.
+    /// * `min_sup` - Minimum number of instances per leaf.
     pub fn new(possible_split_indexes: &'a [usize], max_gap: usize, min_sup: usize) -> Self {
         let possible_split_size = possible_split_indexes.len();
         let mut evaluated_indices_record = HashMap::new();
@@ -87,15 +97,14 @@ impl<'a> IntervalsPruner<'a> {
     /// subset optimum can then be *higher* than the superset optimum, and the
     /// pruner concludes an interval is hopeless when it is not.
     ///
-    /// Upstream ConTree does not hit this: it constrains tree size with an
-    /// additive complexity cost, which survives the restriction. Minimum
-    /// support is this port's own addition, so the rules are switched off
-    /// where they do not apply.
+    /// The pruning rules are therefore only used when the minimum support is
+    /// at most 1.
     fn is_sound(min_sup: usize) -> bool {
         min_sup <= 1
     }
 
-    /// Performs subinterval pruning to determine if an interval can be entirely pruned
+    /// Whether the whole interval can be discarded, given the scores of the
+    /// splits on either side of it.
     ///
     /// # Arguments
     /// * `current_bounds` - The current bounds of the interval being evaluated
@@ -125,7 +134,8 @@ impl<'a> IntervalsPruner<'a> {
             >= current_best_score
     }
 
-    /// Performs interval shrinking by narrowing the bounds based on current best score
+    /// Narrows the interval to the thresholds that may still beat
+    /// `current_best_score`. The interval is emptied if none can.
     ///
     /// # Arguments
     /// * `current_bounds` - The current bounds to be updated by shrinking
@@ -134,7 +144,7 @@ impl<'a> IntervalsPruner<'a> {
         if !self.sound {
             return;
         }
-        // Update bounds based on zero indices
+        // A zero-error child on either side rules out everything beyond it.
         if let Some(leftmost) = self.leftmost_zero_index {
             current_bounds.left_bound = current_bounds.left_bound.max(leftmost + 1);
         }
@@ -144,10 +154,9 @@ impl<'a> IntervalsPruner<'a> {
                 current_bounds.right_bound.min(rightmost.saturating_sub(1));
         }
 
-        // Both adjustments above can push a bound past the end of the
-        // candidate list -- `leftmost + 1` when the zero is the last candidate,
-        // for one -- and everything below indexes with them. That was an
-        // out-of-bounds panic on ordinary input, not a debug assertion.
+        // The adjustments above can push a bound past the end of the
+        // candidate list (e.g. `leftmost + 1` when the zero is the last
+        // candidate); clamp before indexing.
         if current_bounds.right_bound >= self.possible_split_indexes.len() {
             current_bounds.right_bound = self.possible_split_indexes.len().saturating_sub(1);
         }
@@ -159,7 +168,6 @@ impl<'a> IntervalsPruner<'a> {
             return;
         }
 
-        // Shrink from left side
         if let Some(last_left_idx) = current_bounds.last_split_left_index {
             if let Some(&(left_score, right_score)) =
                 self.evaluated_indices_record.get(&last_left_idx)
@@ -189,7 +197,6 @@ impl<'a> IntervalsPruner<'a> {
             }
         }
 
-        // Shrink from right side
         if let Some(last_right_idx) = current_bounds.last_split_right_index {
             if let Some(&(left_score, right_score)) =
                 self.evaluated_indices_record.get(&last_right_idx)
@@ -220,7 +227,8 @@ impl<'a> IntervalsPruner<'a> {
         }
     }
 
-    /// Performs neighborhood pruning by evaluating the interval around a split index
+    /// Computes the thresholds around `split_index` that cannot beat the
+    /// incumbent, given how much the evaluated split exceeded it.
     ///
     /// # Arguments
     /// * `score_difference` - The difference in scores used to determine pruning
@@ -229,7 +237,8 @@ impl<'a> IntervalsPruner<'a> {
     /// * `split_index` - The index at which the split is evaluated
     ///
     /// # Returns
-    /// A tuple `(new_left_bound, new_right_bound)` representing the pruned interval
+    /// `(new_left_bound, new_right_bound)`: the search continues on
+    /// `[new_left_bound, right]` and `[left, new_right_bound]`.
     pub fn neighbourhood_pruning(
         &self,
         score_difference: usize,
@@ -247,7 +256,6 @@ impl<'a> IntervalsPruner<'a> {
             return (split_index + 1, split_index);
         }
 
-        // Calculate new left bound
         let mut new_bound_left = split_index + 1;
         if let Some(leftmost) = self.leftmost_zero_index {
             new_bound_left = new_bound_left.max(leftmost + 1);
@@ -256,18 +264,15 @@ impl<'a> IntervalsPruner<'a> {
         let minimum_right_value =
             self.possible_split_indexes[split_index].saturating_add(score_difference) + 1;
 
-        // The candidate at `right` is viable when its position is at least
-        // `minimum_right_value` -- *at least*, so the equal case is viable and
-        // the interval must be narrowed rather than dropped. Written the other
-        // way round this discarded a whole half-interval whenever the boundary
-        // fell exactly on a candidate.
+        // The candidate at `right` is still viable when its position is at
+        // least `minimum_right_value`; the equal case narrows the interval
+        // rather than dropping it.
         if minimum_right_value > self.possible_split_indexes[right] {
             new_bound_left = right + 1;
         } else {
             new_bound_left = self.lower_bound(new_bound_left, right, minimum_right_value);
         }
 
-        // Calculate new right bound
         let mut new_bound_right = split_index.saturating_sub(1);
         if let Some(rightmost) = self.rightmost_zero_index {
             new_bound_right = new_bound_right.min(rightmost.saturating_sub(1));
@@ -288,11 +293,10 @@ impl<'a> IntervalsPruner<'a> {
 
     /// Records the outcome of evaluating one split.
     ///
-    /// `right_score` is `None` when the right subtree was never explored --
-    /// the left side alone already exhausted the upper bound, so the split
-    /// cannot beat the incumbent. Every bound this pruner derives is a *lower*
-    /// bound on what a split can score, so an unexplored side contributes 0:
-    /// the only value that cannot cause a better split to be pruned away.
+    /// A score is `None` when that side gives no usable lower bound, e.g.
+    /// the right subtree was never explored because the left side alone
+    /// already exceeded the upper bound. Such a side counts as 0, the only
+    /// value that cannot prune away a better split.
     pub fn add_result(
         &mut self,
         index: usize,
@@ -319,7 +323,8 @@ impl<'a> IntervalsPruner<'a> {
             .insert(index, (left_score.unwrap_or(0), right_score.unwrap_or(0)));
     }
 
-    /// Helper: Find first element >= value (like std::lower_bound)
+    /// Index of the first candidate in `left..=right` whose position is
+    /// `>= value`.
     fn lower_bound(&self, left: usize, mut right: usize, value: usize) -> usize {
         if left >= right {
             right = self.possible_split_indexes.len() - 1
@@ -331,7 +336,8 @@ impl<'a> IntervalsPruner<'a> {
         }
     }
 
-    /// Helper: Find first element > value (like std::upper_bound)
+    /// Index of the first candidate in `left..=right` whose position is
+    /// `> value`.
     fn upper_bound(&self, left: usize, mut right: usize, value: usize) -> usize {
         if left >= right {
             right = self.possible_split_indexes.len() - 1

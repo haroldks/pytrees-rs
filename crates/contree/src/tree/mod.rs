@@ -41,12 +41,17 @@ impl fmt::Display for TreeError {
 
 impl std::error::Error for TreeError {}
 
+/// The content of a tree node.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct NodeInfos {
-    // Specific data for decision trees
+    /// The feature tested by an internal node; `None` for a leaf.
     pub feature: Option<usize>,
+    /// Misclassifications of the subtree rooted here.
     pub error: usize,
+    /// The threshold of an internal node: instances with
+    /// `x[feature] <= split` go left.
     pub split: Option<f64>,
+    /// The class predicted by a leaf (the majority class of its instances).
     pub label: Option<usize>,
 }
 
@@ -67,11 +72,16 @@ impl NodeInfos {
     }
 }
 
+/// A node of a [`Tree`] arena. Child indices of `0` mean "no child".
 #[derive(Copy, Clone, Serialize, Deserialize, Debug, Default)]
 pub struct TreeNode {
+    /// What the node tests or predicts.
     pub value: NodeInfos,
+    /// The node's own index in the arena.
     pub index: usize,
+    /// Arena index of the left child (`x[feature] <= split`).
     pub left: usize,
+    /// Arena index of the right child.
     pub right: usize,
 }
 
@@ -86,6 +96,7 @@ impl TreeNode {
     }
 }
 
+/// A binary decision tree stored as an arena of nodes, the root at index 0.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Tree {
     tree: Vec<TreeNode>,
@@ -116,6 +127,8 @@ impl Tree {
         self.tree.len()
     }
 
+    /// Appends `node` as the left or right child of `parent` and returns its
+    /// index. The first node added becomes the root and `parent` is ignored.
     pub fn add_node(&mut self, parent: usize, is_left: bool, mut node: TreeNode) -> usize {
         node.index = self.tree.len();
         self.tree.push(node);
@@ -190,6 +203,7 @@ impl Tree {
         }
     }
 
+    /// A complete tree skeleton of the given depth, with empty nodes.
     pub fn empty_tree(depth: usize) -> Tree {
         let mut tree = Tree::new();
         let value = NodeInfos::new();
@@ -216,8 +230,6 @@ impl Tree {
         }
     }
 
-    // New functions
-
     pub fn root_details(&self) -> NodeInfos {
         self.get_node(self.get_root_index())
             .map(|node| node.value)
@@ -233,7 +245,7 @@ impl Tree {
     pub fn root_error(&self) -> usize {
         self.get_node(self.get_root_index())
             .map(|node| node.value.error)
-            .unwrap_or(usize::MAX) // Or another sensible default
+            .unwrap_or(usize::MAX)
     }
 
     pub fn node_error(&self, index: usize) -> usize {
@@ -271,6 +283,7 @@ impl Tree {
         self.get_node(index).and_then(|node| node.value.feature)
     }
 
+    /// A builder that edits the node at `index`.
     pub fn update_node(&mut self, index: usize) -> Option<NodeUpdater<'_>> {
         self.get_node_mut(index).map(NodeUpdater::new)
     }
@@ -279,18 +292,22 @@ impl Tree {
         self.get_node_mut(0).map(NodeUpdater::new)
     }
 
+    /// `(left, right)` child indices of the node at `index`; `0` means none.
     pub fn node_children(&self, index: usize) -> (usize, usize) {
         self.get_node(index)
             .map_or((0, 0), |node| (node.left, node.right))
     }
 
+    /// Sets the `(error, label)` of the node at `index`.
     pub fn update_leaf_node(&mut self, index: usize, error: (usize, usize)) -> &mut Self {
         if let Some(updater) = self.update_node(index) {
-            updater.error(error.0).label(error.1); // Maybe not the leaf
+            updater.error(error.0).label(error.1);
         }
         self
     }
 
+    /// Copies the subtree of `origin` rooted at `origin_index` onto the node at
+    /// `index`, creating or detaching children as needed.
     pub fn update_subtree(&mut self, index: usize, origin: &Tree, origin_index: usize) {
         let (left_index, right_index) = self.update_node(index).map_or((0, 0), |updater| {
             updater
@@ -311,10 +328,8 @@ impl Tree {
                 }
                 self.update_subtree(dest, origin, source);
             } else if dest != 0 {
-                // The source node is a leaf. The destination is usually a slot
-                // in a pre-allocated skeleton, so it still points at children
-                // that are now unreachable; leaving them attached is what made
-                // a leaf indistinguishable from an internal node.
+                // The source has no child here, but the destination (often a
+                // pre-allocated skeleton) still does: detach it.
                 self.detach_child(index, branch_value == 0);
             }
         }
@@ -330,6 +345,9 @@ impl Tree {
         }
     }
 
+    /// Collapses internal nodes that do not need their test: nodes marked as
+    /// leaves that still have children, and nodes whose two leaves predict
+    /// the same class.
     pub fn clean_orphaned_nodes(&mut self) {
         if self.is_empty() {
             return;
@@ -353,9 +371,8 @@ impl Tree {
         }
 
         // Two leaves that predict the same label make their parent's test
-        // pointless. The labels have to actually exist: comparing the two
-        // `Option`s alone let `None == None` through, and the unwrap that
-        // followed panicked on any node the search never filled in.
+        // pointless. Both labels must be set for the comparison to mean
+        // anything.
         if has_children && self.is_leaf(left) && self.is_leaf(right) {
             match (self.node_label(left), self.node_label(right)) {
                 (Some(left_label), Some(right_label)) if left_label == right_label => {
@@ -378,8 +395,8 @@ impl Tree {
 
     /// The nodes of the arena, in insertion order. Index 0 is the root.
     ///
-    /// Index 0 doubles as "no child", so a child index of 0 means the node has
-    /// no child on that side, never "the root is my child".
+    /// Index 0 doubles as "no child": a child index of 0 means the node has no
+    /// child on that side.
     pub fn nodes(&self) -> &[TreeNode] {
         &self.tree
     }
@@ -388,10 +405,9 @@ impl Tree {
     /// when its `feature` is `None`, and a leaf carries no split and no
     /// children.
     ///
-    /// The two searches spell a leaf differently -- the cache path writes
-    /// `feature: Some(usize::MAX)` and `split: Some(f64::INFINITY)`, the
-    /// depth-2 solver leaves a pre-allocated skeleton's children attached --
-    /// so every tree passes through here before it reaches a caller.
+    /// The search marks leaves with `feature: Some(usize::MAX)` and the depth-2
+    /// solver leaves the children of its skeleton attached, so every tree goes
+    /// through this before it reaches a caller.
     pub fn normalize_leaves(&mut self) {
         if self.is_empty() {
             return;
@@ -431,8 +447,8 @@ impl Tree {
 
     /// Checks the invariant `normalize_leaves` establishes.
     ///
-    /// Every node is either a leaf -- no feature, no split, no children, and a
-    /// label to predict -- or an internal node with a feature, a finite split
+    /// Every node is either a leaf (no feature, no split, no children, and a
+    /// label to predict) or an internal node with a feature, a finite split
     /// threshold and two children.
     pub fn validate(&self) -> Result<(), TreeError> {
         if self.is_empty() {
@@ -500,10 +516,9 @@ impl Tree {
 
     /// Classifies one instance.
     ///
-    /// **Routing convention: a split sends an instance left when
-    /// `x[feature] <= threshold`, and right otherwise,** as in scikit-learn. This is the rule the
-    /// search itself partitions by; getting it backwards silently produces a
-    /// tree whose reported error has nothing to do with its predictions.
+    /// An internal node sends an instance left when `x[feature] <= threshold`
+    /// and right otherwise, as in scikit-learn. This is also how the search
+    /// partitions the data.
     pub fn predict_one(&self, x: &[f64]) -> Result<usize, TreeError> {
         Ok(self.tree[self.leaf_for(x)?]
             .value
@@ -622,6 +637,7 @@ impl fmt::Display for Tree {
     }
 }
 
+/// Chained setters for one node of a [`Tree`].
 pub struct NodeUpdater<'a> {
     node: &'a mut TreeNode,
 }
@@ -657,10 +673,6 @@ impl<'a> NodeUpdater<'a> {
     }
 
     /// Turns the node into a leaf: no test, no split, no children.
-    ///
-    /// `feature: None` is *the* definition of a leaf everywhere in the crate,
-    /// so clearing it here is not optional -- it used to be a commented-out
-    /// line, which is how three different leaf spellings came to exist.
     pub fn leaf(self) -> Self {
         self.node.value.feature = None;
         self.node.value.split = None;

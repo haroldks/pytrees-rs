@@ -15,50 +15,46 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
 /// One solved (or partly solved) subproblem.
-// TODO: use private fields and updater
 #[derive(Copy, Clone, Serialize, Deserialize, Debug)]
 pub struct Entry {
-    /// The feature this node tests. `usize::MAX` means "leaf"; the tree spells
-    /// that `feature: None`, and `shared::build_solution_tree` is where the
-    /// two conventions meet.
+    /// The feature this node tests, or `usize::MAX` for a leaf.
     pub feature: usize,
     /// The threshold, or `INFINITY` for a leaf.
     pub split: f64,
-    /// Misclassifications of the best subtree found so far -- an *upper* bound
-    /// on this subproblem's optimum, and exactly equal to it only when
-    /// `is_optimal`.
+    /// Misclassifications of the best subtree found so far. This is an upper
+    /// bound on the subproblem's optimum, equal to it when `is_optimal`.
     pub error: usize,
     /// The majority class, used when this entry is a leaf.
     pub label: usize,
 
     /// A proven *lower* bound on this subproblem's optimum.
     ///
-    /// Equal to `error` when the search exhausted the space, and equal to the
-    /// bound it was cut off at otherwise -- all that was established then is
-    /// "nothing in here beats the bound". Anything reasoning about what a
-    /// subtree *cannot* do must read this and never `error`.
+    /// Equal to `error` when the search exhausted the space, and to the upper
+    /// bound it was cut off at otherwise. Reasoning about what a subtree
+    /// cannot achieve must use this field, not `error`.
     pub lower_bound: usize,
     /// Whether `error` describes a tree that was actually found, rather than a
     /// subproblem the bound cut short before one was.
     pub is_valid: bool,
 
+    /// Whether the best tree for this subproblem is a single leaf.
     pub is_leaf: bool,
-    /// Whether `error` is proved optimal for this subproblem rather than just
-    /// the best seen so far. Only an entry with this set may be reused from
-    /// the cache in place of searching again.
+    /// Whether `error` is proven optimal for this subproblem rather than just
+    /// the best seen so far. Only such an entry can replace a new search.
     pub is_optimal: bool,
 
     /// Distance from the root, not remaining depth.
     pub depth: usize,
-    /// Arena indices of the two children. `0` means "no child": index 0 is the
+    /// Arena index of the left child. `0` means "no child": index 0 is the
     /// root, which is nobody's child.
     pub left: usize,
+    /// Arena index of the right child, with the same convention as `left`.
     pub right: usize,
     /// Set when the depth-2 solver produced a whole subtree for this node
     /// instead of cache entries; indexes `Cache::trees`.
     pub tree_idx: Option<usize>,
-    /// What the anytime search's last search of this subproblem ran under.
-    /// Only `ConTreeLds` writes it; see [`SearchedUnder`].
+    /// The budgets of the last anytime search of this subproblem. Only
+    /// `ConTreeLds` sets it; see [`SearchedUnder`].
     pub searched_under: Option<SearchedUnder>,
 }
 
@@ -67,8 +63,8 @@ pub struct Entry {
 ///
 /// A result obtained under a budget is at least as good as anything a smaller
 /// budget could find, so a revisit under a budget and bound no larger than
-/// these can reuse it. And a search the budget did *not* cut short proved its
-/// lower bound, which settles any later revisit whose bound is no higher.
+/// these can reuse it. A search the budget did not cut short proved its lower
+/// bound, which settles any later revisit whose bound is no higher.
 #[derive(Copy, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct SearchedUnder {
     /// Discrepancy still available below this node.
@@ -76,7 +72,7 @@ pub struct SearchedUnder {
     /// Best-ranked splits each node could try; `usize::MAX` when the split
     /// budget did not apply.
     pub split_budget: usize,
-    /// The parent's budget: no tree at or above it was of any use.
+    /// The upper bound given by the parent: no tree at or above it was useful.
     pub upper_bound: usize,
     /// The discrepancy or split budget cut the search short.
     pub truncated: bool,
@@ -100,11 +96,10 @@ impl SearchedUnder {
 impl Entry {
     /// Records what the search actually proved about this subproblem.
     ///
-    /// Ported from upstream ConTree's `Tree::finalize_lower_bound` (commit
-    /// 61ebd49, "bug fixes upper bound pruning"). When the best tree found is
-    /// worse than the bound the search ran under, nothing was established
-    /// except that the bound cannot be beaten here: the bound becomes the
-    /// lower bound, and the entry stops counting as a usable solution.
+    /// When the best tree found is worse than the upper bound the search ran
+    /// under, the search only established that the bound cannot be met here:
+    /// the bound becomes the lower bound, and the entry no longer counts as a
+    /// usable solution.
     pub fn finalize_lower_bound(&mut self, upper_bound: usize) {
         if self.error > upper_bound {
             self.lower_bound = upper_bound;
@@ -142,6 +137,9 @@ impl Default for Entry {
         }
     }
 }
+
+/// Arena of [`Entry`] values indexed by `(depth, population count, bitset)`,
+/// plus the subtrees produced by the depth-2 solver.
 #[derive(Debug)]
 pub struct Cache {
     arena: Vec<Entry>,
@@ -157,14 +155,11 @@ impl Default for Cache {
 }
 
 impl Cache {
-    /// Subproblems are keyed by `(depth, population count, bitset)`. The first
-    /// two are array indices, so lookups never hash a whole bitset against
-    /// entries that could not possibly match.
+    /// Creates an empty cache for trees of at most `depth` levels.
+    ///
+    /// Buckets are allocated lazily, for the population counts each depth
+    /// actually sees.
     pub fn new(depth: usize, _num_samples: usize) -> Self {
-        // The rows start empty and grow to the largest count each depth
-        // actually sees. Allocating `depth * num_samples` maps up front is
-        // 10^6 empty hash maps -- tens of megabytes and the time to construct
-        // them -- before the search has looked at a single split.
         Self {
             arena: Vec::new(),
             trees: vec![],
@@ -182,16 +177,19 @@ impl Cache {
         &mut row[count]
     }
 
+    /// The root entry, once [`Self::init`] has been called.
     pub fn root(&self) -> Option<&Entry> {
         self.arena.get(self.root_index)
     }
 
+    /// Arena index of the root entry.
     pub fn root_index(&self) -> usize {
         self.root_index
     }
 
+    /// Creates the root entry and returns its index. The cache must be empty.
     pub fn init(&mut self) -> usize {
-        debug_assert!(self.arena.is_empty(), "Cache must me empty to init");
+        debug_assert!(self.arena.is_empty(), "Cache must be empty to init");
         self.arena.push(Entry::default());
         self.root_index
     }
@@ -204,8 +202,6 @@ impl Cache {
         coz::scope!("insert in cache");
         let count = bitset.saved_count();
 
-        // One hash on a hit, which is the case that dominates; the old code
-        // did `contains_key` and then `get`, hashing the bitset twice.
         if let Some(&index) = self.bucket(depth, count).get(bitset) {
             return (false, index);
         }
@@ -216,28 +212,37 @@ impl Cache {
         (true, index)
     }
 
+    /// The entry at `index`.
     pub fn get(&self, index: usize) -> Option<&Entry> {
         self.arena.get(index)
     }
 
+    /// The entry at `index`, mutably.
     pub fn get_mut(&mut self, index: usize) -> Option<&mut Entry> {
         self.arena.get_mut(index)
     }
 
+    /// Number of entries in the cache.
     pub fn len(&self) -> usize {
         self.arena.len()
     }
 
+    /// Stores a subtree built by the depth-2 solver and returns its index.
     pub fn insert_tree(&mut self, tree: Tree) -> usize {
         let len = self.trees.len();
         self.trees.push(tree);
         len
     }
 
+    /// The subtree stored at `tree_idx`.
     pub fn get_tree(&self, tree_idx: usize) -> Option<&Tree> {
         self.trees.get(tree_idx)
     }
 
+    /// Arena indices of the left and right children of entry `index`.
+    ///
+    /// # Panics
+    /// If `index` is out of bounds.
     pub fn get_children(&self, index: usize) -> [usize; 2] {
         assert!(index < self.arena.len());
         [self.arena[index].left, self.arena[index].right]

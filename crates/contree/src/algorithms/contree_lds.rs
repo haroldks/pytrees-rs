@@ -15,6 +15,14 @@ use rand::SeedableRng;
 use std::collections::VecDeque;
 use std::time::Instant;
 
+/// Anytime ConTree search based on limited discrepancy search.
+///
+/// The search runs in passes. Each pass explores the tree space under a
+/// discrepancy budget (how far down the Gini ranking of features it may go)
+/// and, for some point selectors, a split budget (how many thresholds per
+/// feature it may try). A [`BudgetSchedule`] widens both budgets between
+/// passes, so a good tree is available early and the last complete pass
+/// proves optimality.
 pub struct ConTreeLds {
     config: SearchConfig,
     statistics: Statistics,
@@ -26,20 +34,18 @@ pub struct ConTreeLds {
     split_budget: usize,
     schedule_kind: ScheduleKind,
     schedule: Option<Box<dyn BudgetSchedule>>,
-    /// What the pass in progress has run into; handed to the schedule.
+    /// Which budgets truncated the pass in progress, read by the schedule.
     pass_report: PassReport,
     status: SearchStatus,
-    /// Every improvement of the root incumbent, as `(seconds, error)`: the
-    /// anytime profile of the search, from which a primal integral is taken.
+    /// Every improvement of the root incumbent, as `(seconds, error)`.
     trajectory: Vec<(f64, usize)>,
 }
 
 impl ConTreeLds {
-    /// Builds a solver from an assembled [`SearchConfig`].
+    /// Builds a solver from a [`SearchConfig`].
     ///
-    /// Prefer this over `new` when you are threading a configuration through:
-    /// eight positional parameters, two of which are `bool`, is a call site
-    /// nobody can read.
+    /// This is the preferred constructor; [`Self::new`] takes the same
+    /// settings as positional arguments.
     pub fn with_config(config: SearchConfig) -> Self {
         let mut solver = Self::new(
             config.min_sup,
@@ -55,7 +61,7 @@ impl ConTreeLds {
         solver
     }
 
-    /// The positional convenience constructor. See [`Self::with_config`].
+    /// Builds a solver from positional settings. See [`Self::with_config`].
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         min_sup: usize,
@@ -95,21 +101,19 @@ impl ConTreeLds {
         }
     }
 
-    /// Seeds the split-point generator, making `PointSelector::Random`
-    /// reproducible.
-    ///
-    /// Without this the search draws from a thread-local generator that cannot
-    /// be seeded, so a random-split run could never be repeated -- and the
-    /// generator is `!Send`, which kept the whole solver off a worker thread.
+    /// Seeds the random generator used by `PointSelector::Random`, making
+    /// runs reproducible. Unseeded solvers draw their seed from the OS.
     pub fn with_random_state(mut self, seed: u64) -> Self {
         self.rng = StdRng::seed_from_u64(seed);
         self
     }
 
-    /// Runs the anytime search to completion.
+    /// Runs the anytime search until it stops.
     ///
-    /// Each pass widens the discrepancy and split budgets; the loop ends when
-    /// a pass finishes untruncated, the budgets run out, or time does.
+    /// Each pass widens the discrepancy and split budgets. The search ends
+    /// when a pass completes without being truncated (the tree is optimal),
+    /// when the schedule has no larger budget to offer, or when the time
+    /// limit is reached.
     pub fn fit(&mut self, dataset: &Dataset) -> Result<FitOutcome, SearchError> {
         crate::algorithms::validate(&self.config, dataset)?;
 
@@ -158,6 +162,8 @@ impl ConTreeLds {
         self.status
     }
 
+    /// Runs one pass of the search and returns `true` once the search is
+    /// over. The first call initialises the cache and the budget schedule.
     pub fn partial_fit(&mut self, root_view: &DataView<'_>) -> bool {
         self.config.nb_runs += 1;
         let mut root_index = 0;
@@ -216,10 +222,8 @@ impl ConTreeLds {
         let stopped = self.expand_node_with_view(root_view, &config, &mut entry, 0, true, error);
         self.pass_report.improved = entry.error < error;
 
-        // The anytime loop can only make progress while the schedule has a
-        // budget left to offer. Once it does not, a truncated search will never
-        // become less truncated, and re-running it would spin until the time
-        // limit -- or forever, when there is none.
+        // Once the schedule has no larger budget, another pass would repeat
+        // the same truncated search, so the search stops here.
         let next_budget = self
             .schedule
             .as_mut()
@@ -248,14 +252,11 @@ impl ConTreeLds {
         is_optimal
     }
 
-    /// Looks a child subproblem up in the cache, seeding a fresh entry with the
+    /// Looks a child subproblem up in the cache, seeding a new entry with the
     /// error of its majority-class leaf.
     ///
-    /// This block appeared four times in each of the two searches, character
-    /// for character. `child_depth` is the child's remaining depth, which is
-    /// both the cache's second key and what the entry records: `derive_left`
-    /// and `derive_right` both subtract one from the same parent, so the two
-    /// were always the same number.
+    /// `child_depth` is the child's remaining depth. Returns whether the entry
+    /// is new, its cache index, and a copy of it.
     fn cache_child(&mut self, view: &DataView<'_>, child_depth: usize) -> (bool, usize, Entry) {
         let (is_new, index) = self.cache.insert(&view.bitset, child_depth);
         let depth = self.config.max_depth - child_depth;
@@ -292,9 +293,8 @@ impl ConTreeLds {
             return false;
         }
 
-        // What this visit runs under: the discrepancy left below this node,
-        // and the split budget where it applies -- the `first` selector, and
-        // every selector's first pass.
+        // The budgets this visit runs under. The split budget only applies to
+        // the `first` selector and to the first pass of every selector.
         let under = SearchedUnder {
             discrepancy: config.budget.saturating_sub(config.discrepancy),
             split_budget: if config.point_selector == PointSelector::First
@@ -314,20 +314,16 @@ impl ConTreeLds {
                 return false;
             }
             if let Some(previous) = current_best.searched_under {
-                // A search the budget did not cut short proved its lower
-                // bound. If that already rules out anything under the bound
-                // the parent needs, there is nothing to look for.
+                // A complete earlier search proved its lower bound. If that
+                // bound already reaches the parent's upper bound, no subtree
+                // here can help the parent.
                 if !previous.truncated && current_best.lower_bound >= upper_bound {
                     self.statistics.cache_hits += 1;
                     return false;
                 }
-                // Searched before under at least this much budget and bound:
-                // that result is at least as good as this visit could find,
-                // and was cut short exactly when this visit would be.
-                //
-                // This replaces reusing whatever improved earlier in the same
-                // pass, which reported "not cut short" even for a search that
-                // was, and could let a pass count as complete when it was not.
+                // An earlier search with at least this much budget and upper
+                // bound found everything this visit could, and was truncated
+                // exactly when this visit would be.
                 if previous.covers(&under, current_best.is_valid) {
                     self.statistics.cache_hits += 1;
                     return previous.truncated;
@@ -352,17 +348,12 @@ impl ConTreeLds {
             return false;
         }
 
-        // `== 2`, not `<= 2`: `ConTreeDepth2` always builds a tree with two
-        // levels of tests, so applying it to a depth-1 request returned a
-        // depth-2 tree and an error below the depth-1 optimum.
+        // Only at depth exactly 2: `ConTreeDepth2` always builds two levels of
+        // tests, which would exceed a depth-1 request.
         if config.fast_d2 && config.max_depth == 2 {
-            // Solved without the parent's budget, unlike in the exhaustive
-            // search. There a subproblem is visited once and pruning it against
-            // the budget is pure gain. Here every pass revisits the same
-            // depth-2 subproblems, and a budget-limited result is not exact, so
-            // it used to be re-solved -- under the same budget, for the same
-            // answer -- on every pass. Solved exactly once, it is reused
-            // thereafter; the parent still judges it against its own budget.
+            // Every pass revisits the same depth-2 subproblems, so each one is
+            // solved exactly once, without the parent's upper bound, and then
+            // reused. The parent still compares the result to its own bound.
             let tree =
                 self.specialized
                     .fit(view, config, current_best, usize::MAX, &mut self.statistics);
@@ -388,8 +379,7 @@ impl ConTreeLds {
             let feat_discrepancy = config.discrepancy + it;
             if feat_discrepancy > config.budget {
                 // Features come in Gini order, so every later one is over the
-                // budget too. Finish through the end of the function, which
-                // records what this search ran under.
+                // budget too. Fall through to record what this search covered.
                 self.pass_report.cut_by_discrepancy = true;
                 stopped = true;
                 break;
@@ -420,9 +410,9 @@ impl ConTreeLds {
                 return true;
             }
         }
-        // Reusable only when the search was neither truncated nor stopped
-        // short by the bound. `!stopped` alone was not enough: a pass that ran
-        // to completion under a tight bound proves nothing about a looser one.
+        // A result is exact only if the search was neither truncated by a
+        // budget nor cut short by the upper bound: a search completed under a
+        // tight bound says nothing about a looser one.
         current_best.finalize_lower_bound(upper_bound);
         current_best.searched_under = Some(SearchedUnder {
             truncated: stopped,
@@ -468,10 +458,9 @@ impl ConTreeLds {
             return false;
         }
 
-        // Restrict the interval to splits that meet minimum support before the
-        // search starts. The per-candidate check further down stays as a
-        // guard, but on its own it is not enough: it `continue`s, which drops
-        // the whole current interval and the feasible splits inside it.
+        // Restrict the search to splits that meet the minimum support. The
+        // per-candidate check below skips a whole interval, so it cannot be
+        // relied on to find the feasible splits inside it.
         let feasible =
             support_feasible_splits(possible_index_split, view.len(), self.config.min_sup);
         if feasible.is_empty() {
@@ -490,14 +479,9 @@ impl ConTreeLds {
                 return true;
             }
 
-            // Prune against the tighter of the incumbent and the budget the
-            // parent handed down, as upstream does: a split that cannot come
-            // in under the parent's budget is of no use to the parent, and
-            // `finalize_lower_bound` records what that proved.
-            // Prune against the tighter of the incumbent and the budget the
-            // parent handed down, as upstream does: a split that cannot come
-            // in under the parent's budget is of no use to the parent, and
-            // `finalize_lower_bound` records what that proved.
+            // Prune against the tighter of the incumbent and the parent's upper
+            // bound: a split that cannot beat the parent's bound is of no use
+            // to the parent.
             if pruner.subinterval_pruning(&current_bound, current_best.error.min(upper_bound)) {
                 continue;
             }
@@ -506,8 +490,6 @@ impl ConTreeLds {
             if !current_bound.is_valid() {
                 continue;
             }
-
-            // TODO : Allow to use other points as the best split and random
 
             let selected_point = self.select_point(config, &current_bound);
             let split_point = possible_index_split[selected_point];
@@ -532,27 +514,23 @@ impl ConTreeLds {
 
             let (left_view, right_view) = view.split(feature_index, split_point);
 
-            // TODO : Do larger and smaller tree comparison and take the first
-
             if left_view.len() < self.config.min_sup || right_view.len() < self.config.min_sup {
                 continue;
             }
 
-            // Determine which dataset is larger
+            // Search the larger child first: its error tightens the bound
+            // passed to the smaller one.
             let process_left_first = left_view.len() >= right_view.len();
 
-            // Always derive both configs
             let left_config = config.derive_left();
             let mut left_entry = Entry::default();
             let mut right_entry = Entry::default();
 
-            // A cache index of 0 means "no child"; whichever side the search does
-            // not descend into keeps it. The `is_new` flags are always written by
-            // `Cache::insert` before they are read.
+            // A cache index of 0 means "no child", kept by a side the search
+            // does not descend into.
             let (mut left_index, mut right_index) = (0, 0);
             let (mut left_is_new, mut right_is_new);
 
-            // Process LARGER dataset first with left_config
             let larger_upper_bound = current_best.error.min(upper_bound.saturating_add(1));
             self.statistics.general_solver_call += 1;
 
@@ -568,7 +546,6 @@ impl ConTreeLds {
                     left_is_new,
                     larger_upper_bound,
                 );
-                // What the bound actually proved about this child.
                 left_entry.finalize_lower_bound(larger_upper_bound);
             } else {
                 (right_is_new, right_index, right_entry) =
@@ -582,7 +559,6 @@ impl ConTreeLds {
                     right_is_new,
                     larger_upper_bound,
                 );
-                // What the bound actually proved about this child.
                 right_entry.finalize_lower_bound(larger_upper_bound);
             }
 
@@ -591,30 +567,25 @@ impl ConTreeLds {
             } else {
                 right_entry.lower_bound
             };
-            // Upstream computes this as a signed quantity and *adds* the
-            // interval half-distance, widening the budget so a whole interval
-            // can be pruned at once; saturating at zero and taking the maximum
-            // instead gives a tighter bound than the argument supports.
+            // The smaller child's bound is what the larger child left of the
+            // incumbent, widened by the interval half-distance so that one
+            // search can prune the whole interval around this split.
             let budget =
                 current_best.error.min(upper_bound.saturating_add(1)) as i64 - larger_error as i64;
             let smaller_ub = budget + int_half_distance as i64;
             let smaller_upper_bound = smaller_ub.max(0) as usize;
-            // `None` means the second subtree was never explored: the first
-            // one alone already exhausted the upper bound, so this split
-            // cannot beat the incumbent.
+            // Stays `None` when the smaller child is not searched because the
+            // larger one alone already exceeds the upper bound.
             let mut right_error: Option<usize> = None;
 
-            // Process SMALLER dataset second with right_config
-            // Search the second subtree unless the budget is genuinely
-            // negative -- a budget of exactly zero still has to be explored,
-            // since the first subtree may already account for the whole
-            // incumbent.
+            // Search the smaller child unless the budget is negative. A budget
+            // of exactly zero is still explored, since a zero-error subtree
+            // may exist.
             if smaller_ub > 0 || budget == 0 {
                 self.statistics.general_solver_call += 1;
                 let right_config = config.derive_right(left_config.max_gap);
 
                 if process_left_first {
-                    // Right is smaller - process it second with right_config
                     right_entry.error = current_best.error;
                     (right_is_new, right_index, right_entry) =
                         self.cache_child(&right_view, right_config.max_depth);
@@ -627,10 +598,8 @@ impl ConTreeLds {
                         right_is_new,
                         smaller_upper_bound,
                     );
-                    // What the bound actually proved about this child.
                     right_entry.finalize_lower_bound(smaller_upper_bound);
                 } else {
-                    // Left is smaller - process it second with right_config
                     left_entry.error = current_best.error;
                     (left_is_new, left_index, left_entry) =
                         self.cache_child(&left_view, right_config.max_depth);
@@ -643,13 +612,11 @@ impl ConTreeLds {
                         left_is_new,
                         smaller_upper_bound,
                     );
-                    // What the bound actually proved about this child.
                     left_entry.finalize_lower_bound(smaller_upper_bound);
                 }
 
-                // Lower bounds, not errors: `error` is an upper bound once a
-                // bound has cut the child search short, and everything below
-                // this point reasons about what a split *cannot* beat.
+                // Use lower bounds rather than errors: when a bound cut a
+                // child search short, its `error` is only an upper bound.
                 right_error = Some(right_entry.lower_bound);
 
                 let feature_best = left_entry.lower_bound + right_entry.lower_bound;
@@ -675,8 +642,8 @@ impl ConTreeLds {
             }
 
             // `None` for a child the bound invalidated: its lower bound may be
-            // zero without the subtree being error-free, and a zero here tells
-            // the pruner that everything past this point is redundant.
+            // zero without the subtree being error-free, and the pruner would
+            // read a zero as "nothing beyond this split can do better".
             let left_score = left_entry.is_valid.then_some(left_entry.lower_bound);
             pruner.add_result(selected_point, left_score, right_error);
             if current_bound.left_bound == current_bound.right_bound {
@@ -716,7 +683,9 @@ impl ConTreeLds {
         stopped
     }
 
-    /// Explore splits prioritized by gini quality while using pruner
+    /// Tries the thresholds of one feature one at a time, in Gini order when
+    /// the heuristic is on and in position order otherwise, up to the split
+    /// budget. Returns `true` if the budget truncated the search.
     fn expand_on_feature_gini_priority(
         &mut self,
         view: &DataView<'_>,
@@ -729,24 +698,21 @@ impl ConTreeLds {
         let feature_column = view.get_sorted_feature(feature_index);
         let feature_column_ids = view.get_feature_indices(feature_index);
 
-        // Get position-sorted splits for pruner
         let possible_splits = view.get_possible_split_indices(feature_index);
 
         if possible_splits.is_empty() {
             return false;
         }
 
-        // Initialize pruner with position-sorted data
         let mut pruner = IntervalsPruner::new(possible_splits, config.max_gap, config.min_sup);
 
-        // Track which split indices have been pruned
+        // Thresholds already evaluated or ruled out by the pruner.
         let mut pruned = vec![false; possible_splits.len()];
         let mut stopped = false;
 
         let local_split_budget = possible_splits.len().min(self.split_budget);
 
         if config.use_heuristic {
-            // Use gini-sorted order
             let sorted_indices = view.ordered_possible_splits(feature_index);
             for (idx, &split_idx) in sorted_indices.iter().enumerate() {
                 if self.config.nb_runs <= 1 && idx > 0 {
@@ -787,7 +753,6 @@ impl ConTreeLds {
                 }
             }
         } else {
-            // Use normal position order
             for split_idx in 0..possible_splits.len() {
                 if self.config.nb_runs <= 1 && split_idx > 0 {
                     self.pass_report.cut_by_split = true;
@@ -803,7 +768,6 @@ impl ConTreeLds {
                     return true;
                 }
 
-                // Skip if this split has been pruned
                 if pruned[split_idx] {
                     continue;
                 }
@@ -854,7 +818,8 @@ impl ConTreeLds {
         pruner: &mut IntervalsPruner<'_>,
         pruned: &mut [bool],
     ) -> bool {
-        // Find current bounds
+        // The interval around `split_idx` that no pruned threshold separates
+        // from it.
         let mut current_left = split_idx;
         while current_left > 0 && pruned[current_left - 1] {
             current_left -= 1;
@@ -871,7 +836,6 @@ impl ConTreeLds {
 
         let split_point = possible_splits[split_idx];
 
-        // Calculate threshold value
         let threshold_value = if split_idx > 0 {
             let previous = feature_column_ids[possible_splits[split_idx - 1]];
             let point = feature_column_ids[split_point];
@@ -887,26 +851,23 @@ impl ConTreeLds {
             )
         };
 
-        // Split the view
         let (left_view, right_view) = view.split(feature_index, split_point);
 
-        // Check minimum support
         if left_view.len() < self.config.min_sup || right_view.len() < self.config.min_sup {
             pruned[split_idx] = true;
             return false;
         }
 
-        // Determine which dataset is larger
+        // Search the larger child first: its error tightens the bound passed
+        // to the smaller one.
         let process_left_first = left_view.len() >= right_view.len();
 
-        // Always derive both configs
         let left_config = config.derive_left();
         let mut left_entry = Entry::default();
         let mut right_entry = Entry::default();
 
-        // A cache index of 0 means "no child"; whichever side the search does
-        // not descend into keeps it. The `is_new` flags are always written by
-        // `Cache::insert` before they are read.
+        // A cache index of 0 means "no child", kept by a side the search does
+        // not descend into.
         let (mut left_index, mut right_index) = (0, 0);
         let (mut left_is_new, mut right_is_new);
         let mut stopped = false;
@@ -915,12 +876,10 @@ impl ConTreeLds {
             .saturating_sub(possible_splits[0])
             .max(possible_splits[possible_splits.len() - 1].saturating_sub(split_point));
 
-        // Process LARGER dataset first with left_config
         let larger_upper_bound = current_best.error.min(upper_bound.saturating_add(1));
         self.statistics.general_solver_call += 1;
 
         if process_left_first {
-            // Left is larger - process it first with left_config
             (left_is_new, left_index, left_entry) =
                 self.cache_child(&left_view, left_config.max_depth);
 
@@ -932,10 +891,8 @@ impl ConTreeLds {
                 left_is_new,
                 larger_upper_bound,
             );
-            // What the bound actually proved about this child.
             left_entry.finalize_lower_bound(larger_upper_bound);
         } else {
-            // Right is larger - process it first with left_config
             (right_is_new, right_index, right_entry) =
                 self.cache_child(&right_view, left_config.max_depth);
 
@@ -947,37 +904,30 @@ impl ConTreeLds {
                 right_is_new,
                 larger_upper_bound,
             );
-            // What the bound actually proved about this child.
             right_entry.finalize_lower_bound(larger_upper_bound);
         }
 
-        // Calculate upper bound for SMALLER dataset
         let larger_error = if process_left_first {
             left_entry.lower_bound
         } else {
             right_entry.lower_bound
         };
-        // Upstream computes this as a signed quantity and *adds* the
-        // interval half-distance, widening the budget so a whole interval
-        // can be pruned at once; saturating at zero and taking the maximum
-        // instead gives a tighter bound than the argument supports.
+        // The smaller child's bound is what the larger child left of the
+        // incumbent, widened by the interval half-distance so that one search
+        // can prune the whole interval around this split.
         let budget =
             current_best.error.min(upper_bound.saturating_add(1)) as i64 - larger_error as i64;
         let smaller_ub = budget + int_half_distance as i64;
         let smaller_upper_bound = smaller_ub.max(0) as usize;
         let mut right_error: Option<usize> = None;
 
-        // Process SMALLER dataset second with right_config
-        // Search the second subtree unless the budget is genuinely
-        // negative -- a budget of exactly zero still has to be explored,
-        // since the first subtree may already account for the whole
-        // incumbent.
+        // Search the smaller child unless the budget is negative. A budget of
+        // exactly zero is still explored, since a zero-error subtree may exist.
         if smaller_ub > 0 || budget == 0 {
             self.statistics.general_solver_call += 1;
             let right_config = config.derive_right(left_config.max_gap);
 
             if process_left_first {
-                // Right is smaller - process it second with right_config
                 right_entry.error = current_best.error;
                 (right_is_new, right_index, right_entry) =
                     self.cache_child(&right_view, right_config.max_depth);
@@ -990,10 +940,8 @@ impl ConTreeLds {
                     right_is_new,
                     smaller_upper_bound,
                 );
-                // What the bound actually proved about this child.
                 right_entry.finalize_lower_bound(smaller_upper_bound);
             } else {
-                // Left is smaller - process it second with right_config
                 left_entry.error = current_best.error;
                 (left_is_new, left_index, left_entry) =
                     self.cache_child(&left_view, right_config.max_depth);
@@ -1006,13 +954,11 @@ impl ConTreeLds {
                     left_is_new,
                     smaller_upper_bound,
                 );
-                // What the bound actually proved about this child.
                 left_entry.finalize_lower_bound(smaller_upper_bound);
             }
 
-            // Lower bounds, not errors: `error` is an upper bound once a
-            // bound has cut the child search short, and everything below this
-            // point reasons about what a split *cannot* beat.
+            // Use lower bounds rather than errors: when a bound cut a child
+            // search short, its `error` is only an upper bound.
             right_error = Some(right_entry.lower_bound);
 
             let feature_best = left_entry.lower_bound + right_entry.lower_bound;
@@ -1036,15 +982,13 @@ impl ConTreeLds {
             }
         }
 
-        // Record result in pruner
         // `None` for a child the bound invalidated: its lower bound may be
-        // zero without the subtree being error-free, and a zero here tells
-        // the pruner that everything past this point is redundant.
+        // zero without the subtree being error-free, and the pruner would read
+        // a zero as "nothing beyond this split can do better".
         let left_score = left_entry.is_valid.then_some(left_entry.lower_bound);
         pruner.add_result(split_idx, left_score, right_error);
         pruned[split_idx] = true;
 
-        // Use pruner to mark neighbors as pruned
         let score_difference = left_entry
             .lower_bound
             .saturating_add(right_error.unwrap_or(0))
@@ -1052,13 +996,9 @@ impl ConTreeLds {
         let (new_left_bound, new_right_bound) =
             pruner.neighbourhood_pruning(score_difference, current_left, current_right, split_idx);
 
-        // `neighbourhood_pruning` leaves two intervals standing,
-        // `[current_left, new_right_bound]` and `[new_left_bound, current_right]`,
-        // exactly as the interval-queue search uses them. Only the splits strictly
-        // between them can be skipped. This used to mark from `current_left` and to
-        // `current_right`, covering both surviving intervals as well -- a split that
-        // merely tied the incumbent pruned both its neighbours, and the search
-        // could finish its last pass and call a suboptimal tree optimal.
+        // `neighbourhood_pruning` leaves two intervals to search,
+        // `[current_left, new_right_bound]` and `[new_left_bound, current_right]`.
+        // Only the thresholds strictly between them can be skipped.
         let skip_from = new_right_bound.saturating_add(1).max(current_left);
         if skip_from < split_idx {
             pruned[skip_from..split_idx].fill(true);
@@ -1139,9 +1079,8 @@ mod contree_lds_test {
 
     #[test]
     fn the_anytime_loop_terminates_without_leaning_on_the_time_limit() {
-        // `is_search_exhausted` could never fire, so once the budget iterator
-        // ran out the same truncated search repeated until `max_time`. With no
-        // time limit that is a hang. This test would not return.
+        // With no time limit, the search must still stop once the budget
+        // schedule runs out.
         let reader = DataReader::default();
         let mut dataset = reader.read_file(&fixture("small.txt")).unwrap();
         dataset.sort_features();

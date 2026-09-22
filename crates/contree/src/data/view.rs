@@ -1,17 +1,19 @@
 use crate::bitsets::{BitCollection, Bitset, BitsetInit};
 use crate::data::{Dataset, Feature};
 
-/// Per-feature Gini bookkeeping used to order features and split candidates
-/// when the search runs with `--sort-by-heuristic`.
+/// Per-feature Gini scores used to order features and split candidates when
+/// the heuristic ordering is enabled.
 #[derive(Clone, Debug)]
 pub struct HeuristicValues {
-    // For each feature, stores split indices sorted by gini value (best first)
-    // split_index corresponds to indices in possible_split_indices
+    /// For each feature, indices into its possible splits, best Gini first.
     gini_per_split: Vec<Vec<usize>>,
-    // Cached best (min) Gini per feature for quick access
-    best_gini_per_feature: Vec<(f64, usize)>, // (gini, feature_index)
+    /// `(best Gini, feature index)` for each feature; sorted best first by
+    /// [`Self::sort_by_gini`].
+    best_gini_per_feature: Vec<(f64, usize)>,
 }
+
 impl HeuristicValues {
+    /// Neutral scores (Gini 1.0) for `num_features` features, in index order.
     pub fn new(num_features: usize) -> Self {
         Self {
             gini_per_split: vec![Vec::new(); num_features],
@@ -19,8 +21,8 @@ impl HeuristicValues {
         }
     }
 
-    /// Set sorted split indices and best gini for a specific feature
-    /// split_indices should be sorted by gini score (best first)
+    /// Stores the split order and best Gini of `feature`. `split_indices` must
+    /// already be sorted best first.
     pub fn set_feature_ginis(&mut self, feature: usize, split_indices: Vec<usize>, best_gini: f64) {
         if feature < self.gini_per_split.len() {
             self.gini_per_split[feature] = split_indices;
@@ -28,25 +30,41 @@ impl HeuristicValues {
         }
     }
 
-    /// Sort features by best Gini index (best features first)
+    /// Sorts features by their best Gini, lowest first.
     pub fn sort_by_gini(&mut self) {
         self.best_gini_per_feature
             .sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
     }
 }
 
+/// A subset of the dataset: the instances that reach one node of the tree.
+///
+/// Each feature column is kept sorted by value, so candidate thresholds are
+/// the positions where the value changes. Splitting a view partitions every
+/// column in one linear pass, preserving the order.
 pub struct DataView<'a> {
+    /// The full dataset the view refers into.
     pub dataset: &'a Dataset,
-    pub total_instances: usize,                  // universe size
-    pub feature_columns: Vec<Vec<usize>>,        // positions into dataset.features[f]
-    pub possible_split_indices: Vec<Vec<usize>>, // per-feature value-change boundaries for this view
-    pub label_freq: Vec<usize>,                  // per-class histogram for this view
+    /// Number of instances in the full dataset.
+    pub total_instances: usize,
+    /// For each feature, positions into `dataset[f]` of the instances in the
+    /// view, in increasing value order.
+    pub feature_columns: Vec<Vec<usize>>,
+    /// For each feature, positions in `feature_columns[f]` where the value
+    /// changes: the candidate thresholds.
+    pub possible_split_indices: Vec<Vec<usize>>,
+    /// Number of instances of each class in the view.
+    pub label_freq: Vec<usize>,
+    /// Whether features and splits are ordered by Gini.
     pub sort_by_heuristic: bool,
-    pub heuristic_values: HeuristicValues, // Gini-based feature ordering with per-split values
-    pub bitset: Bitset,                    // identity (filled on demand if you prefer)
+    /// Gini ordering of features and splits, when `sort_by_heuristic` is set.
+    pub heuristic_values: HeuristicValues,
+    /// The instances in the view; the cache key of the subproblem.
+    pub bitset: Bitset,
 }
 
 impl<'a> DataView<'a> {
+    /// The view of the whole dataset. The dataset's features must be sorted.
     pub fn root(dataset: &'a Dataset, sort_by_heuristic: bool) -> Self {
         let total_instances = dataset.count();
         let mut label_freq = vec![0; dataset.num_labels()];
@@ -77,10 +95,8 @@ impl<'a> DataView<'a> {
             feature_columns.push((0..feature_len).collect::<Vec<usize>>());
         }
 
-        // Initialize heuristic values
         let mut heuristic_values = HeuristicValues::new(dataset.num_features());
 
-        // Compute Gini index for each feature if sort_by_heuristic is enabled
         if sort_by_heuristic {
             for feature_idx in 0..dataset.num_features() {
                 let feature = &dataset[feature_idx];
@@ -95,7 +111,6 @@ impl<'a> DataView<'a> {
 
                 heuristic_values.set_feature_ginis(feature_idx, ordered_index, gini);
             }
-            // Sort features by Gini index
             heuristic_values.sort_by_gini();
         }
 
@@ -114,34 +129,43 @@ impl<'a> DataView<'a> {
         }
     }
 
+    /// Number of instances in the view.
     pub fn get_dataset_size(&self) -> usize {
         self.feature_columns[0].len()
     }
 
+    /// Number of features.
     pub fn get_feature_number(&self) -> usize {
         self.dataset.num_features()
     }
 
+    /// The full, sorted column of feature `f`.
     pub fn get_sorted_feature(&self, f: usize) -> &Feature {
         &self.dataset[f]
     }
 
+    /// Positions into [`Self::get_sorted_feature`] of the instances in the
+    /// view, in value order.
     pub fn get_feature_indices(&self, f: usize) -> &[usize] {
         &self.feature_columns[f]
     }
 
+    /// Number of instances of each class in the view.
     pub fn get_labels_freqs(&self) -> &[usize] {
         &self.label_freq
     }
 
+    /// Number of classes in the dataset.
     pub fn get_num_labels(&self) -> usize {
         self.dataset.num_labels()
     }
 
+    /// Candidate thresholds of feature `f`, as positions in the sorted column.
     pub fn get_possible_split_indices(&self, f: usize) -> &[usize] {
         &self.possible_split_indices[f]
     }
 
+    /// Largest number of candidate thresholds of any feature.
     pub fn get_max_splits(&self) -> usize {
         self.possible_split_indices
             .iter()
@@ -150,10 +174,14 @@ impl<'a> DataView<'a> {
             .unwrap_or(0)
     }
 
+    /// Indices into the candidate thresholds of `feature`, best Gini first.
+    /// Empty unless the heuristic ordering is enabled.
     pub fn ordered_possible_splits(&self, feature: usize) -> &[usize] {
         &self.heuristic_values.gini_per_split[feature]
     }
 
+    /// `(best Gini, feature)` pairs, best first when the heuristic ordering is
+    /// enabled and in feature order otherwise.
     pub fn features_best_score(&self) -> &[(f64, usize)] {
         &self.heuristic_values.best_gini_per_feature
     }
@@ -178,6 +206,8 @@ impl<'a> DataView<'a> {
         out
     }
 
+    /// Fills the class histograms of both sides of a split of `feature_index`
+    /// at `split_point`. Both slices must start zeroed.
     pub fn initialize_split_parameters(
         &self,
         feature_index: usize,
@@ -191,11 +221,8 @@ impl<'a> DataView<'a> {
         let feature_ids = self.get_feature_indices(feature_index);
         let feature = self.get_sorted_feature(feature_index);
 
-        // Count the smaller side, derive the other by subtraction. Written as
-        // `2 * split_point` rather than `total_size - split_point` so it cannot
-        // underflow if the two ever disagree.
+        // Count the smaller side and derive the other by subtraction.
         if 2 * split_point < total_size {
-            // Left is smaller: count left, derive right
             for i in 0..split_point {
                 let data_point = &feature[feature_ids[i]];
                 left_freq[data_point.label as usize] += 1;
@@ -204,7 +231,6 @@ impl<'a> DataView<'a> {
                 right_freq[label] = self.label_freq[label] - left_freq[label];
             }
         } else {
-            // Right is smaller: count right, derive left
             for i in split_point..total_size {
                 let data_point = &feature[feature_ids[i]];
                 right_freq[data_point.label as usize] += 1;
@@ -215,9 +241,10 @@ impl<'a> DataView<'a> {
         }
     }
 
-    /// Compute Gini index for all possible split points of a feature
-    /// Returns (sorted_split_indices, best_gini) where split indices are sorted by gini (best first)
-    /// OPTIMIZED: Only computes at valid split boundaries, not at every element
+    /// Computes the weighted Gini of every candidate threshold of a feature.
+    ///
+    /// Returns the indices of the candidates sorted best first, and the best
+    /// Gini value.
     fn compute_gini_for_all_splits(
         feature: &Feature,
         idx: &[usize],
@@ -236,9 +263,8 @@ impl<'a> DataView<'a> {
 
         let mut last_pos = 0;
 
-        // Only compute Gini at valid split boundaries
         for (split_idx, &split_pos) in possible_splits.iter().enumerate() {
-            // Update frequencies up to this split point
+            // Move the instances before this threshold to the left side.
             for &data_idx in &idx[last_pos..split_pos] {
                 let label = feature[data_idx].label as usize;
                 right_label_freq[label] -= 1;
@@ -255,7 +281,6 @@ impl<'a> DataView<'a> {
                 right_count,
             );
 
-            // Track best gini
             if gini < best_gini {
                 best_gini = gini;
             }
@@ -264,16 +289,15 @@ impl<'a> DataView<'a> {
             last_pos = split_pos;
         }
 
-        // Sort by gini value (ascending) - best (lowest) gini first
         gini_values.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
 
-        // Extract just the split indices (already sorted by gini)
         let sorted_indices: Vec<usize> = gini_values.into_iter().map(|(idx, _)| idx).collect();
 
         (sorted_indices, best_gini)
     }
 
-    /// Compute weighted Gini index from label frequency distributions
+    /// Weighted Gini impurity of a split, from the class histograms of its
+    /// two sides.
     #[inline]
     fn compute_gini_from_frequencies(
         left_freq: &[usize],
@@ -306,6 +330,8 @@ impl<'a> DataView<'a> {
         }
     }
 
+    /// Splits the view on feature `sf` at position `split_point` of its sorted
+    /// column. The left view holds the instances before the position.
     pub fn split(&self, sf: usize, split_point: usize) -> (Self, Self) {
         #[cfg(feature = "profiling")]
         coz::scope!("Split view");
@@ -324,7 +350,6 @@ impl<'a> DataView<'a> {
         }
         left_bitset.save_count();
 
-        // Derive right histogram by subtraction
         let mut right_label_freq = vec![0; self.dataset.num_labels()];
         for label in 0..self.dataset.num_labels() {
             right_label_freq[label] = self.label_freq[label] - left_label_freq[label];
@@ -341,7 +366,6 @@ impl<'a> DataView<'a> {
             .map(|_| Vec::with_capacity(right_size_estimate))
             .collect();
 
-        // Pre-allocate split indices vectors
         let mut left_split_indices: Vec<Vec<usize>> = (0..num_features)
             .map(|_| Vec::with_capacity(left_size_estimate / 10))
             .collect();
@@ -349,15 +373,11 @@ impl<'a> DataView<'a> {
             .map(|_| Vec::with_capacity(right_size_estimate / 10))
             .collect();
 
-        // Initialize Gini computation structures
         let mut left_heuristics = HeuristicValues::new(num_features);
         let mut right_heuristics = HeuristicValues::new(num_features);
 
-        // Scratch buffers for the Gini pass, hoisted out of the per-feature
-        // loop. They used to be four allocations per feature per split -- two
-        // of them clones of the label histogram -- on the hottest path in the
-        // crate, and three of the four were dead weight unless
-        // `sort_by_heuristic` was on.
+        // Scratch buffers for the Gini pass, reused across features. They are
+        // empty when the heuristic ordering is off.
         let num_labels = self.dataset.num_labels();
         let heuristic_width = if self.sort_by_heuristic {
             num_labels
@@ -373,17 +393,15 @@ impl<'a> DataView<'a> {
 
         for f in 0..num_features {
             if f == sf {
-                // Split feature already partitioned
+                // The split feature is already partitioned by `split_at`.
                 left_pfi[f] = sf_left_idxs.to_vec();
                 right_pfi[f] = sf_right_idxs.to_vec();
 
-                // Compute split indices for the split feature
                 left_split_indices[f] =
                     Self::compute_split_indices_for(&self.dataset[f], sf_left_idxs);
                 right_split_indices[f] =
                     Self::compute_split_indices_for(&self.dataset[f], sf_right_idxs);
 
-                // Compute Gini for split feature if needed
                 if self.sort_by_heuristic {
                     let (ordered_splits, best_gini) = Self::compute_gini_for_all_splits(
                         &self.dataset[f],
@@ -414,7 +432,6 @@ impl<'a> DataView<'a> {
             let mut left_counter = 0;
             let mut right_counter = 0;
 
-            // For incremental Gini computation
             let mut left_best_gini = 1.0;
             let mut right_best_gini = 1.0;
 
@@ -435,12 +452,10 @@ impl<'a> DataView<'a> {
                 if left_bitset.contains(row) {
                     left_pfi[f].push(pos);
 
-                    // Track split indices during partitioning
                     if let Some(last) = left_last_unique {
                         if el.unique_value_idx != last {
                             left_split_indices[f].push(left_counter);
 
-                            // Compute Gini at this split boundary if enabled
                             if self.sort_by_heuristic {
                                 let gini = Self::compute_gini_from_frequencies(
                                     &left_label_running,
@@ -458,7 +473,6 @@ impl<'a> DataView<'a> {
                     left_last_unique = Some(el.unique_value_idx);
                     left_counter += 1;
 
-                    // Update running frequencies for Gini computation
                     if self.sort_by_heuristic {
                         left_label_remaining[label] -= 1;
                         left_label_running[label] += 1;
@@ -466,12 +480,10 @@ impl<'a> DataView<'a> {
                 } else {
                     right_pfi[f].push(pos);
 
-                    // Track split indices during partitioning
                     if let Some(last) = right_last_unique {
                         if el.unique_value_idx != last {
                             right_split_indices[f].push(right_counter);
 
-                            // Compute Gini at this split boundary if enabled
                             if self.sort_by_heuristic {
                                 let gini = Self::compute_gini_from_frequencies(
                                     &right_label_running,
@@ -489,7 +501,6 @@ impl<'a> DataView<'a> {
                     right_last_unique = Some(el.unique_value_idx);
                     right_counter += 1;
 
-                    // Update running frequencies for Gini computation
                     if self.sort_by_heuristic {
                         right_label_remaining[label] -= 1;
                         right_label_running[label] += 1;
@@ -497,9 +508,7 @@ impl<'a> DataView<'a> {
                 }
             }
 
-            // Store computed Gini values
             if self.sort_by_heuristic {
-                // Sort by gini value and extract indices
                 left_gini_values
                     .sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
                 right_gini_values
@@ -514,15 +523,12 @@ impl<'a> DataView<'a> {
                 right_heuristics.set_feature_ginis(f, right_sorted_indices, right_best_gini);
             }
 
-            // No `shrink_to_fit` here. A view lives only as long as the node
-            // being expanded, so trading a realloc and a memcpy per feature per
-            // split for memory that is about to be dropped is a bad bargain.
+            // No `shrink_to_fit`: a view only lives while its node is expanded.
         }
 
         let mut right_bitset = self.bitset.intersect_with(&left_bitset, true);
         right_bitset.save_count();
 
-        // Sort features by Gini index if enabled (Gini already computed during partitioning)
         if self.sort_by_heuristic {
             left_heuristics.sort_by_gini();
             right_heuristics.sort_by_gini();
@@ -553,6 +559,7 @@ impl<'a> DataView<'a> {
         (left, right)
     }
 
+    /// Number of instances in the view.
     pub fn len(&self) -> usize {
         debug_assert!(
             self.bitset.count() == self.feature_columns[0].len(),
@@ -561,6 +568,7 @@ impl<'a> DataView<'a> {
         self.feature_columns[0].len()
     }
 
+    /// Whether the view has no instances.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

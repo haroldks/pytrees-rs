@@ -76,8 +76,8 @@ pub trait BudgetSchedule: Send {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ScheduleKind {
-    /// `(discrepancy, split)` pairs in order of increasing sum -- the schedule
-    /// this crate has always used, without its repeated first budget.
+    /// `(discrepancy, split)` pairs in order of increasing sum. See
+    /// [`Diagonal`].
     #[default]
     Diagonal,
     /// Grows a square: every budget with `max(d, s) = k` before any with
@@ -98,6 +98,7 @@ impl ScheduleKind {
         }
     }
 
+    /// Creates the schedule for a problem with the given bounds.
     pub fn build(self, bounds: ScheduleBounds) -> Box<dyn BudgetSchedule> {
         match self {
             Self::Diagonal => Box::new(Diagonal::new(bounds)),
@@ -135,13 +136,7 @@ impl FromStr for ScheduleKind {
 /// Walks the diagonals `(0,0)`, `(0,1) (1,0)`, `(0,2) (1,1) (2,0)`, … and,
 /// within one, from the smallest discrepancy up. Pairs outside
 /// [`ScheduleBounds`] are skipped; the last budget is the unrestricted search.
-///
-/// The first budget used to run three times: the first pass never advanced
-/// the budget, the second pass ran the same one, and the iterator then yielded
-/// it again. For the `mid` selector a repeated pass can cost as much as the
-/// rest of the search -- 23 s of 60 on wilt d4. It now runs once. Reverting
-/// the commit that made this change restores the schedule behind the paper's
-/// results exactly.
+/// Each budget is handed out once.
 struct Diagonal {
     max_discrepancy: usize,
     /// `None` when no split is allowed at all: the schedule is then empty.
@@ -199,10 +194,9 @@ impl BudgetSchedule for Diagonal {
 /// (0,0) | (1,0) (0,1) (1,1) | (2,0) (2,1) (0,2) (1,2) (2,2) | ...
 /// ```
 ///
-/// Within a shell the budget can still shrink in one dimension -- `(1,0)` to
-/// `(0,1)` -- but every shell ends on the budget that contains all the ones
-/// before it. An order by `d + s` has no such point: each diagonal trades one
-/// dimension for the other all the way along. Pairs outside [`ScheduleBounds`] are
+/// Within a shell the budget can still shrink in one dimension (`(1,0)` to
+/// `(0,1)`), but every shell ends on the budget that contains all the ones
+/// before it, which [`Diagonal`] never does. Pairs outside [`ScheduleBounds`] are
 /// skipped; the last budget is the unrestricted search. When the split budget
 /// does not apply, only the discrepancy axis is walked, since passes differing
 /// only in `s` would be identical.
