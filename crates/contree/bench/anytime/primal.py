@@ -1,6 +1,6 @@
 """Average primal gap of anytime runs recorded by run.sh.
 
-As in experiments/experiments_results_compiler.ipynb:
+Definitions:
 
     gap(e)      = 0 if e == best, else |e - best| / max(e, best)
     gap(t)      = 1 until the first solution, then the gap of the incumbent
@@ -8,7 +8,7 @@ As in experiments/experiments_results_compiler.ipynb:
 
 `best` is the lowest error any run reached on that (dataset, depth), over
 every run given and, with --reference, every result in that CSV (columns
-name, depth, error; e.g. experiments/results_27122025/all.csv).
+name, depth, error).
 
     python3 primal.py <run-dir>... [--reference all.csv] [--times 5,15,30,60] [--detail]
 

@@ -3,38 +3,39 @@ use contree::algorithms::GenericConTree;
 use contree::common::{PointSelector, ScheduleKind};
 use std::path::PathBuf;
 
+/// Command line arguments of `con-tree`.
 #[derive(Debug, Parser)]
 #[clap(name = "con-tree", version, author, about)]
 pub struct GeneralParser {
-    /// Dataset input file path
+    /// Dataset file: one instance per line, whitespace separated, label first
     #[clap(short, long, value_parser)]
     pub input: PathBuf,
 
-    /// Minimum support
+    /// Minimum number of instances in each leaf
     #[arg(short, long, default_value_t = 1)]
     pub support: usize,
 
-    /// Maximum depth
+    /// Maximum depth of the tree
     #[arg(short, long)]
     pub depth: usize,
 
-    /// Maximum error allowed
+    /// Initial upper bound on the training error
     #[arg(long, default_value_t = usize::MAX)]
     pub max_error: usize,
 
-    /// Maximum error gap allowed
+    /// Error gap to the optimum that is tolerated (0 for an exact search)
     #[arg(long, default_value_t = 0)]
     pub max_gap: usize,
 
-    /// Maximum execution time allowed
+    /// Time limit in seconds
     #[arg(short, long, default_value_t = 600.0)]
     pub time_limit: f64,
 
-    /// Sort split and feature using gini index
+    /// Explore features and thresholds in order of Gini impurity
     #[arg(long, default_value_t = false)]
     pub sort_by_heuristic: bool,
 
-    /// Split selection strategy to use in the search
+    /// Which threshold to evaluate next inside an interval: mid, first or random
     #[arg(
         long,
         default_value_t = PointSelector::Mid,
@@ -42,17 +43,16 @@ pub struct GeneralParser {
     )]
     pub split_selection_strategy: PointSelector,
 
-    /// Use the specialized solver for depth-2 subtrees. This is the default;
-    /// the flag is kept so existing scripts that pass it keep working.
+    /// Use the specialised solver for depth-2 subtrees (the default)
     #[arg(short, long, default_value_t = false, hide = true)]
     pub fast_d2: bool,
 
-    /// Disable the specialized depth-2 solver and run the general search all
-    /// the way down. Exact either way, but much slower at depth 2 and beyond.
+    /// Disable the depth-2 solver and run the general search all the way down.
+    /// Exact either way, but much slower
     #[arg(long, default_value_t = false, conflicts_with = "fast_d2")]
     pub no_fast_d2: bool,
 
-    /// Use LDS
+    /// Use the anytime search (limited discrepancy search)
     #[arg(long, default_value_t = false)]
     pub use_lds: bool,
 
@@ -64,18 +64,19 @@ pub struct GeneralParser {
     )]
     pub budget_schedule: ScheduleKind,
 
-    /// Printing Statistics and Constraints
+    /// Print the search statistics and why the search stopped
     #[arg(long, default_value_t = false)]
     pub print_stats: bool,
 
-    /// Printing Tree
+    /// Print the tree
     #[arg(long, default_value_t = false)]
     pub print_tree: bool,
 
+    /// Directory where the `lds` example writes its JSON results
     #[arg(long)]
     pub result_dir: PathBuf,
 
-    /// Overwriting file
+    /// Overwrite existing results in `result_dir`
     #[arg(long, default_value_t = false)]
     pub overwrite: bool,
 }

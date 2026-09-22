@@ -1,171 +1,107 @@
 # contree
 
-Optimal decision trees over **continuous** features, by branch and bound.
+Optimal decision trees on **continuous** features, in Rust.
 
-The search is DL8.5-style: a depth-bounded branch and bound over candidate split
-points, with a bitset-keyed cache of solved subproblems, a specialization for
-depth-2 subtrees, interval pruning over the candidates of a feature, and an
-anytime limited-discrepancy variant.
+The crate provides two searches:
 
+- **`ConTree`**, an exact branch-and-bound search. Candidate thresholds lie
+  between consecutive values of each feature, subproblems are cached by the
+  set of instances they cover, depth-2 subtrees have a dedicated solver, and
+  whole intervals of thresholds are pruned at once. This is the algorithm of
+  Brită, van der Linden and Demirović (AAAI 2025).
+- **`ConTreeLds`**, an anytime version of the same search. It runs in passes
+  of growing limited discrepancy budget, so a good tree is available after a
+  fraction of the time the exact search needs, and the last pass still
+  proves optimality. See *Anytime Optimal Decision Tree Learning with
+  Continuous Features* (Kiossou, Schaus and Nijssen, ECML PKDD 2026,
+  [arXiv:2601.14765](https://arxiv.org/abs/2601.14765)).
+
+The Python package `pytrees` wraps both as `ConTreeClassifier`. Its command
+line front end is the `con-tree` binary in `crates/contree-cli`.
+
+## Using the library
+
+```rust
+use contree::algorithms::ConTree;
+use contree::common::{PointSelector, SearchConfig, SearchStatus};
+use contree::data::Dataset;
+
+// Row-major values and dense labels 0..k, as in a numpy (n, d) array.
+let dataset = Dataset::from_rows(&values, &labels, n_features)?;
+
+let config = SearchConfig::new(
+    1,                 // min_sup: minimum instances per leaf
+    3,                 // max_depth
+    600.0,             // time limit in seconds
+    0,                 // max_gap: 0 for an exact search
+    usize::MAX,        // initial upper bound on the error
+    false,             // order features and thresholds by Gini
+    true,              // use the depth-2 solver
+    PointSelector::Mid,
+);
+let outcome = ConTree::with_config(config).fit(&dataset)?;
+
+if outcome.status == SearchStatus::Optimal {
+    println!("optimal tree, {} training errors", outcome.error());
+}
+let predictions = outcome.tree.predict(&test_values, n_features)?;
 ```
-crates/contree/                                 the library      (crate `contree`)
-crates/contree/tests/baseline/                  behavioural regression harness
-crates/contree/bench/anytime/                   anytime benchmark
-crates/contree-cli/                             the `con-tree` binary
-crates/pytrees-py/src/contree.rs                its Python bindings, in pytrees._native
-python/pytrees/supervised/contree.py            the scikit-learn estimator
+
+`fit` returns the tree, the search statistics, and why the search stopped.
+Only `SearchStatus::Optimal` means the tree is proven best for the given
+depth and minimum support; `TimeLimit` and `BudgetExhausted` mean the search
+ran out of time or budget first.
+
+For the anytime search, build a `ConTreeLds` the same way. Its
+`with_schedule` method chooses how the budget grows between passes
+(`ScheduleKind::Diagonal` or `ScheduleKind::Square`), and `trajectory()`
+returns every improvement of the tree as `(seconds, error)`.
+
+A split sends an instance left when `x[feature] <= threshold`, as in
+scikit-learn.
+
+## Reading datasets
+
+`DataReader` reads text files with one instance per line, whitespace
+separated, and the label in the first column:
+
+```text
+0 5.1 3.5 1.4 0.2
+1 7.0 3.2 4.7 1.4
 ```
 
-Paths below are relative to the repository root. The benchmark instances are
-not tracked; the commands expect them in `datasets/`, or wherever
-`CONTREE_DATASETS` points.
-
-## Build
-
-```bash
-cargo build --release -p contree-rs -p contree-cli
-```
-
-The library has one optional feature, `profiling`, which turns on the
-[`coz`](https://github.com/plasma-umass/coz) probes in the hot path. It is off
-by default.
+Labels must be non-negative integers. `with_format`, `with_label_column`,
+`with_headers` and `with_comment_char` adapt the reader to other layouts.
+The returned dataset is ready to fit.
 
 ## Command line
 
 ```bash
 cargo run --release -p contree-cli -- \
-    --input datasets/avila.txt \
-    --depth 3 \
-    --support 1 \
-    --fast-d2 \
-    --sort-by-heuristic \
-    --print-tree --print-stats \
-    --result-dir .
+    --input data.txt --depth 3 --sort-by-heuristic \
+    --print-tree --print-stats --result-dir .
 ```
 
-`--use-lds` switches to the anytime search, which reports improving trees as its
-discrepancy and split budgets widen instead of running to the optimum in one go.
+`--use-lds` switches to the anytime search, and `--budget-schedule` picks its
+schedule. `con-tree --help` lists every option.
 
-## Library
-
-```rust
-use contree::algorithms::ConTree;
-use contree::common::{PointSelector, SearchStatus};
-use contree::data::Dataset;
-
-// Row-major values plus labels: the layout a numpy `(n, d)` array already has.
-let dataset = Dataset::from_rows(&values, &labels, n_features)?;
-
-let mut solver = ConTree::new(
-    /* min_sup */ 1,
-    /* max_depth */ 3,
-    /* max_time */ 600.0,
-    /* max_error */ usize::MAX,
-    PointSelector::Mid,
-    /* max_gap */ 0,
-    /* sort_by_heuristic */ false,
-    /* fast_d2 */ true,
-);
-
-let outcome = solver.fit(&dataset)?;
-assert_eq!(outcome.status, SearchStatus::Optimal);
-
-let predictions = outcome.tree.predict(&test_values, n_features)?;
-```
-
-`fit` returns a `FitOutcome`: the tree, the search counters, and **why the
-search stopped**. Only `SearchStatus::Optimal` means the tree is proven best for
-the given depth and support; `TimeLimit` and `BudgetExhausted` mean the search
-ran out of something first.
-
-## Python
+## Testing
 
 ```bash
-pip install maturin
-maturin develop --release        # from the repository root; or: maturin build
+cargo test -p contree-rs
 ```
 
-```python
-from sklearn.datasets import load_iris
-from sklearn.model_selection import cross_val_score
-from pytrees import ConTreeClassifier
+Beyond unit tests, two integration tests carry most of the weight:
 
-X, y = load_iris(return_X_y=True)
+- `tests/exact.rs` compares every search configuration with a brute-force
+  optimum on small random instances.
+- `tests/predict.rs` checks that each returned tree classifies its training
+  data with exactly the error the search reports.
 
-clf = ConTreeClassifier(max_depth=3, min_sup=5, fast_d2=True).fit(X, y)
-clf.status_        # "optimal" -- anything else means the search ran out of something
-clf.train_error_   # misclassifications on the training set
-clf.tree_          # a pytrees.tree.Tree: children_left, feature, threshold, value, ...
+`tests/baseline/` holds a regression baseline over larger datasets (not
+included in the repository): `capture.sh` runs the configurations of
+`matrix.txt`, and `compare.py` reports changed errors, trees and counters.
+`bench/anytime/` contains the scripts used to measure anytime behaviour.
 
-cross_val_score(clf, X, y, cv=5)
-```
-
-`ConTreeClassifier` passes `sklearn.utils.estimator_checks.check_estimator`, so
-it clones, pickles, and drops into `Pipeline` and `GridSearchCV` unchanged. `y`
-may be anything `np.unique` accepts -- strings, non-contiguous integers -- and
-`classes_` maps back to it; the Rust core keeps its dense `0..k` contract.
-
-`predict`, `apply` and `decision_path` come from the `Tree` every pytrees
-estimator shares, which sends rows down in Rust; `fit` releases the GIL for the
-duration of the search.
-
-Because the search is exact it can take a long time, and the anytime variant
-exists to make that bearable:
-
-```python
-clf = ConTreeClassifier(max_depth=4, fast_d2=True)
-clf.fit_anytime(X, y, callback=lambda error, seconds, status:
-                print(f"{seconds:6.2f}s  error={error}  ({status})"))
-```
-
-## Two conventions that are easy to get wrong
-
-**The label is column 0.** `DataReader` reads whitespace-separated text with the
-label first and the features after it, and labels must be a dense integer
-encoding `0..k`. `with_label_column` moves it.
-
-**A split routes left when `x[feature] <= threshold`,** and right otherwise, as in
-scikit-learn. This
-is the rule the search itself partitions by. `crates/contree/tests/baseline/check_predictions.py`
-and `crates/contree/tests/predict.rs` both pin it: every tree in the baseline
-must classify its training set with exactly the error the search reported.
-
-## Tests
-
-```bash
-cargo test -p contree-rs -p contree-cli   # Rust
-pytest python/tests                       # Python, after `maturin develop`
-```
-
-Four of them carry most of the weight:
-
-- `tests/predict.rs` — the tree a search returns must reproduce the error the
-  search reports, on every instance. The search counts its error while
-  exploring; the tree is rebuilt from the cache afterwards, and nothing used to
-  check that the two agree.
-- `tests/exact.rs` — a differential test against a brute-force optimum on small
-  random instances. It asserts the search never reports an error *below* what
-  any tree of that shape can achieve, and pins how often it misses the optimum
-  so the gap can shrink but not grow.
-- `python/tests/test_contree_sklearn_api.py` — runs `check_estimator` in full, plus
-  the contracts it does not cover: the reported error must match the
-  predictions, labels must survive a round trip, the anytime callback must see
-  monotonically improving trees.
-- `tests/baseline/` — a 52-configuration behavioural baseline over the real
-  datasets. `capture.sh --smoke` runs a 19-configuration subset in ~12 seconds
-  for iterating; the full matrix takes about six minutes.
-
-```bash
-cargo build --release -p contree-rs --examples
-crates/contree/tests/baseline/capture.sh --smoke /tmp/check
-python crates/contree/tests/baseline/compare.py /tmp/check
-```
-
-## Known gap
-
-The upper bound a cache entry was proved under (`Entry::ub`) is recorded and
-never read, so an entry established only as "no better than UB" is later reused
-as if it were exact, and the same value is written into the interval pruner.
-Both can prune away a tree that should have been kept. `tests/exact.rs`
-demonstrates it and bounds how often it happens; fixing it is a change to the
-search's pruning semantics rather than a cleanup.
+The optional `profiling` feature adds probes for the
+[`coz`](https://github.com/plasma-umass/coz) causal profiler.

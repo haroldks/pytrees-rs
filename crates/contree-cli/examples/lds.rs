@@ -1,3 +1,8 @@
+//! Runs the anytime search pass by pass and stores the error, time and
+//! counters of every pass, and each improving tree, as JSON in
+//! `<result-dir>/<dataset>/<depth>.json`. Takes the same arguments as
+//! `con-tree`.
+
 use clap::Parser;
 use contree::algorithms::GenericConTree;
 use contree::common::Statistics;
@@ -33,7 +38,6 @@ pub struct Res {
 }
 
 pub fn save_results(result: &Res, result_path: &PathBuf) -> std::io::Result<()> {
-    // Create parent directories if they don't exist
     if let Some(parent) = result_path.parent() {
         fs::create_dir_all(parent)?;
     }

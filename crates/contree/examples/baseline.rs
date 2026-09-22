@@ -1,12 +1,7 @@
-//! Baseline capture harness.
-//!
-//! Runs a single (dataset, depth, flags) configuration and writes a JSON record
-//! of the resulting tree and the deterministic search counters. Timing is
-//! deliberately excluded: it is not reproducible and must not gate a refactor.
-//!
-//! This exists so that the production-hardening refactor can be verified as
-//! behaviour-preserving. Run it at the pre-refactor commit to freeze the
-//! expected outputs, then re-run and diff after each change.
+//! Runs one (dataset, depth, flags) configuration and writes a JSON record of
+//! the tree and the deterministic search counters, for the regression
+//! baseline in `tests/baseline/`. Timing is left out because it is not
+//! reproducible.
 
 use std::env;
 use std::fs;
@@ -85,9 +80,8 @@ fn main() -> ExitCode {
     };
     dataset.sort_features();
 
-    // `error` is the search's own count; `tree` is what it claims to have found.
-    // Recording both is the point: they are supposed to agree, and nothing in
-    // the crate has ever checked that they do.
+    // Record both the search's own error count and the tree, so that
+    // `check_predictions.py` can verify they agree.
     let (error, tree, counters) = if args.lds {
         let mut solver: ConTreeLds = ConTreeLds::new(
             args.support,
@@ -176,8 +170,7 @@ fn counters_of(stats: &contree::common::Statistics) -> serde_json::Value {
 /// node and the label at each leaf — is the thing that must not change.
 fn tree_shape(tree: &Tree) -> serde_json::Value {
     fn walk(tree: &Tree, index: usize, depth: usize) -> serde_json::Value {
-        // Guard against the arena's ambiguous "0 means no child" convention and
-        // against cycles, which a malformed tree could otherwise turn into a hang.
+        // Guard against cycles in a malformed tree.
         if depth > 64 {
             return serde_json::json!("<depth-limit>");
         }
@@ -187,10 +180,8 @@ fn tree_shape(tree: &Tree) -> serde_json::Value {
         let (left, right) = (node.left, node.right);
         let feature = node.value.feature;
 
-        // Today a leaf is spelled three different ways depending on which solver
-        // produced it: no children, `feature: None`, or the `usize::MAX` sentinel
-        // written by the cache path. Collapse all three here so the baseline is
-        // stable across the leaf-encoding unification.
+        // Accept every leaf encoding (no children, `feature: None` or the
+        // `usize::MAX` sentinel) so the records do not depend on it.
         let is_leaf = (left == 0 && right == 0) || feature.is_none() || feature == Some(usize::MAX);
 
         if is_leaf {

@@ -5,9 +5,8 @@
 
 Reports three things separately, because they mean different things:
 
-  * changed error   - the search found a different-quality tree. During this
-                      refactor some of these are expected (the A1/A3 fixes
-                      change pruning), so each one must be accounted for.
+  * changed error   - the search found a different-quality tree. Each one
+                      must be accounted for.
   * changed tree    - same error, different tree. Usually a tie broken
                       differently; benign, but worth seeing.
   * changed counters- same result, different amount of work. Pure-performance

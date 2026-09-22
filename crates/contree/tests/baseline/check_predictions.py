@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
 """Check that each baseline tree reproduces the error the search reported.
 
-This is the load-bearing invariant of the whole crate and nothing has ever
-verified it: `Statistics.error` is a counter maintained by the search, while the
-tree is reconstructed separately from the cache afterwards. If they disagree,
-the tree handed to a user is not the tree that was optimized.
+`Statistics.error` is a counter maintained by the search, while the tree is
+rebuilt from the cache afterwards; if they disagree, the tree handed to a user
+is not the tree that was optimized.
 
 It also pins the routing convention, `left = x <= threshold`, as in
 scikit-learn. The search partitions by position (the sorted prefix
 `[0, split_point)` goes left, in `view.rs`) and places each threshold
 between the last value that goes left and the first that goes right
-(`shared::threshold_between`), so no training value sits on a threshold and
-this check is what ties the two together.
+(`shared::threshold_between`), so no training value sits on a threshold.
 
     crates/contree/tests/baseline/check_predictions.py [baseline-dir]
 """

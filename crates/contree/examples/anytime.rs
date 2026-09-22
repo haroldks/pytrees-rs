@@ -3,9 +3,8 @@
 //!
 //!     anytime <dataset.txt> <depth> <method> <time-limit> [budget-schedule]
 //!
-//! Methods follow the naming in `experiments/`: `contree` (no ordering),
-//! `contree-gini`, `lds-first-gini`, `lds-mid-gini`. All use the depth-2
-//! specialization.
+//! Methods: `contree` (no ordering), `contree-gini`, `lds-first-gini` and
+//! `lds-mid-gini`. All use the depth-2 solver.
 
 use std::env;
 use std::path::Path;

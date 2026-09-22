@@ -160,8 +160,8 @@ fn main() -> std::io::Result<()> {
         let labels: Vec<usize> = (0..n_rows).map(|_| rng.below(n_labels)).collect();
 
         let dataset = Dataset::from_rows(&values, &labels, n_features).expect("valid instance");
-        // `CONTREE_DUMP=<dir>` writes each instance in upstream ConTree's own
-        // input format, so the same cases can be run through its binary.
+        // `CONTREE_DUMP=<dir>` writes each instance in the input format of the
+        // reference C++ ConTree, so the same cases can be run through it.
         if let Some(dir) = std::env::var_os("CONTREE_DUMP") {
             let mut out = String::new();
             for row in 0..n_rows {

@@ -1,4 +1,9 @@
-//! `con-tree` — command line driver for the optimal continuous decision tree search.
+//! `con-tree`: learns an optimal decision tree on continuous features from a
+//! text dataset and prints it.
+//!
+//! ```text
+//! con-tree --input data.txt --depth 3 --print-tree --print-stats --result-dir .
+//! ```
 
 mod parsers;
 

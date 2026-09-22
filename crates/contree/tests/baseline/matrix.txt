@@ -13,11 +13,8 @@
 # that matter -- all six datasets, all three flag combinations, depths 2/3/4,
 # and both the general search and the depth-2 specialization -- while dropping
 # the four large exhaustive runs that account for ~85% of the wall clock.
-# Wall-clock costs below are from that measurement, for choosing future subsets.
-# They predate the upstream bound fixes (5eaf77e, 0be232f), which made the
-# searches without --fast-d2 do several times more work for the same result:
-# `wilt 2` and `page 2 --use-lds` no longer finish in 2 minutes and were
-# dropped, and the other entries without --fast-d2 are now slower than listed.
+# Wall-clock costs below are indicative only; entries without --fast-d2 are
+# now slower than listed.
 
 bank 2                                                          #smoke  0.13s
 raisin 2                                                        #smoke  1.4s

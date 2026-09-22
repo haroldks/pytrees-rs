@@ -1,12 +1,9 @@
-//! The load-bearing check on the whole crate: the tree a search returns must
-//! actually classify the data it was trained on the way the search says it
-//! does.
+//! The tree a search returns must classify its training data with exactly
+//! the error the search reports.
 //!
-//! Nothing verified this before. The search counts its error while exploring;
-//! the tree is reconstructed separately from the cache afterwards. If the two
-//! disagree -- a routing convention flipped, a leaf label taken from the wrong
-//! entry, a subtree grafted at the wrong index -- every number the crate
-//! reports is meaningless, and no other test in the suite would notice.
+//! The search counts its error while exploring, and the tree is rebuilt from
+//! the cache afterwards. A flipped routing convention, a wrong leaf label or a
+//! subtree grafted at the wrong index would make the two disagree.
 
 use std::path::PathBuf;
 
@@ -61,8 +58,8 @@ fn load(name: &str) -> Dataset {
 
 #[test]
 fn the_exhaustive_search_tree_reproduces_its_reported_error() {
-    // avila_1k is 1000x10 and only runs at one setting: in a debug build the
-    // full cross-product on it dominates the whole test suite.
+    // avila_1k (1000x10) only runs at one setting below, to keep debug
+    // builds fast.
     for name in ["hepatitis.txt", "iris.txt", "small.txt"] {
         let dataset = load(name);
         for depth in 1..=2 {
@@ -149,8 +146,8 @@ fn the_lds_tree_reproduces_its_reported_error() {
 
 #[test]
 fn minimum_support_is_respected_by_every_leaf() {
-    // The depth-2 solver never read `min_sup`, so with --fast-d2 the bottom two
-    // levels could split off arbitrarily small groups.
+    // Checked with and without the depth-2 solver, which handles the bottom
+    // two levels on its own.
     let dataset = load("avila_1k.txt");
     let (values, _, n_features) = rows(&dataset);
 
@@ -271,7 +268,7 @@ fn fit_rejects_what_it_used_to_assert_about_in_debug_only() {
         }
     ));
 
-    // A dataset that was never indexed silently produced a single leaf.
+    // A dataset that was never sorted and indexed is refused.
     let mut unprepared = Dataset::new();
     for row in 0..4 {
         for feature in 0..2 {

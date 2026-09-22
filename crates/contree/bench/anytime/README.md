@@ -1,8 +1,8 @@
 # Anytime benchmarks
 
-How the anytime numbers in the commit messages were produced: runs with a
-60 s limit, scored by the average primal gap of the notebook in the
-contree-rs repository's `experiments/`. Commands run from the repository root.
+Scripts to measure the anytime behaviour of the searches: each run records
+how the best tree improves over time (60 s by default), and the runs are
+scored by their average primal gap. Commands run from the repository root.
 
 - `run.sh` — one run, recorded as `<label>-<dataset>-<depth>-<method>.json`
   (the root incumbent's `(seconds, error)` trajectory).
@@ -26,10 +26,8 @@ git worktree add ../contree-at-X <commit>
 cp ../contree-at-X/target/release/examples/anytime bench-bin/anytime-X
 ```
 
-**Upstream ConTree**, printing at every root improvement. The paper's baseline
-logs printed once per completed root feature instead, which overstates
-ConTree's gap. The runs here used 55c4349 (the paper's version) and 61ebd49
-(with the upper-bound fixes).
+**The reference C++ ConTree**, built to print at every improvement of the
+root tree:
 
 ```sh
 git clone https://github.com/ConSol-Lab/contree && cd contree && git checkout 61ebd49
@@ -45,9 +43,8 @@ Datasets used so far:
 - depth 4: `bank raisin wilt page segment rice`
 - depth 5: `avila bank bean bidding eeg fault htru magic occupancy page raisin rice room segment skin wilt`
 
-The depth-5 files came from upstream's `test_data/`. The runs are
-independent, so run them in parallel, but on fewer workers than cores, since
-they are timed:
+The runs are independent, so run them in parallel, but on fewer workers than
+cores, since they are timed:
 
 ```sh
 out=target/bench-anytime
@@ -60,7 +57,7 @@ out=target/bench-anytime
   done
 } | xargs -P 4 -L 1 crates/contree/bench/anytime/run.sh
 
-python3 crates/contree/bench/anytime/primal.py $out --reference <contree-rs>/experiments/results_27122025/all.csv
+python3 crates/contree/bench/anytime/primal.py $out
 ```
 
 `primal.py --detail` adds the per-dataset breakdown. The noise between two

@@ -1,18 +1,10 @@
 //! Differential test against a brute-force optimum.
 //!
-//! `ConTree` is a branch and bound with a cache. Both halves can silently
-//! return a suboptimal tree rather than a wrong-looking one:
-//!
-//!   * a pruning rule that cuts a subtree it should have kept, and
-//!   * `Entry::ub` -- the upper bound a cache entry was computed under is
-//!     stored and never read again, so an entry proved only "no better than
-//!     UB" is later reused as if it were exact. The author's own note in
-//!     `caching/mod.rs` says as much.
-//!
-//! Neither shows up in a self-consistency check: the search and the tree agree
-//! with each other while both are wrong. The only way to see it is an
-//! independent optimum. This enumerates every tree of the given depth on small
-//! instances, with no pruning and no cache, and compares.
+//! An over-eager pruning rule or a cache entry reused outside the bound it
+//! was computed under makes the search return a suboptimal tree that is still
+//! self-consistent. Only an independent optimum reveals it, so this test
+//! enumerates every tree of the given depth on small random instances, with
+//! no pruning and no cache, and compares it with every search configuration.
 
 use std::path::PathBuf;
 
@@ -136,7 +128,7 @@ fn search(dataset: &Dataset, depth: usize, min_sup: usize, fast_d2: bool) -> usi
 /// Every other configuration that has to reach the same optimum: the
 /// exhaustive search with the `first` selector, and the anytime search with
 /// both selectors under every budget schedule. `first` goes through its own
-/// Gini-priority split loop, which the plain search above never exercises.
+/// Gini-priority split loop, which the plain search does not exercise.
 fn other_searches(
     dataset: &Dataset,
     depth: usize,
@@ -222,8 +214,6 @@ fn the_search_finds_the_optimum() {
 
 #[test]
 fn the_search_finds_the_brute_force_optimum_on_a_real_fixture() {
-    // `small.txt` is four rows; the fixtures are the shapes a user actually
-    // hits, where the random instances above are the shapes that break things.
     let dataset = DataReader::default()
         .read_file(&fixture("small.txt"))
         .expect("readable");
