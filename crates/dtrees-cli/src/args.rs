@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 /// Command line arguments of `dtrees`.
 #[derive(Debug, Parser)]
-#[clap(name = "dt-trees", version, author, about)]
+#[clap(name = "dtrees", version, author, about)]
 pub struct MainApp {
     /// Dataset file: one instance per line, label first, binary features
     #[clap(short, long, value_parser)]

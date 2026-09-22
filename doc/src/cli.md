@@ -15,16 +15,16 @@ Lines starting with `#` are ignored.
 0 0 1 0 1 1 0
 ```
 
-## dtrees-rs
+## dtrees
 
-`dtrees-rs` runs DL8.5, LGDT and the depth-2 solver on binary features (every
+`dtrees` runs DL8.5, LGDT and the depth-2 solver on binary features (every
 value after the label must be 0 or 1). The common options come before the
 subcommand:
 
 ```bash
-dtrees-rs --input data.txt --print-tree --print-stats dl85 --depth 3 --support 5 --timeout 60
-dtrees-rs --input data.txt --print-tree lgdt --depth 6
-dtrees-rs --input data.txt --print-tree d2 --depth 2
+dtrees --input data.txt --print-tree --print-stats dl85 --depth 3 --support 5 --timeout 60
+dtrees --input data.txt --print-tree lgdt --depth 6
+dtrees --input data.txt --print-tree d2 --depth 2
 ```
 
 | Option | Description |
@@ -55,7 +55,7 @@ dtrees-rs --input data.txt --print-tree d2 --depth 2
 | `-s, --support` | `1` | Minimum number of rows in each leaf. |
 | `-o, --objective` | `error` | What the tree (`d2`) or the lookahead (`lgdt`) optimises: `error` (misclassifications) or `information-gain`. |
 
-`dtrees-rs <command> --help` lists every option.
+`dtrees <command> --help` lists every option.
 
 ## con-tree
 

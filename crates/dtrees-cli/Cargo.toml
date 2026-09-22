@@ -9,7 +9,7 @@ repository.workspace = true
 
 # Keeps the binary's historical name, so existing scripts still work.
 [[bin]]
-name = "dtrees-rs"
+name = "dtrees"
 path = "src/main.rs"
 
 [dependencies]

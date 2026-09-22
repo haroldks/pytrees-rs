@@ -45,7 +45,7 @@ The command line tools are plain Rust binaries:
 
 ```bash
 cargo build --release -p dtrees-cli -p contree-cli
-./target/release/dtrees-rs --help
+./target/release/dtrees --help
 ./target/release/con-tree --help
 ```
 
