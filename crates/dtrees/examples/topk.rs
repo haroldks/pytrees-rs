@@ -9,7 +9,9 @@ use dtrees_rs::algorithms::common::heuristics::{
 use dtrees_rs::algorithms::common::types::{SearchHeuristic, SearchStepStrategy};
 use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
 use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
-use dtrees_rs::algorithms::optimal::rules::{Exponential, Luby, Monotonic, TopkRule};
+use dtrees_rs::algorithms::optimal::rules::{
+    DecreasingTopkRule, Exponential, Luby, Monotonic, Rule, StepStrategy, TopkRule,
+};
 use dtrees_rs::algorithms::optimal::Reason;
 use dtrees_rs::algorithms::TreeSearchAlgorithm;
 use dtrees_rs::caching::Trie;
@@ -21,7 +23,11 @@ use std::path::Path;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = ExampleParser::parse();
-    let method = "topk".to_string();
+    let method = match (app.max_k, app.dynamic) {
+        (Some(k), _) => format!("top{k}"),
+        (None, true) => "dyntopk".to_string(),
+        (None, false) => "topk".to_string(),
+    };
 
     assert!(app.input.exists(), "File does not exist");
 
@@ -112,14 +118,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ => Box::<NoHeuristic>::default(),
     };
 
-    let topk_rule: TopkRule = match lds_strategy {
-        SearchStepStrategy::Monotonic => {
-            TopkRule::new(cover.num_attributes, Box::<Monotonic>::default())
-        }
-        SearchStepStrategy::Exponential => {
-            TopkRule::new(cover.num_attributes, Box::<Exponential>::default())
-        }
-        SearchStepStrategy::Luby => TopkRule::new(cover.num_attributes, Box::<Luby>::default()),
+    let increment: Box<dyn StepStrategy> = match lds_strategy {
+        SearchStepStrategy::Monotonic => Box::<Monotonic>::default(),
+        SearchStepStrategy::Exponential => Box::<Exponential>::default(),
+        SearchStepStrategy::Luby => Box::<Luby>::default(),
+    };
+    // The rule allows one pass past its limit, so stop at `max_k - 1`.
+    let limit = app
+        .max_k
+        .map_or(cover.num_attributes, |k| k.saturating_sub(1));
+    let topk_rule: Box<dyn Rule> = if app.dynamic {
+        Box::new(DecreasingTopkRule::new(limit, increment))
+    } else {
+        Box::new(TopkRule::new(limit, increment))
     };
 
     let mut algo = DL85Builder::default()
@@ -127,7 +138,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .min_support(support)
         .max_time(time_limit)
         .always_sort(true)
-        .add_search_rule(Box::new(topk_rule))
+        .add_search_rule(topk_rule)
         .specialization(fast_d2)
         .cache(Box::<Trie>::default())
         .heuristic(heuristics)

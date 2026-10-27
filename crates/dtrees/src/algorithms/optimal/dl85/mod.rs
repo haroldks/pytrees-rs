@@ -58,6 +58,7 @@ where
     tree: Tree,
     root_candidates: Vec<usize>,
     gain_gap: f64,
+    incumbents: Vec<(f64, f64)>,
 }
 
 impl<C, D, E, H> TreeSearchAlgorithm for DL85<C, D, E, H>
@@ -118,6 +119,7 @@ where
             tree: Tree::default(),
             root_candidates: vec![],
             gain_gap: 0.0,
+            incumbents: vec![],
         }
     }
 
@@ -178,8 +180,10 @@ where
                 self.similarity_rule.activate();
             }
         } else {
-            root_context.upper_bound(self.statistics.tree_error);
-            root_context.error(self.statistics.tree_error);
+            // Keep `max_error` as bound when the previous pass found no tree.
+            let bound = <f64>::min(self.statistics.tree_error, self.config.base.max_error);
+            root_context.upper_bound(bound);
+            root_context.error(bound);
         }
         let root_index = self.cache.root_index();
         let node_ub = self
@@ -401,6 +405,10 @@ where
             let subtree_error = first_result.error + second_result.error;
             if subtree_error < subtree_upper_bound {
                 subtree_upper_bound = subtree_error;
+                if depth == 0 {
+                    self.incumbents
+                        .push((self.time_rule.elapsed_seconds(), subtree_error));
+                }
                 let optimal = self
                     .cache
                     .update_node(&parent_key)
@@ -577,6 +585,12 @@ where
             return self.error_fn.compute(&cover.labels_count());
         }
         self.error_fn.compute(&cover.to_vec())
+    }
+
+    /// `(seconds, error)` of every improvement of the tree at the root, in
+    /// the order they were found.
+    pub fn incumbents(&self) -> &[(f64, f64)] {
+        &self.incumbents
     }
 
     /// Counters of the search.

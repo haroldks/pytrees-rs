@@ -39,6 +39,10 @@ name = "gaintopk"
 required-features = ["cli"]
 
 [[example]]
+name = "iterative"
+required-features = ["cli"]
+
+[[example]]
 name = "lds"
 required-features = ["cli"]
 
