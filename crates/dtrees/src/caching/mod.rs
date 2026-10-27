@@ -9,7 +9,7 @@ use crate::caching::entry::CacheEntryUpdater;
 mod entry;
 mod helpers;
 mod trie;
-pub use entry::CacheEntry;
+pub use entry::{CacheEntry, EXACT};
 pub use helpers::{CacheKey, Index, SearchPath};
 pub use trie::Trie;
 

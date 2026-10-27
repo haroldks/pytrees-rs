@@ -1,3 +1,7 @@
+/// The `upper_bound` of a subproblem solved independently of any bound, such
+/// as a leaf at the maximum depth or a depth-2 tree.
+pub const EXACT: f64 = f64::MAX;
+
 /// What the search knows about one subproblem.
 ///
 /// `error` is the best error found so far, an upper bound on the optimum;
@@ -50,7 +54,8 @@ impl CacheEntry {
         self.error
     }
 
-    /// Upper bound the subproblem was last solved under.
+    /// Upper bound of the last complete search of the subproblem, infinite
+    /// if none, [`EXACT`] if solved independently of any bound.
     pub fn upper_bound(&self) -> f64 {
         self.upper_bound
     }
@@ -88,6 +93,22 @@ impl CacheEntry {
     /// Whether the best subtree is a leaf.
     pub fn is_leaf(&self) -> bool {
         self.is_leaf
+    }
+
+    /// Whether `error` is the optimum, which
+    /// [`UsableNodeRule`](crate::algorithms::optimal::rules::common::UsableNodeRule)
+    /// then reuses: a complete search found it at or below its bound.
+    pub fn is_solved(&self) -> bool {
+        self.upper_bound.is_finite() && self.error <= self.upper_bound
+    }
+
+    /// The best proven lower bound: the optimum when solved, the recorded
+    /// lower bound otherwise.
+    pub fn known_lower_bound(&self) -> f64 {
+        match self.is_solved() {
+            true => self.error,
+            false => self.lower_bound,
+        }
     }
 
     pub fn has_valid_test(&self) -> bool {
