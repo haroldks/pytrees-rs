@@ -116,9 +116,9 @@ pub enum RuleType {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 pub enum LowerBoundPolicy {
-    /// Derive lower bounds from the most similar solved sibling. Only valid
-    /// when each row adds at most 1 to the error, as with the
-    /// misclassification error.
+    /// Derive lower bounds from the most similar solved sibling. For errors
+    /// where each row adds at most 1, such as the misclassification error.
+    /// Ignored when the minimum support is above 1.
     Similarity,
     /// Only use the bounds stored in the cache.
     Disabled,

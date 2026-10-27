@@ -353,7 +353,7 @@ impl Rule for UsableNodeRule {
     }
 }
 
-/// Turns nodes with zero error into leaves.
+/// Turns nodes with zero error as a leaf into leaves.
 #[derive(Debug)]
 pub struct PureNodeRule {
     priority: u8,
@@ -374,7 +374,7 @@ impl PureNodeRule {
 
 impl Rule for PureNodeRule {
     fn evaluate(&self, context: &RuleContext) -> RuleResult {
-        if float_is_null(context.error) {
+        if float_is_null(context.leaf_error) {
             RuleResult::stop_with_bound(context.upper_bound, Reason::PureNode)
                 .optimal()
                 .leaf()
@@ -409,8 +409,8 @@ impl Rule for PureNodeRule {
 }
 
 /// Applies the similarity lower bound of DL8.5: stops when the bound reaches
-/// the upper bound, and makes the node a leaf when its error already meets
-/// the bound.
+/// the upper bound, makes the node a leaf when the leaf meets the bound, and
+/// stops when the best tree found meets it.
 #[derive(Debug)]
 pub struct SimilarityLowerBoundRule {
     priority: u8,
@@ -441,8 +441,13 @@ impl Rule for SimilarityLowerBoundRule {
         if context.node_lower_bound >= context.upper_bound {
             return RuleResult::stop_search(Reason::LowerBoundConstrained);
         }
+        if context.leaf_error <= context.node_lower_bound {
+            return RuleResult::stop_with_bound(context.upper_bound, Reason::PureNode)
+                .optimal()
+                .leaf();
+        }
         if context.error <= context.node_lower_bound {
-            return RuleResult::stop_search(Reason::PureNode).leaf();
+            return RuleResult::stop_search(Reason::Done);
         }
         RuleResult::continue_search()
     }
