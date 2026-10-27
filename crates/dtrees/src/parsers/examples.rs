@@ -33,6 +33,25 @@ pub struct ExampleParser {
     #[arg(short, long, default_value_t = 1.0)]
     pub metric: f64,
 
+    /// Length in seconds of one pass of the restart and iterative examples;
+    /// 0 runs the search uninterrupted and records every improvement
+    #[arg(long, default_value_t = 1.0)]
+    pub restart_interval: f64,
+
+    /// Initial upper bound on the tree error: only strictly better trees are
+    /// searched. Used by the restart example (warm start from a known tree)
+    #[arg(long, default_value_t = f64::INFINITY)]
+    pub max_error: f64,
+
+    /// Top-k example: halve k at each level of the tree (Top-k*)
+    #[arg(long, default_value_t = false)]
+    pub dynamic: bool,
+
+    /// Top-k example: stop relaxing at this k instead of the number of
+    /// features (the incomplete Top-k baseline)
+    #[arg(long)]
+    pub max_k: Option<usize>,
+
     /// Step of the gain and purity rules
     #[arg(long, default_value_t = 0.002)]
     pub epsilon: f64,

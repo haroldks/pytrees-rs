@@ -1,5 +1,10 @@
-//! DL8.5 restarted every second (a relaxable `TimeLimitRule`), recording the
-//! error of every pass as JSON. Run with `--help` for the options.
+//! DL8.5 restarted every `--restart-interval` seconds (a relaxable
+//! `TimeLimitRule`), recording the error of every pass as JSON.
+//!
+//! `--max-error` warm-starts the search with a known upper bound (e.g. the
+//! error of a greedy tree) and saves the results as `warmstart`.
+//! `--restart-interval 0` runs the search uninterrupted and records every
+//! improvement of the tree. Run with `--help` for the options.
 
 use clap::Parser;
 use dtrees_rs::algorithms::common::errors::NativeError;
@@ -21,7 +26,10 @@ use std::path::Path;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = ExampleParser::parse();
-    let method = "restart".to_string();
+    let method = match app.max_error.is_finite() {
+        true => "warmstart".to_string(),
+        false => "restart".to_string(),
+    };
 
     assert!(app.input.exists(), "File does not exist");
 
@@ -111,14 +119,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ => Box::<NoHeuristic>::default(),
     };
 
-    let time_rule = TimeLimitRule::new(1.0).relaxable();
-
-    let mut algo = DL85Builder::default()
+    let uninterrupted = app.restart_interval <= 0.0;
+    let mut builder = DL85Builder::default()
         .max_depth(depth)
         .min_support(support)
         .max_time(time_limit)
-        .always_sort(true)
-        .add_search_rule(Box::new(time_rule))
+        .max_error(app.max_error)
+        .always_sort(true);
+    if !uninterrupted {
+        let time_rule = TimeLimitRule::new(app.restart_interval).relaxable();
+        builder = builder.add_search_rule(Box::new(time_rule));
+    }
+
+    let mut algo = builder
         .specialization(fast_d2)
         .cache(Box::<Trie>::default())
         .heuristic(heuristics)
@@ -130,10 +143,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     while !algo.time_is_exhausted() {
         let r = algo.partial_fit(&mut cover);
         let stats = algo.statistics();
-        result.errors.push(stats.tree_error);
-        result.cache.push(stats.cache_size);
-        result.runtimes.push(stats.duration);
-        result.tree = algo.tree().clone();
+        let error = stats.tree_error.min(app.max_error);
+        if uninterrupted {
+            for &(time, incumbent) in algo.incumbents() {
+                result.errors.push(incumbent.min(app.max_error));
+                result.cache.push(stats.cache_size);
+                result.runtimes.push(time);
+            }
+        }
+        if error.is_finite() {
+            result.errors.push(error);
+            result.cache.push(stats.cache_size);
+            result.runtimes.push(stats.duration);
+            result.tree = algo.tree().clone();
+        }
         if counter > 0 && counter % checkpoint_interval == 0 {
             let _ = save_results(&result, &result_path);
         }
