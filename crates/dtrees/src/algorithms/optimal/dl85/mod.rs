@@ -1,8 +1,8 @@
 use crate::algorithms::common::errors::ErrorWrapper;
 use crate::algorithms::common::heuristics::Heuristic;
 use crate::algorithms::common::types::{
-    BranchingChoice, BranchingPolicy, FitError, LowerBoundPolicy, NodeDataType, RuleType,
-    SearchResult, SearchStatistics,
+    BranchingChoice, BranchingPolicy, FitError, NodeDataType, RuleType, SearchResult,
+    SearchStatistics,
 };
 use crate::algorithms::optimal::depth2::OptimalDepth2Tree;
 use crate::algorithms::optimal::dl85::config::DL85Config;
@@ -192,6 +192,11 @@ where
             .map_or(f64::INFINITY, |node| node.upper_bound());
 
         root_context.node_upper_bound(node_ub);
+        root_context.leaf_error(
+            self.cache
+                .root()
+                .map_or(f64::INFINITY, |node| node.leaf_error()),
+        );
         root_context.support(self.statistics.num_samples);
 
         let mut similarity = SimilarityCover::default();
@@ -227,9 +232,8 @@ where
         }
 
         self.statistics.duration = self.time_rule.elapsed_seconds();
-        self.statistics.tree_error = result.error;
         self.statistics.cache_size = self.cache.size();
-        self.build_solution_tree();
+        self.statistics.tree_error = self.build_solution_tree().unwrap_or(result.error);
         result
     }
 
@@ -572,7 +576,7 @@ where
             if rule_type == RuleType::Similarity {
                 updater = updater.lower_bound(context.node_lower_bound)
             }
-            error = updater.get_error().min(updater.get_leaf_error());
+            error = updater.get_error();
         }
 
         (result.continue_search, result.reason, error)
@@ -626,7 +630,7 @@ where
             BranchingPolicy::Default => {}
             BranchingPolicy::Dynamic => {
                 bounds = self.get_cached_branch_bounds(attribute, path);
-                if let LowerBoundPolicy::Similarity = self.config.lower_bound_policy {
+                if self.config.use_similarity_lb() {
                     self.enhance_bounds_with_similarity(&mut bounds, attribute, cover, similarity);
                 }
                 branch_first = (bounds[1] > bounds[0]) as usize;
@@ -796,10 +800,12 @@ where
         }
     }
 
-    /// Rebuilds the best tree from the cache, starting at the root.
-    fn build_solution_tree(&mut self) {
+    /// Rebuilds the best tree from the cache, starting at the root, and
+    /// returns its error, summed over its leaves.
+    fn build_solution_tree(&mut self) -> Option<f64> {
         let mut tree = Tree::default();
         let mut path = SearchPath::new();
+        let mut error = None;
         if let Some(cache_root) = self.cache.root() {
             // The search only records trees that beat the root as a leaf. When
             // none does (e.g. a single class), the root keeps an infinite error
@@ -812,39 +818,43 @@ where
                     metric: None,
                     out: Some(cache_root.out()),
                 }));
+                error = Some(cache_root.leaf_error());
             } else {
                 let tree_entry = self.cache_entry_to_tree_entry(cache_root);
                 let root = tree.add_root(TreeNode::new(tree_entry));
-                self.build_tree_branches(cache_root.test(), &mut path, &mut tree, root);
+                error = Some(self.build_tree_branches(cache_root, &mut path, &mut tree, root));
             }
         }
         self.tree = tree;
+        error
     }
 
+    /// Adds the subtree of `node` below the tree node at `index`, and returns
+    /// its error.
     fn build_tree_branches(
         &self,
-        attribute: usize,
+        node: &CacheEntry,
         path: &mut SearchPath,
         tree: &mut Tree,
         index: usize,
-    ) {
-        if attribute == usize::MAX {
-            return;
+    ) -> f64 {
+        if node.is_leaf() || !node.has_valid_test() {
+            return node.error();
         }
 
+        let mut error = 0.0;
         for branch in 0..2 {
-            let branch_item = item(attribute, branch);
+            let branch_item = item(node.test(), branch);
             path.push(branch_item);
-            let key = path.to_key();
-            if let Some(node) = self.cache.node(&key) {
-                let branch_entry = self.cache_entry_to_tree_entry(node);
-                let child_index = tree.add_node(index, branch == 0, TreeNode::new(branch_entry));
-                if !node.is_leaf() {
-                    self.build_tree_branches(node.test(), path, tree, child_index);
-                }
+            if let Some(child) = self.cache.node(&path.to_key()) {
+                let child_entry = self.cache_entry_to_tree_entry(child);
+                let child_index = tree.add_node(index, branch == 0, TreeNode::new(child_entry));
+                error += self.build_tree_branches(child, path, tree, child_index);
             }
             path.remove(&branch_item);
         }
+        tree.update_node(index).map(|updater| updater.error(error));
+        error
     }
 }
 

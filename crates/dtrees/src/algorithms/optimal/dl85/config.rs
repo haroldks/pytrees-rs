@@ -45,8 +45,9 @@ impl DL85Config {
         self.branching_policy == BranchingPolicy::Dynamic
     }
 
-    /// Whether the similarity lower bound is used.
+    /// Whether the similarity lower bound is used: only with a minimum support
+    /// of 1.
     pub fn use_similarity_lb(&self) -> bool {
-        self.lower_bound_policy == LowerBoundPolicy::Similarity
+        self.lower_bound_policy == LowerBoundPolicy::Similarity && self.base.min_support <= 1
     }
 }
