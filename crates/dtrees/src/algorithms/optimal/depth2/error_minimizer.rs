@@ -147,7 +147,7 @@ where
                 if left_error.0 < feature_error {
                     candidate_tree
                         .update_node(left_index)
-                        .map(|updater| updater.error(left_error.0));
+                        .map(|updater| updater.error(left_error.0).output(left_error.1));
                 }
 
                 for (j, &second_attribute) in candidates.iter().enumerate() {
@@ -216,6 +216,11 @@ where
                     // This candidate cannot beat the best tree found so far.
                     continue;
                 }
+                let feature_error = current_left_error + right_error.0;
+                candidate_tree
+                    .update_root()
+                    .map(|updater| updater.error(feature_error));
+                best_tree = candidate_tree;
             } else {
                 let mut feature_error = best_tree.root_error();
                 let current_left_error = candidate_tree.node_error(left_index);

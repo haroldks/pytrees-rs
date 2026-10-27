@@ -140,8 +140,10 @@ impl<'a> CacheEntryUpdater<'a> {
         self
     }
 
+    /// Makes the entry split on `test`.
     pub fn test(self, test: usize) -> Self {
         self.node.test = test;
+        self.node.is_leaf = false;
         self
     }
 
@@ -188,6 +190,7 @@ impl<'a> CacheEntryUpdater<'a> {
     /// Makes the entry a leaf, with its leaf error as its error.
     pub fn leaf(self) -> Self {
         self.node.is_leaf = true;
+        self.node.test = usize::MAX;
         self.node.error = self.node.leaf_error;
         self
     }

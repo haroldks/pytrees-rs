@@ -729,12 +729,7 @@ where
             Err(err) => Err(err),
             Ok(tree) => {
                 let error = tree.root_error();
-                self.cache_specialized_depth2_tree_results(
-                    path,
-                    parent_index,
-                    &tree,
-                    tree.get_root_index(),
-                );
+                self.cache_depth2_tree(cover, path, parent_index, &tree, tree.get_root_index());
 
                 Ok(SearchResult {
                     error,
@@ -745,55 +740,41 @@ where
         }
     }
 
-    /// Stores every node of a depth-2 tree in the cache, as solved.
-    fn cache_specialized_depth2_tree_results(
+    /// Stores every node of a depth-2 tree in the cache, as solved. The nodes
+    /// below the root get their own leaf error and prediction, from `cover`.
+    fn cache_depth2_tree(
         &mut self,
+        cover: &mut Cover,
         path: &mut SearchPath,
-        parent_index: Index,
+        index: Index,
         tree: &Tree,
         tree_index: usize,
     ) {
-        let parent_key = parent_index.to_cache_key(path);
-        let node_test = tree.node_test(tree_index);
-        if let Some(updater) = self.cache.update_node(&parent_key) {
-            let error = tree.node_error(tree_index);
-            let updater = updater
-                .error(error)
-                .leaf_error(error)
-                .upper_bound(error)
-                .optimal();
-            match node_test {
-                Some(test) => {
-                    updater.test(test);
-                }
-                None => {
-                    updater
-                        .leaf()
-                        .output(tree.node_output(tree_index).unwrap_or(0.0));
-                }
-            }
-        }
-        // A leaf has no subtree to cache.
-        let Some(node_test) = node_test else {
+        let key = index.to_cache_key(path);
+        let error = tree.node_error(tree_index);
+        let Some(test) = tree.node_test(tree_index) else {
+            self.cache
+                .update_node(&key)
+                .map(|updater| updater.leaf().upper_bound(error).optimal());
             return;
         };
+        self.cache
+            .update_node(&key)
+            .map(|updater| updater.error(error).test(test).upper_bound(error).optimal());
 
-        let children = tree.node_children(tree_index);
-        let children = [children.0, children.1];
-        for (branch, &tree_branch_index) in children.iter().enumerate() {
-            if tree_branch_index > 0 {
-                let branch_item = item(node_test, branch);
-                path.push(branch_item);
-                let branch_key_vec = path.to_sorted_vec();
-                let cache_branch_index = self.cache.insert(&branch_key_vec);
-                self.cache_specialized_depth2_tree_results(
-                    path,
-                    cache_branch_index,
-                    tree,
-                    tree_branch_index,
-                );
-                path.remove(&branch_item);
-            }
+        let (left, right) = tree.node_children(tree_index);
+        for (branch, tree_branch_index) in [left, right].into_iter().enumerate() {
+            let branch_item = item(test, branch);
+            path.push(branch_item);
+            let size = cover.branch_on(branch_item);
+            let (leaf_error, label) = self.compute_leaf_error(cover);
+            let branch_index = self.cache.insert(&path.to_sorted_vec());
+            self.cache
+                .update_node(&branch_index.to_cache_key(path))
+                .map(|updater| updater.leaf_error(leaf_error).output(label).size(size));
+            self.cache_depth2_tree(cover, path, branch_index, tree, tree_branch_index);
+            cover.backtrack();
+            path.remove(&branch_item);
         }
     }
 
