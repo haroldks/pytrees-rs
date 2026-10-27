@@ -12,7 +12,7 @@ use crate::algorithms::optimal::rules::{
 };
 use crate::algorithms::optimal::Reason;
 use crate::algorithms::TreeSearchAlgorithm;
-use crate::caching::{CacheEntry, CacheKey, Caching, Index, SearchPath};
+use crate::caching::{CacheEntry, CacheKey, Caching, Index, SearchPath, EXACT};
 use crate::cover::similarities::SimilarityCover;
 use crate::cover::Cover;
 use crate::globals::{attribute, float_is_null, item};
@@ -293,7 +293,9 @@ where
             let error = self
                 .cache
                 .update_node(&parent_key)
-                .map_or(f64::INFINITY, |updater| updater.leaf().get_error());
+                .map_or(f64::INFINITY, |updater| {
+                    updater.leaf().upper_bound(EXACT).optimal().get_error()
+                });
             return SearchResult {
                 error,
                 has_intersected: true,
@@ -315,6 +317,11 @@ where
                 Err(_) => {}
                 Ok(search_result) => return search_result,
             }
+        }
+
+        // A tree must also beat the best one found so far for the node.
+        if let Some(node) = self.cache.node(&parent_key) {
+            subtree_upper_bound = subtree_upper_bound.min(node.error());
         }
 
         let mut scores = vec![];
@@ -367,19 +374,13 @@ where
                 depth,
             );
 
+            rule_pruned |= first_result.reason == Reason::RuleReason;
+            let first_lb = self.known_lower_bound(&branch_key);
+
             // The second branch only has what the first one left of the
             // upper bound; if that cannot cover its lower bound, skip it.
             if first_result.error >= subtree_upper_bound - second_lb {
-                min_lower_bound = self
-                    .cache
-                    .node(&branch_key)
-                    .map_or(min_lower_bound, |node| {
-                        let stored_lb = match first_result.error.is_finite() {
-                            true => first_result.error + second_lb,
-                            false => node.lower_bound() + second_lb,
-                        };
-                        stored_lb.min(min_lower_bound)
-                    });
+                min_lower_bound = min_lower_bound.min(first_lb + second_lb);
                 self.statistics.increment_sibling_pruning();
                 continue;
             }
@@ -394,7 +395,7 @@ where
             branch_context.node_lower_bound(second_lb);
             branch_context.upper_bound(right_ub);
 
-            let (second_result, _) = self.process_branch(
+            let (second_result, second_key) = self.process_branch(
                 cover,
                 path,
                 &mut branch_context,
@@ -403,8 +404,7 @@ where
                 depth,
             );
 
-            rule_pruned |= first_result.reason == Reason::RuleReason
-                || second_result.reason == Reason::RuleReason;
+            rule_pruned |= second_result.reason == Reason::RuleReason;
 
             let subtree_error = first_result.error + second_result.error;
             if subtree_error < subtree_upper_bound {
@@ -420,7 +420,7 @@ where
                         updater = updater.error(subtree_error).test(child);
 
                         if float_is_null(updater.get_lower_bound() - subtree_error) {
-                            updater.upper_bound(parent_context.upper_bound).optimal();
+                            updater.upper_bound(EXACT).optimal();
                             return true;
                         }
                         false
@@ -434,7 +434,8 @@ where
                     };
                 }
             } else {
-                min_lower_bound = min_lower_bound.min(subtree_error);
+                min_lower_bound =
+                    min_lower_bound.min(first_lb + self.known_lower_bound(&second_key));
             }
         }
 
@@ -443,10 +444,9 @@ where
             .update_node(&parent_key)
             .map_or(f64::INFINITY, |mut updater| {
                 if rule_pruned {
-                    updater = updater.upper_bound(f64::INFINITY);
-                } else {
-                    updater = updater.optimal().upper_bound(parent_context.upper_bound);
+                    return updater.upper_bound(f64::INFINITY).get_error();
                 }
+                updater = updater.optimal().upper_bound(parent_context.upper_bound);
                 let error = updater.get_error();
                 if error.is_infinite() {
                     let lb = updater
@@ -597,6 +597,11 @@ where
         &self.incumbents
     }
 
+    /// The cache of subproblems, with the bounds the search stored.
+    pub fn cache(&self) -> &C {
+        &self.cache
+    }
+
     /// Counters of the search.
     pub fn statistics(&self) -> &SearchStatistics {
         &self.statistics
@@ -650,17 +655,17 @@ where
         for (branch, lb) in bounds.iter_mut().enumerate() {
             let branch_item = item(attribute, branch);
             path.push(branch_item);
-            let key = path.to_key();
-            if let Some(node) = self.cache.node(&key) {
-                let error = node.error();
-                *lb = match error.is_finite() {
-                    true => error,
-                    false => node.lower_bound(),
-                }
-            }
+            *lb = self.known_lower_bound(&path.to_key());
             path.remove(&branch_item)
         }
         bounds
+    }
+
+    /// The best proven lower bound of a cached subproblem, 0 if unknown.
+    fn known_lower_bound(&self, key: &CacheKey) -> f64 {
+        self.cache
+            .node(key)
+            .map_or(0.0, |node| node.known_lower_bound())
     }
 
     /// Raises the branch lower bounds with the similarity bound.
@@ -759,12 +764,12 @@ where
         let Some(test) = tree.node_test(tree_index) else {
             self.cache
                 .update_node(&key)
-                .map(|updater| updater.leaf().upper_bound(error).optimal());
+                .map(|updater| updater.leaf().upper_bound(EXACT).optimal());
             return;
         };
         self.cache
             .update_node(&key)
-            .map(|updater| updater.error(error).test(test).upper_bound(error).optimal());
+            .map(|updater| updater.error(error).test(test).upper_bound(EXACT).optimal());
 
         let (left, right) = tree.node_children(tree_index);
         for (branch, tree_branch_index) in [left, right].into_iter().enumerate() {

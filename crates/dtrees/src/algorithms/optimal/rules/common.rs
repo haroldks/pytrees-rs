@@ -3,6 +3,7 @@
 
 use crate::algorithms::optimal::rules::core::Reason;
 use crate::algorithms::optimal::rules::{Rule, RuleContext, RuleResult, RuleState};
+use crate::caching::EXACT;
 use crate::globals::float_is_null;
 use std::time::Instant;
 
@@ -26,7 +27,7 @@ impl MaxDepthRule {
 impl Rule for MaxDepthRule {
     fn evaluate(&self, context: &RuleContext) -> RuleResult {
         if context.depth >= self.max_depth {
-            RuleResult::stop_with_bound(context.upper_bound, Reason::MaxDepthReached)
+            RuleResult::stop_with_bound(EXACT, Reason::MaxDepthReached)
                 .optimal()
                 .leaf()
         } else {
@@ -79,7 +80,7 @@ impl MinSupportRule {
 impl Rule for MinSupportRule {
     fn evaluate(&self, context: &RuleContext) -> RuleResult {
         if context.support < self.min_support {
-            RuleResult::stop_with_bound(context.upper_bound, Reason::NotEnoughSupport)
+            RuleResult::stop_with_bound(EXACT, Reason::NotEnoughSupport)
                 .optimal()
                 .leaf()
         } else {
@@ -295,8 +296,8 @@ impl Rule for LowerBoundRule {
     }
 }
 
-/// Stops at nodes already solved in an earlier visit: their error and the
-/// bound they were solved under are both known. Always active.
+/// Stops at nodes already solved in an earlier visit: a complete search found
+/// their error at or below its bound, so it is their optimum. Always active.
 #[derive(Debug)]
 pub struct UsableNodeRule {
     priority: u8,
@@ -321,7 +322,7 @@ impl Rule for UsableNodeRule {
             return RuleResult::continue_search();
         }
 
-        if context.error.is_finite() && context.node_upper_bound.is_finite() {
+        if context.node_upper_bound.is_finite() && context.error <= context.node_upper_bound {
             RuleResult::stop_search(Reason::Done)
         } else {
             RuleResult::continue_search()
@@ -375,7 +376,7 @@ impl PureNodeRule {
 impl Rule for PureNodeRule {
     fn evaluate(&self, context: &RuleContext) -> RuleResult {
         if float_is_null(context.leaf_error) {
-            RuleResult::stop_with_bound(context.upper_bound, Reason::PureNode)
+            RuleResult::stop_with_bound(EXACT, Reason::PureNode)
                 .optimal()
                 .leaf()
         } else {
@@ -442,7 +443,7 @@ impl Rule for SimilarityLowerBoundRule {
             return RuleResult::stop_search(Reason::LowerBoundConstrained);
         }
         if context.leaf_error <= context.node_lower_bound {
-            return RuleResult::stop_with_bound(context.upper_bound, Reason::PureNode)
+            return RuleResult::stop_with_bound(EXACT, Reason::PureNode)
                 .optimal()
                 .leaf();
         }
