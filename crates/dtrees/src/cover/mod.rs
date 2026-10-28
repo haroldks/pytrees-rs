@@ -101,6 +101,12 @@ impl Cover {
         cover.into()
     }
 
+    /// Writes the words of the current instances into `out`, one per 64
+    /// instances.
+    pub fn write_words(&self, out: &mut Vec<u64>) {
+        self.cover.write_active_words(out);
+    }
+
     /// The reversible set of instances.
     pub fn sparse(&self) -> &SparseBitset {
         &self.cover
