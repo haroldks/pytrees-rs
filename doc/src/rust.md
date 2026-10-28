@@ -59,7 +59,16 @@ let mut dl85 = DL85Builder::default()
 dl85.fit(&mut cover)?;
 ```
 
-The `examples/` directory of the crate has one program per search rule.
+The cache can be a `Trie`, which stores each subproblem under the tests on
+its path, or a `CoverMap`, which stores it under its depth and rows so that
+paths reaching the same rows share one entry. `CoverMap` stores fewer entries
+and is often faster, but each entry keeps one bit per row (see
+[Choosing the cache](estimators/dl85.md#choosing-the-cache)). To use it, pass
+`.cache(Box::<CoverMap>::default())` to the builder, with
+`use dtrees_rs::caching::CoverMap`.
+
+The `examples/` directory of the crate has one program per search rule; each
+takes `--cache trie` or `--cache cover`.
 
 ### Custom error functions
 

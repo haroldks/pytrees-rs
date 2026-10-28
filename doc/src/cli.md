@@ -40,6 +40,7 @@ dtrees --input data.txt --print-tree d2 --depth 2
 | `-s, --support` | `1` | Minimum number of rows in each leaf. |
 | `-t, --timeout` | none | Time limit in seconds. |
 | `--heuristic` | `no-heuristic` | Feature order: `no-heuristic`, `gini-index`, `information-gain`, `weighted-entropy`. |
+| `--cache` | `trie` | How solved subproblems are stored: `trie` (by path) or `cover` (by depth and rows); see [Choosing the cache](estimators/dl85.md#choosing-the-cache). |
 | `--depth2-policy` | `enabled` | Use the depth-2 solver for the last two levels. |
 | `--lb` | `disabled` | `similarity` enables the similarity lower bound. |
 | `-b, --branching-policy` | `default` | `dynamic` searches first the branch with the higher lower bound. |
