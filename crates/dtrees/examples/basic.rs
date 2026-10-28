@@ -1,5 +1,6 @@
 //! DL8.5 with a Top-k search rule on `test_data/anneal.txt`, printing the
-//! tree and the search statistics.
+//! tree and the search statistics. Replace `Trie` with `CoverMap` to share
+//! one cache entry between the paths that reach the same instances.
 //!
 //!     cargo run -p dtrees-rs --example basic
 

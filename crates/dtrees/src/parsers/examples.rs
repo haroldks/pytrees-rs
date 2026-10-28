@@ -1,6 +1,8 @@
 //! Command line arguments and result files shared by the anytime examples.
 
 use crate::algorithms::common::types::{OptimalDepth2Policy, SearchHeuristic, SearchStepStrategy};
+use crate::caching::Caching;
+use crate::parsers::CacheType;
 use crate::tree::Tree;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
@@ -60,6 +62,10 @@ pub struct ExampleParser {
     #[arg(long, value_enum, default_value_t = OptimalDepth2Policy::Enabled)]
     pub fast_d2: OptimalDepth2Policy,
 
+    /// Cache of the subproblems
+    #[arg(long, value_enum, default_value_t = CacheType::Trie)]
+    pub cache: CacheType,
+
     /// Print the search statistics
     #[arg(long, default_value_t = false)]
     pub print_stats: bool,
@@ -87,6 +93,22 @@ pub struct ExampleParser {
     /// Overwrite existing results
     #[arg(long, default_value_t = false)]
     pub overwrite: bool,
+}
+
+impl ExampleParser {
+    /// A new cache of the chosen type.
+    pub fn new_cache(&self) -> Box<dyn Caching> {
+        self.cache.new_cache()
+    }
+
+    /// `method`, followed by `-cover` with the cover cache so that the
+    /// results of both caches are kept apart.
+    pub fn method_name(&self, method: String) -> String {
+        match self.cache {
+            CacheType::Trie => method,
+            CacheType::Cover => format!("{method}-cover"),
+        }
+    }
 }
 
 /// The results of one run, saved as JSON.
