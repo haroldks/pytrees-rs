@@ -15,7 +15,6 @@ use dtrees_rs::algorithms::optimal::rules::{
 };
 use dtrees_rs::algorithms::optimal::Reason;
 use dtrees_rs::algorithms::TreeSearchAlgorithm;
-use dtrees_rs::caching::Trie;
 use dtrees_rs::parsers::examples::{load_results, save_results, ExampleParser, Res};
 use dtrees_rs::reader::data_reader::DataReader;
 use std::fs;
@@ -25,6 +24,7 @@ use std::path::Path;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = ExampleParser::parse();
     let method = "gainlds".to_string();
+    let method = app.method_name(method);
 
     assert!(app.input.exists(), "File does not exist");
 
@@ -150,7 +150,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .add_search_rule(Box::new(gain))
         .add_search_rule(Box::new(discrepancy))
         .specialization(fast_d2)
-        .cache(Box::<Trie>::default())
+        .cache(app.new_cache())
         .heuristic(heuristics)
         .depth2_search(depth2)
         .error_function(error_fn)
