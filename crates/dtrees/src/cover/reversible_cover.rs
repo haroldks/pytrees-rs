@@ -165,17 +165,24 @@ impl SparseBitset {
     }
 
     /// Every word of the set, with the inactive ones as 0.
+    fn active_words(&self) -> Vec<u64> {
+        let mut words = Vec::new();
+        self.write_active_words(&mut words);
+        words
+    }
+
+    /// Writes every word of the set into `out`, with the inactive ones as 0.
     ///
     /// A word that becomes empty is moved out of the active part of
     /// `non_zero_words` without being overwritten, so its stored value is
     /// stale and must not be read.
-    fn active_words(&self) -> Vec<u64> {
-        let mut words = vec![0; self.words.len()];
+    pub fn write_active_words(&self, out: &mut Vec<u64>) {
+        out.clear();
+        out.resize(self.words.len(), 0);
         let nb_non_zero = self.state_manager.get_usize(self.nb_non_zero);
         for &idx in &self.non_zero_words[..nb_non_zero] {
-            words[idx] = self.state_manager.get_u64(self.words[idx]);
+            out[idx] = self.state_manager.get_u64(self.words[idx]);
         }
-        words
     }
 }
 

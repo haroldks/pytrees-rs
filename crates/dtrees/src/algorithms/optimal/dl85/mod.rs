@@ -210,6 +210,7 @@ where
             0,
             usize::MAX,
             root_index,
+            true,
             &mut similarity,
             &mut root_context,
         );
@@ -233,12 +234,12 @@ where
 
         self.statistics.duration = self.time_rule.elapsed_seconds();
         self.statistics.cache_size = self.cache.size();
-        self.statistics.tree_error = self.build_solution_tree().unwrap_or(result.error);
+        self.statistics.tree_error = self.build_solution_tree(cover).unwrap_or(result.error);
         result
     }
 
-    /// Searches the best subtree for the node reached by `parent_item`,
-    /// whose instances are the current state of `cover`.
+    /// Searches the best subtree for the node reached by `parent_item`.
+    /// `intersected` tells whether `cover` is already on the node's instances.
     #[allow(clippy::too_many_arguments)]
     fn recursive_search(
         &mut self,
@@ -248,24 +249,25 @@ where
         depth: usize,
         parent_item: usize,
         parent_index: Index,
+        intersected: bool,
         similarity: &mut SimilarityCover,
         parent_context: &mut RuleContext,
     ) -> SearchResult {
         self.statistics.increment_search_space();
 
         let mut subtree_upper_bound = parent_context.upper_bound;
-        let parent_key = parent_index.to_cache_key(path);
+        let parent_key = parent_index.to_cache_key();
         let result = self.evaluate(parent_context, &parent_key, RuleType::Node);
 
         if !result.0 {
             return SearchResult {
                 error: result.2,
-                has_intersected: false,
+                has_intersected: intersected,
                 reason: result.1,
             };
         }
 
-        if !parent_index.is_new() {
+        if !intersected {
             cover.branch_on(parent_item);
         }
 
@@ -480,12 +482,15 @@ where
         current_depth: usize,
     ) -> (SearchResult, CacheKey) {
         path.push(branch_context.item);
-        let branch_key_vec = path.to_sorted_vec();
-        let branch_index = self.cache.insert(&branch_key_vec);
-        let branch_key = branch_index.to_cache_key(path);
+        let mut size = self
+            .cache
+            .keyed_by_cover()
+            .then(|| cover.branch_on(branch_context.item));
+        let branch_index = self.cache.insert(&path.to_sorted_vec(), cover);
+        let branch_key = branch_index.to_cache_key();
 
         if branch_index.is_new() {
-            let size = cover.branch_on(branch_context.item);
+            let size = *size.get_or_insert_with(|| cover.branch_on(branch_context.item));
             branch_context.support(size);
             let error = self.compute_leaf_error(cover);
             branch_context.leaf_error(error.0);
@@ -514,6 +519,7 @@ where
             current_depth + 1,
             branch_context.item,
             branch_index,
+            size.is_some(),
             similarity_cover,
             branch_context,
         );
@@ -634,7 +640,7 @@ where
         match self.config.branching_policy {
             BranchingPolicy::Default => {}
             BranchingPolicy::Dynamic => {
-                bounds = self.get_cached_branch_bounds(attribute, path);
+                bounds = self.get_cached_branch_bounds(attribute, path, cover);
                 if self.config.use_similarity_lb() {
                     self.enhance_bounds_with_similarity(&mut bounds, attribute, cover, similarity);
                 }
@@ -650,12 +656,27 @@ where
 
     /// Lower bounds of both branches of `attribute` from the cache: the error
     /// of a solved branch, the recorded lower bound otherwise.
-    fn get_cached_branch_bounds(&self, attribute: usize, path: &mut SearchPath) -> [f64; 2] {
+    fn get_cached_branch_bounds(
+        &self,
+        attribute: usize,
+        path: &mut SearchPath,
+        cover: &mut Cover,
+    ) -> [f64; 2] {
+        let keyed_by_cover = self.cache.keyed_by_cover();
         let mut bounds = [0.0; 2];
         for (branch, lb) in bounds.iter_mut().enumerate() {
             let branch_item = item(attribute, branch);
             path.push(branch_item);
-            *lb = self.known_lower_bound(&path.to_key());
+            if keyed_by_cover {
+                cover.branch_on(branch_item);
+            }
+            *lb = self
+                .cache
+                .find(&path.to_sorted_vec(), cover)
+                .map_or(0.0, |node| node.known_lower_bound());
+            if keyed_by_cover {
+                cover.backtrack();
+            }
             path.remove(&branch_item)
         }
         bounds
@@ -696,13 +717,13 @@ where
         search_result: &SearchResult,
         similarity: &mut SimilarityCover,
     ) {
-        if !(index.is_new() || search_result.has_intersected) {
+        if !search_result.has_intersected {
             cover.branch_on(*item);
         }
 
         if self.config.use_similarity_lb() && search_result.reason == Reason::LowerBoundConstrained
         {
-            let key = index.to_cache_key(path);
+            let key = index.to_cache_key();
             if let Some(node) = self.cache.node(&key) {
                 similarity.update(cover.sparse(), node.lower_bound())
             }
@@ -721,7 +742,7 @@ where
         path: &mut SearchPath,
         depth: usize,
     ) -> Result<SearchResult, FitError> {
-        let key = parent_index.to_cache_key(path);
+        let key = parent_index.to_cache_key();
         if let Some(node) = self.cache.node(&key) {
             if upper_bound < node.lower_bound() {
                 return Ok(SearchResult {
@@ -759,7 +780,7 @@ where
         tree: &Tree,
         tree_index: usize,
     ) {
-        let key = index.to_cache_key(path);
+        let key = index.to_cache_key();
         let error = tree.node_error(tree_index);
         let Some(test) = tree.node_test(tree_index) else {
             self.cache
@@ -777,9 +798,9 @@ where
             path.push(branch_item);
             let size = cover.branch_on(branch_item);
             let (leaf_error, label) = self.compute_leaf_error(cover);
-            let branch_index = self.cache.insert(&path.to_sorted_vec());
+            let branch_index = self.cache.insert(&path.to_sorted_vec(), cover);
             self.cache
-                .update_node(&branch_index.to_cache_key(path))
+                .update_node(&branch_index.to_cache_key())
                 .map(|updater| updater.leaf_error(leaf_error).output(label).size(size));
             self.cache_depth2_tree(cover, path, branch_index, tree, tree_branch_index);
             cover.backtrack();
@@ -807,7 +828,7 @@ where
 
     /// Rebuilds the best tree from the cache, starting at the root, and
     /// returns its error, summed over its leaves.
-    fn build_solution_tree(&mut self) -> Option<f64> {
+    fn build_solution_tree(&mut self, cover: &mut Cover) -> Option<f64> {
         let mut tree = Tree::default();
         let mut path = SearchPath::new();
         let mut error = None;
@@ -827,7 +848,8 @@ where
             } else {
                 let tree_entry = self.cache_entry_to_tree_entry(cache_root);
                 let root = tree.add_root(TreeNode::new(tree_entry));
-                error = Some(self.build_tree_branches(cache_root, &mut path, &mut tree, root));
+                error =
+                    Some(self.build_tree_branches(cache_root, &mut path, cover, &mut tree, root));
             }
         }
         self.tree = tree;
@@ -835,11 +857,12 @@ where
     }
 
     /// Adds the subtree of `node` below the tree node at `index`, and returns
-    /// its error.
+    /// its error. `cover` is on the instances of `node`.
     fn build_tree_branches(
         &self,
         node: &CacheEntry,
         path: &mut SearchPath,
+        cover: &mut Cover,
         tree: &mut Tree,
         index: usize,
     ) -> f64 {
@@ -851,11 +874,13 @@ where
         for branch in 0..2 {
             let branch_item = item(node.test(), branch);
             path.push(branch_item);
-            if let Some(child) = self.cache.node(&path.to_key()) {
+            cover.branch_on(branch_item);
+            if let Some(child) = self.cache.find(&path.to_sorted_vec(), cover) {
                 let child_entry = self.cache_entry_to_tree_entry(child);
                 let child_index = tree.add_node(index, branch == 0, TreeNode::new(child_entry));
-                error += self.build_tree_branches(child, path, tree, child_index);
+                error += self.build_tree_branches(child, path, cover, tree, child_index);
             }
+            cover.backtrack();
             path.remove(&branch_item);
         }
         tree.update_node(index).map(|updater| updater.error(error));

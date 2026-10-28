@@ -1,6 +1,7 @@
 use crate::caching::entry::{CacheEntry, CacheEntryUpdater};
 use crate::caching::helpers::{CacheKey, Index};
 use crate::caching::Caching;
+use crate::cover::Cover;
 use rustc_hash::FxHashMap;
 
 #[derive(Debug)]
@@ -54,7 +55,7 @@ impl Caching for Trie {
         self.get_node(self.get_root_index()).map(|node| &node.entry)
     }
 
-    fn insert(&mut self, path: &[usize]) -> Index {
+    fn insert(&mut self, path: &[usize], _cover: &Cover) -> Index {
         let mut current_index = self.root_index;
         let mut is_new = false;
         for &item in path {
@@ -79,11 +80,20 @@ impl Caching for Trie {
         Index::Existing(current_index)
     }
 
-    fn node(&self, key: &CacheKey) -> Option<&CacheEntry> {
-        match key {
-            CacheKey::Index(index) => self.get_node(*index).map(|node| &node.entry),
-            CacheKey::Path(path) => self.find(path),
+    fn find(&self, path: &[usize], _cover: &Cover) -> Option<&CacheEntry> {
+        let mut current_index = self.root_index;
+        for item in path {
+            current_index = *self.get_node(current_index)?.children.get(item)?;
         }
+        self.get_node(current_index).map(|node| &node.entry)
+    }
+
+    fn keyed_by_cover(&self) -> bool {
+        false
+    }
+
+    fn node(&self, key: &CacheKey) -> Option<&CacheEntry> {
+        self.get_node(key.0).map(|node| &node.entry)
     }
 
     fn contains(&self, key: &CacheKey) -> bool {
@@ -96,12 +106,8 @@ impl Caching for Trie {
     }
 
     fn update_node(&mut self, key: &CacheKey) -> Option<CacheEntryUpdater<'_>> {
-        match key {
-            CacheKey::Index(index) => self
-                .get_node_mut(*index)
-                .map(|node| CacheEntryUpdater::new(&mut node.entry)),
-            CacheKey::Path(path) => self.find_mut(path).map(CacheEntryUpdater::new),
-        }
+        self.get_node_mut(key.0)
+            .map(|node| CacheEntryUpdater::new(&mut node.entry))
     }
 
     fn size(&self) -> usize {
@@ -134,24 +140,6 @@ impl Trie {
         }
 
         new_index
-    }
-
-    fn find(&self, itemset: &[usize]) -> Option<&CacheEntry> {
-        let mut current_index = self.root_index;
-        for &item in itemset {
-            let current_node = self.get_node(current_index)?;
-            current_index = *current_node.children.get(&item)?;
-        }
-        self.get_node(current_index).map(|node| &node.entry)
-    }
-
-    fn find_mut(&mut self, itemset: &[usize]) -> Option<&mut CacheEntry> {
-        let mut current_index = self.root_index;
-        for &item in itemset {
-            let current_node = self.get_node(current_index)?;
-            current_index = *current_node.children.get(&item)?;
-        }
-        self.get_node_mut(current_index).map(|node| &mut node.entry)
     }
 
     fn add_root(&mut self, root: TrieNode) -> usize {
@@ -187,9 +175,10 @@ impl Trie {
 
 #[cfg(test)]
 mod trie_test {
-    use crate::caching::helpers::Index;
+    use crate::bitsets::{BitCollection, Bitset, BitsetInit};
     use crate::caching::trie::{Trie, TrieNode};
     use crate::caching::Caching;
+    use crate::cover::Cover;
 
     #[test]
     fn test_cache_init() {
@@ -208,12 +197,10 @@ mod trie_test {
         itemset.push(1);
         itemset.push(3);
 
-        let idx = cache.insert(&itemset);
-
-        match idx {
-            Index::NewUnknown => {}
-            Index::New(_) | Index::Existing(_) => {}
-        }
+        let full = Bitset::new(BitsetInit::Full(4));
+        let cover = Cover::new(vec![full.clone(); 2], vec![full], 4);
+        assert!(cache.insert(&itemset, &cover).is_new());
+        assert!(cache.find(&itemset, &cover).is_some());
 
         itemset.remove(1);
     }

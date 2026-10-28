@@ -21,7 +21,7 @@ use dtrees_rs::algorithms::optimal::rules::{DiscrepancyRule, Monotonic, Rule, To
 use dtrees_rs::algorithms::optimal::Reason;
 use dtrees_rs::algorithms::TreeSearchAlgorithm;
 use dtrees_rs::bitsets::{BitCollection, Bitset, BitsetInit};
-use dtrees_rs::caching::{CacheKey, Caching, Trie};
+use dtrees_rs::caching::{Caching, CoverMap, Trie};
 use dtrees_rs::cover::Cover;
 use dtrees_rs::tree::Tree;
 
@@ -186,6 +186,8 @@ struct Setup {
     dynamic: bool,
     similarity: bool,
     relaxation: Relaxation,
+    /// Cache keyed by instances instead of the trie of itemsets.
+    cover_map: bool,
 }
 
 /// The kinds of failure found in one run, each with its first example.
@@ -209,6 +211,7 @@ fn check_cache<C: Caching + ?Sized>(
     failures: &mut Failures,
 ) {
     let all_rows = oracle.data.all_rows();
+    let mut cover = oracle.data.cover();
     let mut itemset = Vec::new();
     walk(
         cache,
@@ -217,6 +220,7 @@ fn check_cache<C: Caching + ?Sized>(
         context,
         0,
         all_rows,
+        &mut cover,
         &mut itemset,
         failures,
     );
@@ -230,10 +234,11 @@ fn walk<C: Caching + ?Sized>(
     context: &str,
     first_feature: usize,
     mask: u64,
+    cover: &mut Cover,
     itemset: &mut Vec<usize>,
     failures: &mut Failures,
 ) {
-    if let Some(entry) = cache.node(&CacheKey::Path(itemset.clone())) {
+    if let Some(entry) = cache.find(itemset, cover) {
         if entry.has_finite_leaf_error() {
             let remaining = setup.depth - itemset.len();
             let optimum = oracle.optimum(mask, remaining);
@@ -282,6 +287,7 @@ fn walk<C: Caching + ?Sized>(
                 continue;
             }
             itemset.push(2 * feature + branch);
+            cover.branch_on(2 * feature + branch);
             walk(
                 cache,
                 oracle,
@@ -289,9 +295,11 @@ fn walk<C: Caching + ?Sized>(
                 context,
                 feature + 1,
                 child,
+                cover,
                 itemset,
                 failures,
             );
+            cover.backtrack();
             itemset.pop();
         }
     }
@@ -355,8 +363,12 @@ fn run(seed: u64, large: bool, setup: Setup) -> Failures {
     if let Some(rule) = rule {
         builder = builder.add_search_rule(rule);
     }
+    let cache: Box<dyn Caching> = match setup.cover_map {
+        true => Box::<CoverMap>::default(),
+        false => Box::<Trie>::default(),
+    };
     let mut algo = builder
-        .cache(Box::<Trie>::default())
+        .cache(cache)
         .heuristic(heuristic)
         .depth2_search(Box::new(ErrorMinimizer::new(error_fn.clone())))
         .error_function(error_fn)
@@ -410,14 +422,17 @@ fn setups() -> Vec<Setup> {
                         for relaxation in
                             [Relaxation::None, Relaxation::Discrepancy, Relaxation::Topk]
                         {
-                            all.push(Setup {
-                                depth,
-                                min_sup,
-                                depth2,
-                                dynamic,
-                                similarity,
-                                relaxation,
-                            });
+                            for cover_map in [false, true] {
+                                all.push(Setup {
+                                    depth,
+                                    min_sup,
+                                    depth2,
+                                    dynamic,
+                                    similarity,
+                                    relaxation,
+                                    cover_map,
+                                });
+                            }
                         }
                     }
                 }
@@ -449,6 +464,7 @@ fn run_all(seeds: Range<u64>, large: bool) {
                     format!("dynamic={}", setup.dynamic),
                     format!("similarity={}", setup.similarity),
                     format!("relaxation={:?}", setup.relaxation),
+                    format!("cover_map={}", setup.cover_map),
                     format!(
                         "config=d2:{}/dyn:{}/sim:{}/{:?}",
                         setup.depth2 as u8,
