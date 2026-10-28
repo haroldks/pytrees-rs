@@ -59,6 +59,23 @@ def test_a_search_that_finishes_reports_optimal(anneal):
     assert DL85Classifier(max_depth=2).fit(X, y).status_ == "optimal"
 
 
+@pytest.mark.parametrize("depth, expected", [(2, 137), (3, 112), (4, 91)])
+def test_the_cover_cache_finds_the_same_optimum_with_fewer_entries(
+    anneal, depth, expected
+):
+    X, y = anneal
+    trie = DL85Classifier(max_depth=depth, cache="trie").fit(X, y)
+    cover = DL85Classifier(max_depth=depth, cache="cover").fit(X, y)
+    assert errors(cover, X, y) == cover.train_error_ == expected
+    assert cover.statistics_["cache_size"] <= trie.statistics_["cache_size"]
+
+
+def test_an_unknown_cache_is_a_value_error(anneal):
+    X, y = anneal
+    with pytest.raises(ValueError, match="trie, cover"):
+        DL85Classifier(cache="hash").fit(X, y)
+
+
 # --- scikit-learn contracts ----------------------------------------------
 
 
@@ -241,10 +258,13 @@ def test_a_weighted_error_function_still_gives_the_optimal_tree():
 # --- Anytime search ------------------------------------------------------
 
 
-def test_fit_anytime_reports_only_improvements_and_ends_at_the_optimum(anneal):
+@pytest.mark.parametrize("cache", ["trie", "cover"])
+def test_fit_anytime_reports_only_improvements_and_ends_at_the_optimum(anneal, cache):
     X, y = anneal
     seen = []
-    clf = DL85Classifier(max_depth=3, min_sup=1, discrepancy=DiscrepancyRule())
+    clf = DL85Classifier(
+        max_depth=3, min_sup=1, cache=cache, discrepancy=DiscrepancyRule()
+    )
     clf.fit_anytime(X, y, lambda error, seconds, status: seen.append(error))
     assert seen == sorted(set(seen), reverse=True)
     assert seen[-1] == errors(clf, X, y) == 112

@@ -9,7 +9,7 @@ use dtrees_rs::algorithms::optimal::depth2::ErrorMinimizer;
 use dtrees_rs::algorithms::optimal::dl85::{DL85Builder, DL85};
 use dtrees_rs::algorithms::optimal::rules::{Reason, Rule};
 use dtrees_rs::algorithms::TreeSearchAlgorithm;
-use dtrees_rs::caching::Trie;
+use dtrees_rs::caching::Caching;
 use numpy::{PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -21,7 +21,12 @@ use crate::dtrees::options;
 use crate::dtrees::output;
 use crate::dtrees::rules::{DiscrepancySpec, GainSpec, PuritySpec, RestartSpec, TopKSpec};
 
-type Search = DL85<Trie, ErrorMinimizer<dyn ErrorWrapper>, dyn ErrorWrapper, dyn Heuristic>;
+type Search = DL85<
+    dyn Caching + Send + Sync,
+    ErrorMinimizer<dyn ErrorWrapper>,
+    dyn ErrorWrapper,
+    dyn Heuristic,
+>;
 
 /// The DL8.5 search, as `pytrees.DL85Classifier` and `pytrees.DL85Cluster`
 /// drive it. Options arrive as strings and rules as plain Python objects;
@@ -73,6 +78,7 @@ impl RawDL85 {
         time_limit=600.0,
         always_sort=true,
         heuristic="none",
+        cache="trie",
         fast_d2=true,
         similarity_lb=true,
         dynamic_branching=true,
@@ -93,6 +99,7 @@ impl RawDL85 {
         time_limit: f64,
         always_sort: bool,
         heuristic: &str,
+        cache: &str,
         fast_d2: bool,
         similarity_lb: bool,
         dynamic_branching: bool,
@@ -105,6 +112,7 @@ impl RawDL85 {
         error_function: Option<Py<PyAny>>,
     ) -> PyResult<Self> {
         let heuristic = options::heuristic(heuristic)?;
+        let cache = options::cache(cache)?;
         let failure = ErrorSlot::default();
         let data_type = options::error_function_input(error_function_input)?;
 
@@ -148,7 +156,7 @@ impl RawDL85 {
                 LowerBoundPolicy::Disabled
             })
             .node_exposed_data(data_type)
-            .cache(Box::<Trie>::default())
+            .cache(cache)
             .heuristic(heuristic)
             .depth2_search(Box::new(ErrorMinimizer::new(wrap_error_function(
                 py,

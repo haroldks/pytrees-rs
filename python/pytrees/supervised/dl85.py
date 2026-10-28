@@ -38,6 +38,13 @@ class DL85Classifier(ClassifierMixin, TreeClassifier, BaseEstimator):
     heuristic : {"none", "gini", "information_gain", "weighted_entropy"}, default="none"
         Order in which the features are tried at each node.
 
+    cache : {"trie", "cover"}, default="trie"
+        How solved subproblems are stored. ``"trie"`` finds them by the path
+        of tests that reaches them. ``"cover"`` finds them by their depth and
+        their rows, so two paths that select the same rows share one entry:
+        it stores fewer subproblems and is often faster, but each entry keeps
+        one bit per training row, so it needs more memory on large datasets.
+
     fast_d2 : bool, default=True
         Solve depth-2 subtrees with the specialised exact solver.
 
@@ -140,6 +147,7 @@ class DL85Classifier(ClassifierMixin, TreeClassifier, BaseEstimator):
         max_time=600.0,
         always_sort=True,
         heuristic="none",
+        cache="trie",
         fast_d2=True,
         similarity_lb=True,
         dynamic_branching=True,
@@ -159,6 +167,7 @@ class DL85Classifier(ClassifierMixin, TreeClassifier, BaseEstimator):
         self.max_time = max_time
         self.always_sort = always_sort
         self.heuristic = heuristic
+        self.cache = cache
         self.fast_d2 = fast_d2
         self.similarity_lb = similarity_lb
         self.dynamic_branching = dynamic_branching

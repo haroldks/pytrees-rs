@@ -8,6 +8,7 @@ use dtrees_rs::algorithms::common::heuristics::{
 };
 use dtrees_rs::algorithms::common::types::NodeDataType;
 use dtrees_rs::algorithms::optimal::rules::{Exponential, Luby, Monotonic, StepStrategy};
+use dtrees_rs::caching::{Caching, CoverMap, Trie};
 use pyo3::exceptions::PyValueError;
 use pyo3::PyResult;
 
@@ -31,6 +32,16 @@ pub(crate) fn heuristic(value: &str) -> PyResult<Box<dyn Heuristic>> {
                 "none, gini, information_gain, weighted_entropy",
             ))
         }
+    })
+}
+
+/// `cache`: how DL8.5 stores the subproblems it has solved, by the path of
+/// tests that reaches them or by their depth and rows.
+pub(crate) fn cache(value: &str) -> PyResult<Box<dyn Caching + Send + Sync>> {
+    Ok(match value {
+        "trie" => Box::<Trie>::default(),
+        "cover" => Box::<CoverMap>::default(),
+        _ => return Err(unknown("cache", value, "trie, cover")),
     })
 }
 
