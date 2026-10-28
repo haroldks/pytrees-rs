@@ -29,7 +29,7 @@ model = DL85Cluster(max_depth=3, min_sup=20).fit(X_binary, X_error=X_measurement
 ## Parameters
 
 `min_sup`, `max_depth`, `max_error`, `max_time`, `always_sort`, `heuristic`,
-`dynamic_branching` and the [search rules](rules.md) work as for
+`cache`, `dynamic_branching` and the [search rules](rules.md) work as for
 [DL85Classifier](dl85.md); here `min_sup` is the minimum cluster size.
 `similarity_lb` has no effect, because the similarity bound is only valid for
 the misclassification error.
