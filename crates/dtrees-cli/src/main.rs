@@ -8,7 +8,6 @@ use dtrees_rs::algorithms::optimal::depth2::{
 };
 use dtrees_rs::algorithms::optimal::dl85::DL85Builder;
 use dtrees_rs::algorithms::TreeSearchAlgorithm;
-use dtrees_rs::caching::{Caching, Trie};
 use dtrees_rs::cover::Cover;
 use dtrees_rs::reader::data_reader::DataReader;
 use dtrees_rs::tree::Tree;
@@ -84,6 +83,7 @@ fn run(app: MainApp) -> Result<(), Box<dyn std::error::Error>> {
             lower_bound_policy,
             branching_policy,
             heuristic,
+            cache,
             max_error,
             timeout,
             print_config,
@@ -91,7 +91,6 @@ fn run(app: MainApp) -> Result<(), Box<dyn std::error::Error>> {
             let timeout = timeout.unwrap_or(f64::INFINITY);
 
             let heuristic_fn: Box<dyn Heuristic> = heuristic.into();
-            let cache: Box<dyn Caching> = Box::<Trie>::default();
 
             let depth2_search = Box::<ErrorMinimizer<NativeError>>::default();
             let error_fn = Box::<NativeError>::default();
@@ -102,7 +101,7 @@ fn run(app: MainApp) -> Result<(), Box<dyn std::error::Error>> {
                 .max_time(timeout)
                 .max_error(max_error)
                 .always_sort(always_sort)
-                .cache(cache)
+                .cache(cache.new_cache())
                 .specialization(depth2_policy)
                 .depth2_search(depth2_search)
                 .error_function(error_fn)

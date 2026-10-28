@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use dtrees_rs::algorithms::common::types::{
     BranchingPolicy, LowerBoundPolicy, OptimalDepth2Policy, SearchHeuristic,
 };
+use dtrees_rs::parsers::CacheType;
 use std::path::PathBuf;
 
 /// Command line arguments of `dtrees`.
@@ -56,6 +57,10 @@ pub enum ArgCommand {
         /// Heuristic used to order the features
         #[arg(long, value_enum, default_value_t = SearchHeuristic::NoHeuristic)]
         heuristic: SearchHeuristic,
+
+        /// Cache of the subproblems
+        #[arg(long, value_enum, default_value_t = CacheType::Trie)]
+        cache: CacheType,
 
         /// Initial upper bound on the tree error
         #[arg(long, default_value_t = <f64>::INFINITY)]
