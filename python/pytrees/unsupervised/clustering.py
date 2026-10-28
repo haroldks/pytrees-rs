@@ -29,6 +29,8 @@ class DL85Cluster(ClusterMixin, DecisionTree, BaseEstimator):
         Seconds before the search stops with the best tree found so far.
     always_sort : bool, default=True
     heuristic : {"none", "gini", "information_gain", "weighted_entropy"}, default="none"
+    cache : {"trie", "cover"}, default="trie"
+        How solved subproblems are stored, as for ``DL85Classifier``.
     dynamic_branching : bool, default=True
     similarity_lb : bool, default=True
         Has no effect: the similarity bound is only valid for the
@@ -73,6 +75,7 @@ class DL85Cluster(ClusterMixin, DecisionTree, BaseEstimator):
         max_time=600.0,
         always_sort=True,
         heuristic="none",
+        cache="trie",
         similarity_lb=True,
         dynamic_branching=True,
         discrepancy=None,
@@ -89,6 +92,7 @@ class DL85Cluster(ClusterMixin, DecisionTree, BaseEstimator):
         self.max_time = max_time
         self.always_sort = always_sort
         self.heuristic = heuristic
+        self.cache = cache
         self.similarity_lb = similarity_lb
         self.dynamic_branching = dynamic_branching
         self.discrepancy = discrepancy

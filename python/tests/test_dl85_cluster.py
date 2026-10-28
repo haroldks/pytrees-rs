@@ -40,8 +40,9 @@ def test_a_custom_error_function_set_after_construction_is_used(rows):
     assert calls
 
 
-def test_it_finds_the_tightest_clustering_of_depth_two(rows):
-    clf = DL85Cluster(max_depth=2, min_sup=10).fit(rows)
+@pytest.mark.parametrize("cache", ["trie", "cover"])
+def test_it_finds_the_tightest_clustering_of_depth_two(rows, cache):
+    clf = DL85Cluster(max_depth=2, min_sup=10, cache=cache).fit(rows)
     single_cluster = np.linalg.norm(rows - rows.mean(axis=0), axis=1).sum()
     assert clf.n_clusters_ == 4
     assert clf.train_error_ == pytest.approx(500.47, abs=0.01)

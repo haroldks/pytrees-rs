@@ -29,6 +29,7 @@ def dl85_search(estimator, *, fast_d2, error_function_input, error_function):
         time_limit=estimator.max_time,
         always_sort=estimator.always_sort,
         heuristic=estimator.heuristic,
+        cache=estimator.cache,
         fast_d2=fast_d2,
         similarity_lb=similarity_lb,
         dynamic_branching=estimator.dynamic_branching and not bounded,
