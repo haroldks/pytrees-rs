@@ -589,9 +589,14 @@ impl ConTreeDepth2 {
                 .saturating_sub(total_score as usize);
         }
 
+        // A pure right side only loses score as the threshold moves right, so
+        // no later threshold beats this one. That ends the scan only if this
+        // one could be chosen: while the left side is below the minimum
+        // support, a later threshold that meets it can still beat the best.
         let remaining_size = tree.size - tree.current_element_count;
-        tree.is_zero |= (right_classification_score == remaining_size as i32)
-            || (tree.can_skip >= remaining_size);
+        let right_is_pure = right_classification_score == remaining_size as i32;
+        tree.is_zero |=
+            (right_is_pure && left_size >= tree.min_sup) || (tree.can_skip >= remaining_size);
 
         tree.current_element_count += 1;
         tree.current_label_frequency[current_feature_data.label() as usize] += 1;

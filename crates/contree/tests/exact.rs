@@ -212,6 +212,112 @@ fn the_search_finds_the_optimum() {
     );
 }
 
+/// Found by a random search against the brute force. In one side of a
+/// depth-2 split the right part becomes pure while the left part is still
+/// below the minimum support; the depth-2 solver used to stop scanning the
+/// feature there, missing a later threshold that meets the support.
+#[test]
+fn a_pure_side_below_the_minimum_support_does_not_stop_the_scan() {
+    let values = vec![
+        3.0, 0.0, 1.0, 1.0, 5.0, 2.0, 3.0, 3.0, 5.0, 4.0, 2.0, 3.0, 4.0, 2.0, 1.0, 0.0, 4.0, 5.0,
+        2.0, 5.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 4.0, 1.0, 0.0, 1.0,
+    ];
+    let labels = vec![1, 0, 1, 1, 1, 2, 1, 1, 1, 2, 0, 2, 0, 2, 2];
+    let instance = Instance {
+        values,
+        labels,
+        n_rows: 15,
+        n_features: 2,
+        n_labels: 3,
+    };
+    let rows: Vec<usize> = (0..instance.n_rows).collect();
+    let expected = brute_force(&instance, &rows, 2, 3);
+    assert_eq!(expected, 4);
+    for fast_d2 in [false, true] {
+        assert_eq!(
+            search(&instance.dataset(), 2, 3, fast_d2),
+            expected,
+            "fast_d2={fast_d2}"
+        );
+    }
+}
+
+/// The returned tree misclassifies exactly the error the search reports.
+///
+/// A subproblem whose cached cost is 0 used to be marked a leaf when the
+/// search reached it again, even when that 0 came from a split; the solution
+/// tree then lost the split and did worse than reported.
+#[test]
+fn the_returned_tree_makes_the_reported_error() {
+    let mut rng = Lcg(0x5eed);
+    let mut wrong = Vec::new();
+    for case in 0..60 {
+        let n_rows = 12 + rng.below(13);
+        let n_features = 2 + rng.below(3);
+        let n_labels = 2 + rng.below(2);
+        let instance = Instance::random(&mut rng, n_rows, n_features, n_labels);
+        let dataset = instance.dataset();
+        for depth in 1..=3 {
+            for min_sup in [1, 2] {
+                for fast_d2 in [false, true] {
+                    for selector in [PointSelector::Mid, PointSelector::First] {
+                        let fits = [
+                            ConTree::new(
+                                min_sup,
+                                depth,
+                                60.0,
+                                usize::MAX,
+                                selector,
+                                0,
+                                true,
+                                fast_d2,
+                            )
+                            .fit(&dataset),
+                            ConTreeLds::new(
+                                min_sup,
+                                depth,
+                                60.0,
+                                usize::MAX,
+                                selector,
+                                0,
+                                true,
+                                fast_d2,
+                            )
+                            .fit(&dataset),
+                        ];
+                        for (solver, fit) in ["ConTree", "LDS"].iter().zip(fits) {
+                            let outcome = fit.expect("fit");
+                            let predicted = outcome
+                                .tree
+                                .predict(&instance.values, n_features)
+                                .expect("predict");
+                            let misclassified = predicted
+                                .iter()
+                                .zip(&instance.labels)
+                                .filter(|(p, l)| p != l)
+                                .count();
+                            if misclassified != outcome.error() {
+                                wrong.push(format!(
+                                    "case {case}: depth={depth} min_sup={min_sup} \
+                                     fast_d2={fast_d2} {solver} {selector}: reports {}, its \
+                                     tree misclassifies {misclassified}",
+                                    outcome.error()
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "{} case(s):\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
+}
+
 #[test]
 fn the_search_finds_the_brute_force_optimum_on_a_real_fixture() {
     let dataset = DataReader::default()

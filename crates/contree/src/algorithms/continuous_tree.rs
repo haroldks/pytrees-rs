@@ -204,8 +204,11 @@ impl ConTree {
         #[cfg(feature = "profiling")]
         coz::progress!();
         if current_best.error == 0 || view.is_empty() {
+            // A cost of 0 can come from a split found by an earlier search of
+            // this subproblem: the entry is then not a leaf, and marking it
+            // one would drop that split from the solution tree.
             if let Some(entry) = self.cache.get_mut(parent_index) {
-                entry.is_leaf = true;
+                entry.is_leaf = entry.feature == usize::MAX;
                 entry.mark_exact();
                 *current_best = *entry;
             }
