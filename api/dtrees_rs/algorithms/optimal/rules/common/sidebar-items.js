@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["LowerBoundRule","MaxDepthRule","MinSupportRule","PureNodeRule","SimilarityLowerBoundRule","TimeLimitRule","UsableNodeRule"]};

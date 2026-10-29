@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["load_results","remove_results","save_results"],"struct":["ExampleParser","Res"]};

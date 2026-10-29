@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["GenericConTree"],"fn":["validate"],"struct":["ConTree","ConTreeLds"]};

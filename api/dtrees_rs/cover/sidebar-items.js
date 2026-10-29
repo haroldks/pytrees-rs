@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["reversible_cover","similarities"],"struct":["Cover"]};
