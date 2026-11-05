@@ -97,7 +97,8 @@ of a leaf does not have to be the number of misclassified rows. Pass your own
 as `error_function`: it receives the class counts of a leaf (or its row
 indices, with `error_function_input="indices"`) and returns the error and the
 predicted class. Class-dependent costs, sample weights and clustering
-objectives (`DL85Cluster` works this way) all fit:
+objectives (`DL85Cluster` works this way) all fit. `ConTreeClassifier` takes an
+`error_function` the same way:
 
 ```python
 import numpy as np

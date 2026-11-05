@@ -126,7 +126,7 @@ use contree::data::Dataset;
 
 // Row-major values and labels 0..k.
 let dataset = Dataset::from_rows(&values, &labels, n_features)?;
-let config = SearchConfig::new(1, 3, 600.0, 0, usize::MAX, false, true, PointSelector::Mid);
+let config = SearchConfig::new(1, 3, 600.0, 0.0, f64::INFINITY, false, true, PointSelector::Mid);
 let outcome = ConTree::with_config(config).fit(&dataset)?;
 
 if outcome.status == SearchStatus::Optimal {
@@ -136,8 +136,36 @@ if outcome.status == SearchStatus::Optimal {
 
 `SearchConfig::new` takes, in order: minimum support, maximum depth, time
 limit, tolerated gap, initial error bound, Gini ordering, depth-2 solver and
-point selector. `ConTreeLds` is built the same way; `with_schedule` chooses
-its budget schedule and `trajectory()` returns every improvement as
-`(seconds, error)`.
+point selector. Costs are `f64`. `ConTreeLds` is built the same way;
+`with_schedule` chooses its budget schedule and `trajectory()` returns every
+improvement as `(seconds, error)`.
+
+A custom leaf cost implements `LeafLoss`, which gets a leaf's class counts or
+row ids, and is passed with `with_loss`;
+`with_skipping` chooses whether thresholds are skipped. See the
+[ConTree page](estimators/contree.md#custom-error-functions) for what the cost
+must satisfy.
+
+```rust
+use contree::common::{Cost, Leaf, LeafLoss, Loss, LossInput, Skipping};
+
+struct CostSensitive([f64; 2]);
+
+impl LeafLoss for CostSensitive {
+    fn cost(&self, leaf: Leaf<'_>) -> (Cost, usize) {
+        let Leaf::ClassCounts(counts) = leaf else { unreachable!() };
+        // Predict the class whose misclassified rows cost the least.
+        (0..2)
+            .map(|k| (self.0[1 - k] * counts[1 - k] as f64, k))
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+            .unwrap()
+    }
+}
+
+let outcome = ConTree::with_config(config)
+    .with_loss(Loss::custom(Box::new(CostSensitive([1.0, 5.0])), LossInput::ClassCounts))
+    .with_skipping(Skipping::Auto)
+    .fit(&dataset)?;
+```
 
 The library is imported as `contree` (package `contree-rs`).
