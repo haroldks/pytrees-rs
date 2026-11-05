@@ -51,6 +51,6 @@ pub fn raise_stored(failure: &ErrorSlot) -> pyo3::PyResult<()> {
 
 /// The slot only ever holds an `Option`, so a panic elsewhere cannot leave
 /// it half-written; a poisoned lock is safe to use.
-fn lock(slot: &ErrorSlot) -> std::sync::MutexGuard<'_, Option<PyErr>> {
+pub(crate) fn lock(slot: &ErrorSlot) -> std::sync::MutexGuard<'_, Option<PyErr>> {
     slot.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }

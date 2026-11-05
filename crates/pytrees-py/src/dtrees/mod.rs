@@ -2,7 +2,7 @@
 
 mod data;
 mod dl85;
-mod errors;
+pub(crate) mod errors;
 mod lgdt;
 mod options;
 mod output;

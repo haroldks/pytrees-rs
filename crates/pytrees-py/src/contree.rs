@@ -10,10 +10,15 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 use contree::algorithms::{validate, ConTree, ConTreeLds};
-use contree::common::{PointSelector, ScheduleKind, SearchError, SearchStatus, Statistics};
+use contree::common::{
+    Cost, Leaf, LeafLoss, Loss, LossInput, PointSelector, ScheduleKind, SearchError, SearchStatus,
+    Skipping, Statistics,
+};
 use contree::data::view::DataView;
 use contree::data::{Dataset, DatasetError};
 use contree::tree::{Tree, TreeError};
+
+use crate::dtrees::errors::{lock, raise_stored, ErrorSlot};
 
 /// Bad input becomes a `ValueError`; a broken invariant inside the search, a
 /// bug in the library, becomes a `RuntimeError`.
@@ -39,6 +44,72 @@ fn tree_err(err: TreeError) -> PyErr {
 
 fn point_selector(name: &str) -> PyResult<PointSelector> {
     name.parse().map_err(PyValueError::new_err)
+}
+
+fn loss_input(name: &str) -> PyResult<LossInput> {
+    match name {
+        "class_counts" => Ok(LossInput::ClassCounts),
+        "indices" => Ok(LossInput::Indices),
+        _ => Err(PyValueError::new_err(format!(
+            "unknown error_function_input {name:?}; expected class_counts or indices"
+        ))),
+    }
+}
+
+fn skipping(name: &str) -> PyResult<Skipping> {
+    match name {
+        "auto" => Ok(Skipping::Auto),
+        "on" => Ok(Skipping::On),
+        "off" => Ok(Skipping::Off),
+        _ => Err(PyValueError::new_err(format!(
+            "unknown threshold_skipping {name:?}; expected auto, on or off"
+        ))),
+    }
+}
+
+/// A caller's Python `error_function`, seen by the search as a `LeafLoss`.
+///
+/// It receives a list: the number of rows of each class in the leaf, or the
+/// leaf's row indices. It returns `(cost, prediction)`, the prediction being
+/// the index of a class. The first exception it raises, or the first
+/// prediction that is not a class index, is kept in `failure` and raised once
+/// the search returns.
+struct PythonLoss {
+    function: Py<PyAny>,
+    n_classes: usize,
+    failure: ErrorSlot,
+}
+
+/// Returned in place of a real cost once the function has failed: it makes
+/// every leaf useless, so the search winds down quickly.
+const FAILED: (Cost, usize) = (Cost::INFINITY, 0);
+
+impl LeafLoss for PythonLoss {
+    fn cost(&self, leaf: Leaf<'_>) -> (Cost, usize) {
+        if lock(&self.failure).is_some() {
+            return FAILED;
+        }
+        let result = Python::attach(|py| {
+            let value = match leaf {
+                Leaf::ClassCounts(counts) => self.function.call1(py, (counts.to_vec(),)),
+                Leaf::Indices(rows) => self.function.call1(py, (rows.to_vec(),)),
+            }?;
+            let (cost, prediction) = value.extract::<(f64, f64)>(py)?;
+            if prediction.fract() != 0.0 || prediction < 0.0 || prediction >= self.n_classes as f64
+            {
+                return Err(PyValueError::new_err(format!(
+                    "error_function predicted {prediction}, which is not the index of one of \
+                     the {} classes",
+                    self.n_classes
+                )));
+            }
+            Ok((cost, prediction as usize))
+        });
+        result.unwrap_or_else(|err| {
+            *lock(&self.failure) = Some(err);
+            FAILED
+        })
+    }
 }
 
 fn status_name(status: SearchStatus) -> &'static str {
@@ -68,6 +139,8 @@ struct Params {
     random_state: Option<u64>,
     /// The anytime search's budget schedule; ignored unless `use_lds`.
     budget_schedule: ScheduleKind,
+    error_function_input: LossInput,
+    threshold_skipping: Skipping,
 }
 
 struct Fitted {
@@ -79,6 +152,10 @@ struct Fitted {
 #[pyclass(module = "pytrees._native.contree")]
 pub struct RawConTree {
     params: Params,
+    /// The caller's `error_function`; `None` for misclassification.
+    error_function: Option<Py<PyAny>>,
+    /// The first exception the caller's error function raised, if any.
+    failure: ErrorSlot,
     fitted: Option<Fitted>,
 }
 
@@ -87,6 +164,21 @@ impl RawConTree {
         self.fitted
             .as_ref()
             .ok_or_else(|| PyRuntimeError::new_err("this estimator has not been fitted yet"))
+    }
+
+    /// The loss of a fit on `n_classes` classes.
+    fn loss(&self, py: Python<'_>, n_classes: usize) -> Loss {
+        match &self.error_function {
+            None => Loss::Misclassification,
+            Some(function) => Loss::custom(
+                Box::new(PythonLoss {
+                    function: function.clone_ref(py),
+                    n_classes,
+                    failure: self.failure.clone(),
+                }),
+                self.params.error_function_input,
+            ),
+        }
     }
 
     fn dataset(x: &PyReadonlyArray2<'_, f64>, y: &PyReadonlyArray1<'_, i64>) -> PyResult<Dataset> {
@@ -116,8 +208,7 @@ impl RawConTree {
             labels.push(label as usize);
         }
 
-        let dataset = Dataset::from_rows(values, &labels, n_features).map_err(dataset_err)?;
-        Ok(dataset)
+        Dataset::from_rows(values, &labels, n_features).map_err(dataset_err)
     }
 }
 
@@ -136,6 +227,9 @@ impl RawConTree {
         use_lds = false,
         random_state = None,
         budget_schedule = "diagonal",
+        error_function = None,
+        error_function_input = "class_counts",
+        threshold_skipping = "auto",
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -150,6 +244,9 @@ impl RawConTree {
         use_lds: bool,
         random_state: Option<u64>,
         budget_schedule: &str,
+        error_function: Option<Py<PyAny>>,
+        error_function_input: &str,
+        threshold_skipping: &str,
     ) -> PyResult<Self> {
         Ok(Self {
             params: Params {
@@ -164,7 +261,11 @@ impl RawConTree {
                 use_lds,
                 random_state,
                 budget_schedule: budget_schedule.parse().map_err(PyValueError::new_err)?,
+                error_function_input: loss_input(error_function_input)?,
+                threshold_skipping: skipping(threshold_skipping)?,
             },
+            error_function,
+            failure: ErrorSlot::default(),
             fitted: None,
         })
     }
@@ -178,6 +279,7 @@ impl RawConTree {
     ) -> PyResult<()> {
         let dataset = Self::dataset(&x, &y)?;
         let params = self.params;
+        let loss = self.loss(py, dataset.num_labels());
 
         // Release the GIL: the search can run for minutes.
         let outcome = py.detach(|| {
@@ -191,7 +293,9 @@ impl RawConTree {
                     params.max_gap,
                     params.sort_by_heuristic,
                     params.fast_d2,
-                );
+                )
+                .with_loss(loss)
+                .with_skipping(params.threshold_skipping);
                 solver = solver.with_schedule(params.budget_schedule);
                 if let Some(seed) = params.random_state {
                     solver = solver.with_random_state(seed);
@@ -207,7 +311,9 @@ impl RawConTree {
                     params.max_gap,
                     params.sort_by_heuristic,
                     params.fast_d2,
-                );
+                )
+                .with_loss(loss)
+                .with_skipping(params.threshold_skipping);
                 if let Some(seed) = params.random_state {
                     solver = solver.with_random_state(seed);
                 }
@@ -215,6 +321,7 @@ impl RawConTree {
             }
         });
 
+        raise_stored(&self.failure)?;
         let outcome = outcome.map_err(search_err)?;
         self.fitted = Some(Fitted {
             tree: outcome.tree,
@@ -238,6 +345,7 @@ impl RawConTree {
     ) -> PyResult<()> {
         let dataset = Self::dataset(&x, &y)?;
         let params = self.params;
+        let loss = self.loss(py, dataset.num_labels());
 
         let mut solver = ConTreeLds::new(
             params.min_sup,
@@ -248,7 +356,9 @@ impl RawConTree {
             params.max_gap,
             params.sort_by_heuristic,
             params.fast_d2,
-        );
+        )
+        .with_loss(loss)
+        .with_skipping(params.threshold_skipping);
         solver = solver.with_schedule(params.budget_schedule);
         if let Some(seed) = params.random_state {
             solver = solver.with_random_state(seed);
@@ -259,6 +369,10 @@ impl RawConTree {
         let mut best = f64::INFINITY;
         loop {
             let done = py.detach(|| solver.partial_fit(&view));
+            raise_stored(&self.failure)?;
+            if let Some(cost) = solver.invalid_cost() {
+                return Err(search_err(SearchError::InvalidLeafCost { cost }));
+            }
             let statistics = *solver.statistics();
 
             if statistics.error < best {
@@ -321,7 +435,7 @@ impl RawConTree {
                 }
             }
             value.push(node.value.label.map_or(-1i64, |label| label as i64));
-            error.push(node.value.error as i64);
+            error.push(node.value.error);
         }
 
         let dict = PyDict::new(py);
@@ -346,6 +460,7 @@ impl RawConTree {
         dict.set_item("specialized_solver_calls", stats.specialized_solver_call)?;
         dict.set_item("n_samples", stats.num_samples)?;
         dict.set_item("n_features", stats.num_features)?;
+        dict.set_item("skipping_violations", stats.skipping_violations)?;
         Ok(dict)
     }
 
