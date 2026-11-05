@@ -1,10 +1,10 @@
-use crate::algorithms::depth2::ConTreeDepth2;
+use crate::algorithms::depth2::{ConTreeDepth2, Depth2Loss};
 use crate::algorithms::interval_pruner::{Bound, IntervalsPruner};
 use crate::algorithms::shared;
 use crate::algorithms::support_feasible_splits;
 use crate::caching::{Cache, Entry};
 use crate::common::{
-    classification_error, FitOutcome, PointSelector, SearchConfig, SearchError, SearchStatus,
+    Cost, FitOutcome, Loss, PointSelector, SearchConfig, SearchError, SearchStatus, Skipping,
     Statistics,
 };
 use crate::data::view::DataView;
@@ -29,7 +29,10 @@ pub struct ConTree {
     rng: StdRng,
     status: SearchStatus,
     /// Every improvement of the root incumbent, as `(seconds, error)`.
-    trajectory: Vec<(f64, usize)>,
+    trajectory: Vec<(f64, Cost)>,
+    loss: Loss,
+    /// The first negative or NaN cost the loss returned during the fit.
+    invalid_cost: Option<Cost>,
     pub tree: Tree,
 }
 
@@ -59,9 +62,9 @@ impl ConTree {
         min_sup: usize,
         max_depth: usize,
         max_time: f64,
-        max_error: usize,
+        max_error: Cost,
         split_selection_strategy: PointSelector,
-        max_gap: usize,
+        max_gap: Cost,
         use_heuristic: bool,
         fast_d2: bool,
     ) -> Self {
@@ -83,8 +86,25 @@ impl ConTree {
             rng: StdRng::from_os_rng(),
             status: SearchStatus::Optimal,
             trajectory: Vec::new(),
+            loss: Loss::default(),
+            invalid_cost: None,
             tree: Tree::default(),
         }
+    }
+
+    /// Minimises `loss` instead of misclassification.
+    ///
+    /// A loss that reads instance ids turns the depth-2 solver off, since it
+    /// works on class counts only.
+    pub fn with_loss(mut self, loss: Loss) -> Self {
+        self.loss = loss;
+        self
+    }
+
+    /// Chooses whether thresholds are skipped; see [`Skipping`].
+    pub fn with_skipping(mut self, skipping: Skipping) -> Self {
+        self.config.skipping = skipping;
+        self
     }
 
     /// Seeds the random generator used by `PointSelector::Random`, making
@@ -101,6 +121,10 @@ impl ConTree {
     /// given depth and minimum support.
     pub fn fit(&mut self, dataset: &Dataset) -> Result<FitOutcome, SearchError> {
         crate::algorithms::validate(&self.config, dataset)?;
+        self.config.cost_step = SearchConfig::cost_step_for(&self.loss);
+        self.config.fast_d2 &= !self.loss.uses_indices();
+        self.invalid_cost = None;
+        self.statistics.skipping_violations = 0;
 
         let root_view = DataView::root(dataset, self.config.use_heuristic);
 
@@ -111,7 +135,7 @@ impl ConTree {
         self.statistics.num_features = root_view.get_feature_number();
         self.statistics.num_samples = root_view.total_instances;
 
-        let (error, label) = classification_error(root_view.get_labels_freqs());
+        let (error, label) = self.leaf(&root_view);
         let mut entry = Entry {
             error,
             label,
@@ -141,10 +165,15 @@ impl ConTree {
         self.statistics.duration = self.elapsed_time();
         self.get_solution_tree();
 
+        if let Some(cost) = self.invalid_cost {
+            return Err(SearchError::InvalidLeafCost { cost });
+        }
         self.status = if !self.time_remains() {
             SearchStatus::TimeLimit
-        } else if entry.error <= self.config.max_gap && self.config.max_gap > 0 {
+        } else if entry.error <= self.config.max_gap && self.config.max_gap > 0.0 {
             SearchStatus::ErrorBoundReached
+        } else if self.statistics.skipping_violations > 0 {
+            SearchStatus::NotProven
         } else {
             SearchStatus::Optimal
         };
@@ -159,7 +188,7 @@ impl ConTree {
 
     /// The anytime profile of the last fit: `(seconds, error)` at every
     /// improvement of the root incumbent.
-    pub fn trajectory(&self) -> &[(f64, usize)] {
+    pub fn trajectory(&self) -> &[(f64, Cost)] {
         &self.trajectory
     }
 
@@ -168,8 +197,18 @@ impl ConTree {
         self.status
     }
 
+    /// The `(cost, label)` of the view as a single leaf.
+    fn leaf(&mut self, view: &DataView<'_>) -> (Cost, usize) {
+        shared::checked_leaf(
+            &self.loss,
+            view.get_labels_freqs(),
+            || view.instance_ids(),
+            &mut self.invalid_cost,
+        )
+    }
+
     /// Looks a child subproblem up in the cache, seeding a new entry with the
-    /// error of its majority-class leaf.
+    /// cost of the view as a single leaf.
     ///
     /// `child_depth` is the child's remaining depth. Returns whether the entry
     /// is new, its cache index, and a copy of it.
@@ -180,11 +219,16 @@ impl ConTree {
 
         if let Some(slot) = self.cache.get_mut(index) {
             if is_new {
-                let (error, label) = classification_error(view.get_labels_freqs());
+                let (error, label) = shared::checked_leaf(
+                    &self.loss,
+                    view.get_labels_freqs(),
+                    || view.instance_ids(),
+                    &mut self.invalid_cost,
+                );
                 slot.error = error;
                 slot.label = label;
                 slot.depth = depth;
-                slot.lower_bound = 0;
+                slot.lower_bound = 0.0;
                 slot.is_valid = true;
             }
             entry = *slot;
@@ -199,11 +243,11 @@ impl ConTree {
         current_best: &mut Entry,
         parent_index: usize,
         is_new: bool,
-        upper_bound: usize,
+        upper_bound: Cost,
     ) {
         #[cfg(feature = "profiling")]
         coz::progress!();
-        if current_best.error == 0 || view.is_empty() {
+        if current_best.error == 0.0 || view.is_empty() {
             // A cost of 0 can come from a split found by an earlier search of
             // this subproblem: the entry is then not a leaf, and marking it
             // one would drop that split from the solution tree.
@@ -249,12 +293,14 @@ impl ConTree {
         // Only at depth exactly 2: `ConTreeDepth2` always builds two levels of
         // tests, which would exceed a depth-1 request.
         if config.fast_d2 && config.max_depth == 2 {
+            let skipping = config.skipping.applies(&self.loss);
             let tree = self.specialized.fit(
                 view,
                 config,
                 current_best,
                 upper_bound,
                 &mut self.statistics,
+                &mut Depth2Loss::new(&self.loss, skipping, &mut self.invalid_cost),
             );
             current_best.finalize_lower_bound(upper_bound);
             current_best.is_optimal = current_best.is_valid;
@@ -284,7 +330,7 @@ impl ConTree {
                 upper_bound.min(current_best.error),
             );
 
-            if current_best.error == 0 {
+            if current_best.error == 0.0 {
                 current_best.mark_exact();
                 if let Some(entry) = self.cache.get_mut(parent_index) {
                     entry.mark_exact();
@@ -316,7 +362,7 @@ impl ConTree {
         cache_index: usize,
         config: &SearchConfig,
         current_best: &mut Entry,
-        upper_bound: usize,
+        upper_bound: Cost,
     ) {
         #[cfg(feature = "profiling")]
         coz::scope!("expand_on_feature");
@@ -349,7 +395,12 @@ impl ConTree {
             return;
         }
 
-        let mut pruner = IntervalsPruner::new(possible_index_split, config.max_gap, config.min_sup);
+        let mut pruner = IntervalsPruner::new(
+            possible_index_split,
+            config.max_gap,
+            config.min_sup,
+            config.skipping.applies(&self.loss),
+        );
         let mut queue = VecDeque::new();
         let init_bound = Bound::new(feasible.start, feasible.end - 1, None, None);
         queue.push_back(init_bound);
@@ -375,7 +426,8 @@ impl ConTree {
             let split_point = possible_index_split[selected_point];
             let int_half_distance = split_point
                 .saturating_sub(possible_index_split[current_bound.left_bound])
-                .max(possible_index_split[current_bound.right_bound].saturating_sub(split_point));
+                .max(possible_index_split[current_bound.right_bound].saturating_sub(split_point))
+                as Cost;
 
             let threshold_value = if selected_point > 0 {
                 let previous = feature_column_ids[possible_index_split[selected_point - 1]];
@@ -411,7 +463,7 @@ impl ConTree {
             let (mut left_index, mut right_index) = (0, 0);
             let (mut left_is_new, mut right_is_new);
 
-            let larger_upper_bound = current_best.error.min(upper_bound.saturating_add(1));
+            let larger_upper_bound = current_best.error.min(upper_bound + config.cost_step);
             self.statistics.general_solver_call += 1;
 
             if process_left_first {
@@ -450,19 +502,25 @@ impl ConTree {
                 right_entry.lower_bound
             };
             // Widen that bound by the interval half-distance so that one
-            // search can prune the whole interval around this split.
-            let budget =
-                current_best.error.min(upper_bound.saturating_add(1)) as i64 - larger_error as i64;
-            let smaller_ub = budget + int_half_distance as i64;
-            let smaller_upper_bound = smaller_ub.max(0) as usize;
+            // search can prune the whole interval around this split. Only the
+            // interval pruner gains from it, so without threshold skipping the
+            // bound is not widened.
+            let budget = current_best.error.min(upper_bound + config.cost_step) - larger_error;
+            let widening = if config.skipping.applies(&self.loss) {
+                int_half_distance
+            } else {
+                0.0
+            };
+            let smaller_ub = budget + widening;
+            let smaller_upper_bound = smaller_ub.max(0.0);
             // Stays `None` when the smaller child is not searched because the
             // larger one alone already exceeds the upper bound.
-            let mut right_error: Option<usize> = None;
+            let mut right_error: Option<Cost> = None;
 
             // Search the smaller child unless the budget is negative. A budget
             // of exactly zero is still explored, since a zero-error subtree
             // may exist.
-            if smaller_ub > 0 || budget == 0 {
+            if smaller_ub > 0.0 || budget == 0.0 {
                 self.statistics.general_solver_call += 1;
                 let right_config = config.derive_right(left_config.max_gap);
 
@@ -510,14 +568,14 @@ impl ConTree {
                     current_best.left = left_index;
                     current_best.right = right_index;
 
-                    let is_optimal = feature_best == 0;
+                    let is_optimal = feature_best == 0.0;
                     current_best.is_optimal = is_optimal;
 
                     if let Some(entry) = self.cache.get_mut(cache_index) {
                         *entry = *current_best;
                     }
 
-                    if feature_best == 0 {
+                    if feature_best == 0.0 {
                         return;
                     }
                 }
@@ -532,10 +590,9 @@ impl ConTree {
                 continue;
             }
 
-            let score_difference = left_entry
-                .lower_bound
-                .saturating_add(right_error.unwrap_or(0))
-                .saturating_sub(current_best.error.min(upper_bound));
+            let score_difference = (left_entry.lower_bound + right_error.unwrap_or(0.0)
+                - current_best.error.min(upper_bound))
+            .max(0.0);
 
             let (left_bound, right_bound) = pruner.neighbourhood_pruning(
                 score_difference,
@@ -575,7 +632,7 @@ impl ConTree {
         cache_index: usize,
         config: &SearchConfig,
         current_best: &mut Entry,
-        upper_bound: usize,
+        upper_bound: Cost,
     ) {
         let feature_column = view.get_sorted_feature(feature_index);
         let feature_column_ids = view.get_feature_indices(feature_index);
@@ -588,7 +645,12 @@ impl ConTree {
 
         let sorted_by_heuristic_indices = view.ordered_possible_splits(feature_index);
 
-        let mut pruner = IntervalsPruner::new(possible_splits, config.max_gap, config.min_sup);
+        let mut pruner = IntervalsPruner::new(
+            possible_splits,
+            config.max_gap,
+            config.min_sup,
+            config.skipping.applies(&self.loss),
+        );
 
         let mut queue = VecDeque::new();
         let init_bound = Bound::new(0, possible_splits.len() - 1, None, None);
@@ -660,9 +722,10 @@ impl ConTree {
 
             let int_half_distance = split_point
                 .saturating_sub(possible_splits[0])
-                .max(possible_splits[possible_splits.len() - 1].saturating_sub(split_point));
+                .max(possible_splits[possible_splits.len() - 1].saturating_sub(split_point))
+                as Cost;
 
-            let larger_upper_bound = current_best.error.min(upper_bound.saturating_add(1));
+            let larger_upper_bound = current_best.error.min(upper_bound + config.cost_step);
             self.statistics.general_solver_call += 1;
 
             if process_left_first {
@@ -701,17 +764,23 @@ impl ConTree {
                 right_entry.lower_bound
             };
             // Widen that bound by the interval half-distance so that one
-            // search can prune the whole interval around this split.
-            let budget =
-                current_best.error.min(upper_bound.saturating_add(1)) as i64 - larger_error as i64;
-            let smaller_ub = budget + int_half_distance as i64;
-            let smaller_upper_bound = smaller_ub.max(0) as usize;
-            let mut right_error: Option<usize> = None;
+            // search can prune the whole interval around this split. Only the
+            // interval pruner gains from it, so without threshold skipping the
+            // bound is not widened.
+            let budget = current_best.error.min(upper_bound + config.cost_step) - larger_error;
+            let widening = if config.skipping.applies(&self.loss) {
+                int_half_distance
+            } else {
+                0.0
+            };
+            let smaller_ub = budget + widening;
+            let smaller_upper_bound = smaller_ub.max(0.0);
+            let mut right_error: Option<Cost> = None;
 
             // Search the smaller child unless the budget is negative. A budget
             // of exactly zero is still explored, since a zero-error subtree
             // may exist.
-            if smaller_ub > 0 || budget == 0 {
+            if smaller_ub > 0.0 || budget == 0.0 {
                 self.statistics.general_solver_call += 1;
                 let right_config = config.derive_right(left_config.max_gap);
 
@@ -758,7 +827,7 @@ impl ConTree {
                     current_best.left = left_index;
                     current_best.right = right_index;
 
-                    let is_optimal = feature_best == 0;
+                    let is_optimal = feature_best == 0.0;
                     current_best.is_optimal = is_optimal;
 
                     if let Some(entry) = self.cache.get_mut(cache_index) {
@@ -773,10 +842,9 @@ impl ConTree {
             let left_score = left_entry.is_valid.then_some(left_entry.lower_bound);
             pruner.add_result(split_idx, left_score, right_error);
 
-            let score_difference = left_entry
-                .lower_bound
-                .saturating_add(right_error.unwrap_or(0))
-                .saturating_sub(current_best.error.min(upper_bound));
+            let score_difference = (left_entry.lower_bound + right_error.unwrap_or(0.0)
+                - current_best.error.min(upper_bound))
+            .max(0.0);
             let (new_left_bound, new_right_bound) = pruner.neighbourhood_pruning(
                 score_difference,
                 0,
@@ -796,7 +864,7 @@ impl ConTree {
                 pruned[split_idx + 1..skip_to].fill(true);
             }
 
-            if current_best.error == 0 {
+            if current_best.error == 0.0 {
                 break;
             }
         }
@@ -831,7 +899,7 @@ impl ConTree {
 #[cfg(test)]
 mod contree_test {
     use crate::algorithms::continuous_tree::ConTree;
-    use crate::common::PointSelector;
+    use crate::common::{Cost, PointSelector};
     use crate::reader::data_reader::DataReader;
     use crate::reader::DataReaderError;
     use crate::tests::fixture;
@@ -842,15 +910,15 @@ mod contree_test {
         let mut dataset = reader.read_file(&fixture("avila_1k.txt"))?;
         dataset.sort_features();
 
-        let mut previous = usize::MAX;
+        let mut previous = Cost::INFINITY;
         for depth in 1..=3 {
             let mut contree: ConTree = ConTree::new(
                 1,
                 depth,
                 100.0,
-                usize::MAX,
+                Cost::INFINITY,
                 PointSelector::Mid,
-                0,
+                0.0,
                 false,
                 true,
             );
@@ -863,7 +931,7 @@ mod contree_test {
                 depth - 1
             );
             assert!(
-                error < dataset.count(),
+                error < dataset.count() as Cost,
                 "the search reported a nonsense error"
             );
             previous = error;
@@ -881,12 +949,28 @@ mod contree_test {
 
         // Both are exact at depth 2, so they must agree on the error even if
         // they break ties towards different trees.
-        let mut general: ConTree =
-            ConTree::new(1, 2, 100.0, usize::MAX, PointSelector::Mid, 0, false, false);
+        let mut general: ConTree = ConTree::new(
+            1,
+            2,
+            100.0,
+            Cost::INFINITY,
+            PointSelector::Mid,
+            0.0,
+            false,
+            false,
+        );
         general.fit(&dataset).expect("fit");
 
-        let mut specialized: ConTree =
-            ConTree::new(1, 2, 100.0, usize::MAX, PointSelector::Mid, 0, false, true);
+        let mut specialized: ConTree = ConTree::new(
+            1,
+            2,
+            100.0,
+            Cost::INFINITY,
+            PointSelector::Mid,
+            0.0,
+            false,
+            true,
+        );
         specialized.fit(&dataset).expect("fit");
 
         assert_eq!(general.statistics().error, specialized.statistics().error);

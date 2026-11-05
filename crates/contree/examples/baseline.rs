@@ -87,9 +87,9 @@ fn main() -> ExitCode {
             args.support,
             args.depth,
             args.max_time,
-            usize::MAX,
+            f64::INFINITY,
             PointSelector::Mid,
-            0,
+            0.0,
             args.heuristic,
             args.fast_d2,
         );
@@ -103,9 +103,9 @@ fn main() -> ExitCode {
             args.support,
             args.depth,
             args.max_time,
-            usize::MAX,
+            f64::INFINITY,
             PointSelector::Mid,
-            0,
+            0.0,
             args.heuristic,
             args.fast_d2,
         );

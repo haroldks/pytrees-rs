@@ -1,8 +1,8 @@
 use crate::algorithms::interval_pruner::{Bound, IntervalsPruner};
-use crate::algorithms::shared::threshold_between;
+use crate::algorithms::shared::{checked_leaf, threshold_between};
 use crate::algorithms::support_feasible_splits;
 use crate::caching::Entry;
-use crate::common::{SearchConfig, Statistics};
+use crate::common::{classification_error, Cost, Loss, SearchConfig, Statistics};
 use crate::data::view::DataView;
 use crate::data::DataPoint;
 use crate::tree::Tree;
@@ -11,32 +11,45 @@ use std::collections::VecDeque;
 /// The best depth-1 tree found so far for one side of a depth-2 root split,
 /// and the scan state used to find it.
 ///
-/// Scores count correctly classified instances, so higher is better.
+/// With misclassification the scan compares scores, the number of correctly
+/// classified instances, so higher is better. With a custom loss it compares
+/// costs.
 struct SubtreeLeafScores {
     // Best split found so far.
     classification_score: usize,
+    best_cost: Cost,
     best_feature_index: usize,
     best_threshold: f64,
     best_left_label: Option<usize>,
     best_right_label: Option<usize>,
-    best_left_error: usize,
-    best_right_error: usize,
+    best_left_error: Cost,
+    best_right_error: Cost,
 
     // Scan state for the feature being processed.
     previous_value: f64,
     previous_unique_value_index: Option<usize>,
     /// No split on this feature can improve the score any more.
     is_zero: bool,
-    /// Number of upcoming instances that cannot improve the score and can be
-    /// skipped.
-    can_skip: usize,
+    /// Instances that have to move to the left before a threshold can beat
+    /// the score: moving an instance changes the score by at most 1, so the
+    /// thresholds before that are skipped.
+    can_skip: Cost,
     current_element_count: usize,
+    /// Costs of both leaves at the threshold evaluated last, and the number
+    /// of instances then left of it. Used to check a custom loss under
+    /// forced skipping.
+    last_evaluated: Option<(Cost, Cost, usize)>,
+    /// Scratch space for the class counts right of the threshold.
+    remaining_frequency: Vec<usize>,
 
     // The side itself.
     size: usize,
     min_sup: usize,
     max_label_frequency: usize,
     max_label: usize,
+    /// Cost and label of the side as a single leaf.
+    leaf_cost: Cost,
+    leaf_label: usize,
     label_frequency: Vec<usize>,
     current_label_frequency: Vec<usize>,
 }
@@ -45,21 +58,26 @@ impl SubtreeLeafScores {
     fn new(size: usize, class_number: usize, min_sup: usize) -> Self {
         Self {
             classification_score: 0,
+            best_cost: Cost::INFINITY,
             best_feature_index: 0,
             best_threshold: -1.0,
             best_left_label: None,
             best_right_label: None,
-            best_left_error: 0,
-            best_right_error: 0,
+            best_left_error: 0.0,
+            best_right_error: 0.0,
             previous_value: 0.0,
             previous_unique_value_index: None,
             is_zero: false,
-            can_skip: 0,
+            can_skip: 0.0,
             current_element_count: 0,
+            last_evaluated: None,
+            remaining_frequency: vec![0; class_number],
             size,
             min_sup: min_sup.max(1),
             max_label_frequency: 0,
             max_label: 0,
+            leaf_cost: Cost::INFINITY,
+            leaf_label: 0,
             label_frequency: vec![0; class_number],
             current_label_frequency: vec![0; class_number],
         }
@@ -70,8 +88,45 @@ impl SubtreeLeafScores {
         self.previous_value = 0.0;
         self.previous_unique_value_index = None;
         self.is_zero = false;
-        self.can_skip = 0;
+        self.can_skip = 0.0;
         self.current_element_count = 0;
+        self.last_evaluated = None;
+    }
+
+    /// Instances still to scan.
+    fn remaining(&self) -> usize {
+        self.size - self.current_element_count
+    }
+
+    /// Whether no threshold still to come can beat the best one: each needs
+    /// `can_skip` more instances moved to the left, and fewer remain.
+    fn cannot_improve(&self) -> bool {
+        self.can_skip >= self.remaining() as Cost
+    }
+
+    /// Adds the instance to the left of the thresholds still to come.
+    fn move_left(&mut self, data_point: &DataPoint) {
+        self.current_element_count += 1;
+        self.current_label_frequency[data_point.label() as usize] += 1;
+        self.previous_value = data_point.value();
+        self.previous_unique_value_index = Some(data_point.unique_value_id());
+    }
+
+    /// Instances of classes other than `label` among the scanned instances
+    /// (`left`) or the instances still to scan (`!left`): the error of a
+    /// leaf predicting `label` there.
+    fn other_classes(&self, label: usize, left: bool) -> Cost {
+        let others: usize = (0..self.label_frequency.len())
+            .filter(|&l| l != label)
+            .map(|l| {
+                if left {
+                    self.current_label_frequency[l]
+                } else {
+                    self.label_frequency[l] - self.current_label_frequency[l]
+                }
+            })
+            .sum();
+        others as Cost
     }
 }
 
@@ -79,6 +134,43 @@ impl SubtreeLeafScores {
 /// at the leaf's score and only rises when a split also sets the labels, and
 /// they are read only when the score is above the leaf's.
 const LABELS_SET: &str = "the labels are set whenever the score beats the leaf";
+
+/// The loss of a depth-2 search and what the search reports about it.
+pub(crate) struct Depth2Loss<'a> {
+    pub loss: &'a Loss,
+    /// Whether thresholds are skipped; see [`Skipping`](crate::common::Skipping).
+    pub skipping: bool,
+    /// The first negative or NaN cost the loss returned.
+    pub invalid: &'a mut Option<Cost>,
+    /// Moves that broke the skipping assumption; added to the statistics.
+    violations: usize,
+}
+
+impl<'a> Depth2Loss<'a> {
+    pub fn new(loss: &'a Loss, skipping: bool, invalid: &'a mut Option<Cost>) -> Self {
+        Self {
+            loss,
+            skipping,
+            invalid,
+            violations: 0,
+        }
+    }
+
+    fn is_custom(&self) -> bool {
+        !self.loss.is_misclassification()
+    }
+
+    /// The `(cost, label)` of a leaf with these class counts. A loss that
+    /// reads instance ids never reaches the depth-2 solver.
+    fn leaf(&mut self, class_counts: &[usize]) -> (Cost, usize) {
+        checked_leaf(
+            self.loss,
+            class_counts,
+            || unreachable!("the depth-2 solver is off for losses that read instance ids"),
+            self.invalid,
+        )
+    }
+}
 
 /// Specialised solver for trees of depth at most 2.
 ///
@@ -98,8 +190,9 @@ impl ConTreeDepth2 {
         view: &DataView<'_>,
         search_config: &SearchConfig,
         entry: &mut Entry,
-        upper_bound: usize,
+        upper_bound: Cost,
         stats: &mut Statistics,
+        costs: &mut Depth2Loss<'_>,
     ) -> Tree {
         debug_assert!(search_config.max_depth <= 2, "Depth should be at most 2");
 
@@ -121,11 +214,13 @@ impl ConTreeDepth2 {
                 entry.error.min(upper_bound),
                 &mut tree,
                 stats,
+                costs,
             );
             if entry.error <= search_config.max_gap {
                 break;
             }
         }
+        stats.skipping_violations += std::mem::take(&mut costs.violations);
         tree.normalize_leaves();
         tree
     }
@@ -138,9 +233,10 @@ impl ConTreeDepth2 {
         config: &SearchConfig,
         entry: &mut Entry,
         // Splits scoring at or above this bound are of no use to the caller.
-        upper_bound: usize,
+        upper_bound: Cost,
         tree: &mut Tree,
         stats: &mut Statistics,
+        costs: &mut Depth2Loss<'_>,
     ) {
         let feature_column = view.get_sorted_feature(feature);
         let feature_column_ids = view.get_feature_indices(feature);
@@ -160,8 +256,12 @@ impl ConTreeDepth2 {
             return;
         }
 
-        let mut pruner =
-            IntervalsPruner::new(possible_split_indices, config.max_gap, config.min_sup);
+        let mut pruner = IntervalsPruner::new(
+            possible_split_indices,
+            config.max_gap,
+            config.min_sup,
+            costs.skipping,
+        );
 
         let mut queue = VecDeque::new();
         let init_bound = Bound::new(feasible.start, feasible.end - 1, None, None);
@@ -206,6 +306,7 @@ impl ConTreeDepth2 {
                 &mut right_tree,
                 entry.error,
                 config.min_sup,
+                costs,
             );
             stats.specialized_solver_call += 1;
             let current_best_error = left_tree.root_error() + right_tree.root_error();
@@ -226,7 +327,7 @@ impl ConTreeDepth2 {
 
                 tree.update_subtree(right, &right_tree, right_tree.get_root_index());
 
-                if current_best_error == 0 {
+                if current_best_error == 0.0 {
                     return;
                 }
             }
@@ -240,8 +341,9 @@ impl ConTreeDepth2 {
                 continue;
             }
 
-            let score_difference = (left_tree.root_error() + right_tree.root_error())
-                .saturating_sub(entry.error.min(upper_bound));
+            let score_difference = (left_tree.root_error() + right_tree.root_error()
+                - entry.error.min(upper_bound))
+            .max(0.0);
             let (left_bound, right_bound) = pruner.neighbourhood_pruning(
                 score_difference,
                 current_bound.left_bound,
@@ -276,8 +378,9 @@ impl ConTreeDepth2 {
         threshold_value: f64,
         left_tree: &mut Tree,
         right_tree: &mut Tree,
-        best_error: usize,
+        best_error: Cost,
         min_sup: usize,
+        costs: &mut Depth2Loss<'_>,
     ) {
         let split_feature = view.get_sorted_feature(feature);
         let feature_column_ids = view.get_feature_indices(feature);
@@ -299,7 +402,6 @@ impl ConTreeDepth2 {
 
         let dataset_size = view.get_dataset_size();
         let class_number = view.get_num_labels();
-
         debug_assert!(
             split_point > 0 && split_point < dataset_size,
             "left and right subtree need to be non-empty"
@@ -333,6 +435,15 @@ impl ConTreeDepth2 {
         right_leaves.classification_score = right_leaves
             .classification_score
             .max(right_leaves.max_label_frequency);
+        for leaves in [&mut left_leaves, &mut right_leaves] {
+            if costs.is_custom() {
+                (leaves.leaf_cost, leaves.leaf_label) = costs.leaf(&leaves.label_frequency);
+                leaves.best_cost = leaves.leaf_cost;
+            } else {
+                leaves.leaf_cost = classification_error(&leaves.label_frequency).0;
+                leaves.leaf_label = leaves.max_label;
+            }
+        }
 
         for current_feature_index in 0..view.get_feature_number() {
             if current_feature_index == feature {
@@ -346,6 +457,7 @@ impl ConTreeDepth2 {
                     &mut right_leaves,
                     &split_feature_split_indices,
                     &mut upper_bound,
+                    costs,
                 );
             } else {
                 self.process_depth_one_feature::<false>(
@@ -358,19 +470,25 @@ impl ConTreeDepth2 {
                     &mut right_leaves,
                     &split_feature_split_indices,
                     &mut upper_bound,
+                    costs,
                 );
             }
-            if left_leaves.classification_score + right_leaves.classification_score == dataset_size
-            {
+            let perfect = if costs.is_custom() {
+                left_leaves.best_cost == 0.0 && right_leaves.best_cost == 0.0
+            } else {
+                left_leaves.classification_score >= left_leaves.size
+                    && right_leaves.classification_score >= right_leaves.size
+            };
+            if perfect {
                 break;
             }
         }
 
-        if left_leaves.classification_score == left_leaves.max_label_frequency {
+        if left_leaves.best_left_label.is_none() {
             left_tree.update_root().map(|updater| {
                 updater
-                    .label(left_leaves.max_label)
-                    .error(left_leaves.size - left_leaves.classification_score)
+                    .label(left_leaves.leaf_label)
+                    .error(left_leaves.leaf_cost)
                     .leaf()
             });
         } else {
@@ -378,7 +496,7 @@ impl ConTreeDepth2 {
                 updater
                     .feature(left_leaves.best_feature_index)
                     .split(left_leaves.best_threshold)
-                    .error(left_leaves.size - left_leaves.classification_score)
+                    .error(left_leaves.best_left_error + left_leaves.best_right_error)
             });
 
             let (ll, lr) = left_tree.node_children(left_tree.get_root_index());
@@ -397,16 +515,12 @@ impl ConTreeDepth2 {
                     .leaf()
             });
         }
-        debug_assert!(
-            left_leaves.classification_score <= left_leaves.size,
-            "LR - Left tree error should be non-negative"
-        );
 
-        if right_leaves.classification_score == right_leaves.max_label_frequency {
+        if right_leaves.best_left_label.is_none() {
             right_tree.update_root().map(|updater| {
                 updater
-                    .label(right_leaves.max_label)
-                    .error(right_leaves.size - right_leaves.classification_score)
+                    .label(right_leaves.leaf_label)
+                    .error(right_leaves.leaf_cost)
                     .leaf()
             });
         } else {
@@ -414,7 +528,7 @@ impl ConTreeDepth2 {
                 updater
                     .feature(right_leaves.best_feature_index)
                     .split(right_leaves.best_threshold)
-                    .error(right_leaves.size - right_leaves.classification_score)
+                    .error(right_leaves.best_left_error + right_leaves.best_right_error)
             });
 
             let (ll, lr) = right_tree.node_children(right_tree.get_root_index());
@@ -433,10 +547,6 @@ impl ConTreeDepth2 {
                     .leaf()
             });
         }
-        debug_assert!(
-            right_leaves.classification_score <= right_leaves.size,
-            "LR - Right tree error should be non-negative"
-        );
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -450,12 +560,13 @@ impl ConTreeDepth2 {
         left_tree: &mut SubtreeLeafScores,
         right_tree: &mut SubtreeLeafScores,
         split_feature_split_indices: &[usize],
-        upper_bound: &mut usize,
+        upper_bound: &mut Cost,
+        costs: &mut Depth2Loss<'_>,
     ) {
         let current_feature = view.get_sorted_feature(current_feature_index);
         let feature_column_ids = view.get_feature_indices(current_feature_index);
         let class_number = view.get_num_labels();
-        let dataset_size = view.get_dataset_size();
+        let total_size = left_tree.size + right_tree.size;
 
         left_tree.reset_label_frequency();
         right_tree.reset_label_frequency();
@@ -473,6 +584,7 @@ impl ConTreeDepth2 {
                         left_tree,
                         class_number,
                         current_feature_index,
+                        costs,
                     );
                 } else {
                     Self::process_single_point(
@@ -480,6 +592,7 @@ impl ConTreeDepth2 {
                         right_tree,
                         class_number,
                         current_feature_index,
+                        costs,
                     );
                 }
                 index += 1;
@@ -492,6 +605,7 @@ impl ConTreeDepth2 {
                         left_tree,
                         class_number,
                         current_feature_index,
+                        costs,
                     );
                 } else {
                     Self::process_single_point(
@@ -499,21 +613,22 @@ impl ConTreeDepth2 {
                         right_tree,
                         class_number,
                         current_feature_index,
+                        costs,
                     );
                 }
             }
 
-            *upper_bound = (*upper_bound).min(
-                dataset_size - (left_tree.classification_score + right_tree.classification_score),
-            );
+            if !costs.is_custom() {
+                *upper_bound = (*upper_bound).min(total_size.saturating_sub(
+                    left_tree.classification_score + right_tree.classification_score,
+                ) as Cost);
+            }
 
             if left_tree.is_zero && right_tree.is_zero {
                 break;
             }
 
-            if left_tree.can_skip >= (left_tree.size - left_tree.current_element_count)
-                && right_tree.can_skip >= (right_tree.size - right_tree.current_element_count)
-            {
+            if left_tree.cannot_improve() && right_tree.cannot_improve() {
                 break;
             }
         }
@@ -526,90 +641,163 @@ impl ConTreeDepth2 {
         tree: &mut SubtreeLeafScores,
         class_number: usize,
         current_feature_index: usize,
+        costs: &mut Depth2Loss<'_>,
     ) {
+        if costs.is_custom() {
+            Self::process_single_point_custom(
+                current_feature_data,
+                tree,
+                current_feature_index,
+                costs,
+            );
+            return;
+        }
         if tree.is_zero {
             return;
         }
 
-        tree.can_skip = tree.can_skip.saturating_sub(1);
+        // The instance scanned last is now left of this threshold.
+        tree.can_skip = (tree.can_skip - 1.0).max(0.0);
 
         // No threshold between equal values, or inside a skipped stretch.
         if Some(current_feature_data.unique_value_id()) == tree.previous_unique_value_index
-            || tree.can_skip > 0
+            || tree.can_skip > 0.0
         {
-            tree.current_element_count += 1;
-            tree.current_label_frequency[current_feature_data.label() as usize] += 1;
-            tree.previous_value = current_feature_data.value();
-            tree.previous_unique_value_index = Some(current_feature_data.unique_value_id());
+            tree.move_left(current_feature_data);
             return;
         }
 
-        let mut left_classification_score = -1i32;
-        let mut right_classification_score = -1i32;
-        let mut left_label = 0;
-        let mut right_label = 0;
+        let mut left_classification_score = 0;
+        let mut right_classification_score = 0;
+        let mut left_label = None;
+        let mut right_label = None;
 
         for label_value in 0..class_number {
-            let current_freq = tree.current_label_frequency[label_value] as i32;
-            if current_freq > left_classification_score {
+            let current_freq = tree.current_label_frequency[label_value];
+            if left_label.is_none() || current_freq > left_classification_score {
                 left_classification_score = current_freq;
-                left_label = label_value;
+                left_label = Some(label_value);
             }
 
-            let remaining = (tree.label_frequency[label_value]
-                - tree.current_label_frequency[label_value]) as i32;
-            if remaining > right_classification_score {
+            let remaining =
+                tree.label_frequency[label_value] - tree.current_label_frequency[label_value];
+            if right_label.is_none() || remaining > right_classification_score {
                 right_classification_score = remaining;
-                right_label = label_value;
+                right_label = Some(label_value);
             }
         }
+        let left_label = left_label.unwrap_or(0);
+        let right_label = right_label.unwrap_or(0);
 
         let total_score = left_classification_score + right_classification_score;
 
         let left_size = tree.current_element_count;
-        let right_size = tree.size - tree.current_element_count;
+        let right_size = tree.remaining();
         let has_support = left_size >= tree.min_sup && right_size >= tree.min_sup;
 
-        if has_support && total_score > 0 && total_score as usize > tree.classification_score {
-            debug_assert!(tree.classification_score <= tree.size);
-            tree.classification_score = total_score as usize;
+        if has_support && total_score > 0 && total_score > tree.classification_score {
+            tree.classification_score = total_score;
             tree.best_feature_index = current_feature_index;
             tree.best_threshold =
                 threshold_between(tree.previous_value, current_feature_data.value());
 
             tree.best_left_label = Some(left_label);
             tree.best_right_label = Some(right_label);
-            tree.best_left_error =
-                (tree.current_element_count as i32 - left_classification_score) as usize;
-            tree.best_right_error = ((tree.size - tree.current_element_count) as i32
-                - right_classification_score) as usize;
-        } else {
-            tree.can_skip = tree
-                .classification_score
-                .saturating_sub(total_score as usize);
+            tree.best_left_error = tree.other_classes(left_label, true);
+            tree.best_right_error = tree.other_classes(right_label, false);
+        } else if costs.skipping {
+            tree.can_skip = tree.classification_score.saturating_sub(total_score) as Cost;
         }
 
-        // A pure right side only loses score as the threshold moves right, so
-        // no later threshold beats this one. That ends the scan only if this
-        // one could be chosen: while the left side is below the minimum
-        // support, a later threshold that meets it can still beat the best.
-        let remaining_size = tree.size - tree.current_element_count;
-        let right_is_pure = right_classification_score == remaining_size as i32;
-        tree.is_zero |=
-            (right_is_pure && left_size >= tree.min_sup) || (tree.can_skip >= remaining_size);
+        if costs.skipping {
+            // A pure right side only loses score as the threshold moves right,
+            // so no later threshold beats this one. That ends the scan only if
+            // this one could be chosen: while the left side is below the
+            // minimum support, a later threshold that meets it can still beat
+            // the best.
+            let right_is_pure = right_classification_score == right_size;
+            tree.is_zero |= (right_is_pure && left_size >= tree.min_sup) || tree.cannot_improve();
+        }
 
-        tree.current_element_count += 1;
-        tree.current_label_frequency[current_feature_data.label() as usize] += 1;
-        tree.previous_value = current_feature_data.value();
-        tree.previous_unique_value_index = Some(current_feature_data.unique_value_id());
+        tree.move_left(current_feature_data);
+    }
+
+    /// `process_single_point` for a custom loss, which compares costs.
+    ///
+    /// Skipping and the early stops hold under the assumption `Skipping`
+    /// states, so they apply only when skipping is on. Then each evaluated
+    /// threshold is also checked against that assumption: since the one
+    /// evaluated before it, the left leaf gained, and the right leaf lost,
+    /// between 0 and the number of instances moved across.
+    fn process_single_point_custom(
+        current_feature_data: &DataPoint,
+        tree: &mut SubtreeLeafScores,
+        current_feature_index: usize,
+        costs: &mut Depth2Loss<'_>,
+    ) {
+        if tree.is_zero {
+            return;
+        }
+        tree.can_skip = (tree.can_skip - 1.0).max(0.0);
+        if Some(current_feature_data.unique_value_id()) == tree.previous_unique_value_index
+            || tree.can_skip > 0.0
+        {
+            tree.move_left(current_feature_data);
+            return;
+        }
+
+        for label in 0..tree.label_frequency.len() {
+            tree.remaining_frequency[label] =
+                tree.label_frequency[label] - tree.current_label_frequency[label];
+        }
+        let (left_cost, left_label) = costs.leaf(&tree.current_label_frequency);
+        let (right_cost, right_label) = costs.leaf(&tree.remaining_frequency);
+
+        if costs.skipping {
+            if let Some((previous_left, previous_right, previous_count)) = tree.last_evaluated {
+                let moved = (tree.current_element_count - previous_count) as Cost;
+                let within = |change: Cost| (0.0..=moved).contains(&change);
+                if !(within(left_cost - previous_left) && within(previous_right - right_cost)) {
+                    costs.violations += 1;
+                }
+            }
+            tree.last_evaluated = Some((left_cost, right_cost, tree.current_element_count));
+        }
+
+        let total_cost = left_cost + right_cost;
+        let left_size = tree.current_element_count;
+        let right_size = tree.remaining();
+        let has_support = left_size >= tree.min_sup && right_size >= tree.min_sup;
+
+        if has_support && total_cost < tree.best_cost {
+            tree.best_cost = total_cost;
+            tree.best_feature_index = current_feature_index;
+            tree.best_threshold =
+                threshold_between(tree.previous_value, current_feature_data.value());
+            tree.best_left_label = Some(left_label);
+            tree.best_right_label = Some(right_label);
+            tree.best_left_error = left_cost;
+            tree.best_right_error = right_cost;
+        } else if costs.skipping {
+            tree.can_skip = (total_cost - tree.best_cost).max(0.0);
+        }
+
+        if costs.skipping {
+            tree.is_zero |=
+                (right_cost == 0.0 && left_size >= tree.min_sup) || tree.cannot_improve();
+        }
+
+        tree.move_left(current_feature_data);
     }
 }
 
 #[cfg(test)]
 mod d2_test {
-    use crate::algorithms::depth2::ConTreeDepth2;
+    use crate::algorithms::depth2::{ConTreeDepth2, Depth2Loss};
     use crate::caching::Entry;
-    use crate::common::{classification_error, PointSelector, SearchConfig, Statistics};
+    use crate::common::{
+        classification_error, Cost, Loss, PointSelector, SearchConfig, Statistics,
+    };
     use crate::data::view::DataView;
     use crate::reader::data_reader::DataReader;
     use crate::reader::DataReaderError;
@@ -636,8 +824,10 @@ mod d2_test {
             max_depth: 2,
             min_sup: 1,
             max_time: 10.0,
-            max_gap: 0,
-            max_error: usize::MAX,
+            max_gap: 0.0,
+            max_error: Cost::INFINITY,
+            cost_step: 1.0,
+            skipping: crate::common::Skipping::Auto,
             is_root: true,
             use_heuristic: true,
             fast_d2: true,
@@ -648,12 +838,15 @@ mod d2_test {
         };
 
         // No upper bound from a parent: this is the root.
+        let loss = Loss::default();
+        let mut invalid = None;
         let tree = d2.fit(
             &root_view,
             &config,
             &mut entry,
-            usize::MAX,
+            Cost::INFINITY,
             &mut Statistics::default(),
+            &mut Depth2Loss::new(&loss, true, &mut invalid),
         );
 
         assert!(

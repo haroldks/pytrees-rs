@@ -28,7 +28,7 @@ pub struct Res {
     pub heuristic: bool,
     pub fast_d2: bool,
     pub runtimes: Vec<f64>,
-    pub errors: Vec<usize>,
+    pub errors: Vec<f64>,
     pub cache_hits: Vec<usize>,
     pub cache_size: Vec<usize>,
     pub general_solver_calls: Vec<usize>,
@@ -148,7 +148,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut counter = 0;
     let checkpoint_interval = 10;
-    let mut last = usize::MAX;
+    let mut last = f64::INFINITY;
     while !is_done {
         is_done = solver.partial_fit(&view).expect("partial fit");
         let stat = solver.stats();

@@ -20,12 +20,12 @@ pub struct GeneralParser {
     pub depth: usize,
 
     /// Initial upper bound on the training error
-    #[arg(long, default_value_t = usize::MAX)]
-    pub max_error: usize,
+    #[arg(long, default_value_t = f64::INFINITY)]
+    pub max_error: f64,
 
     /// Error gap to the optimum that is tolerated (0 for an exact search)
-    #[arg(long, default_value_t = 0)]
-    pub max_gap: usize,
+    #[arg(long, default_value_t = 0.0)]
+    pub max_gap: f64,
 
     /// Time limit in seconds
     #[arg(short, long, default_value_t = 600.0)]

@@ -47,6 +47,7 @@ fn status_name(status: SearchStatus) -> &'static str {
         SearchStatus::TimeLimit => "time_limit",
         SearchStatus::BudgetExhausted => "budget_exhausted",
         SearchStatus::ErrorBoundReached => "error_bound_reached",
+        SearchStatus::NotProven => "not_proven",
     }
 }
 
@@ -56,8 +57,8 @@ struct Params {
     min_sup: usize,
     max_depth: usize,
     max_time: f64,
-    max_error: usize,
-    max_gap: usize,
+    max_error: f64,
+    max_gap: f64,
     point_selector: PointSelector,
     sort_by_heuristic: bool,
     fast_d2: bool,
@@ -128,7 +129,7 @@ impl RawConTree {
         max_depth = 3,
         max_time = 600.0,
         max_error = None,
-        max_gap = 0,
+        max_gap = 0.0,
         split_selection = "mid",
         sort_by_heuristic = false,
         fast_d2 = true,
@@ -141,8 +142,8 @@ impl RawConTree {
         min_sup: usize,
         max_depth: usize,
         max_time: f64,
-        max_error: Option<usize>,
-        max_gap: usize,
+        max_error: Option<f64>,
+        max_gap: f64,
         split_selection: &str,
         sort_by_heuristic: bool,
         fast_d2: bool,
@@ -155,7 +156,7 @@ impl RawConTree {
                 min_sup,
                 max_depth,
                 max_time,
-                max_error: max_error.unwrap_or(usize::MAX),
+                max_error: max_error.unwrap_or(f64::INFINITY),
                 max_gap,
                 point_selector: point_selector(split_selection)?,
                 sort_by_heuristic,
@@ -255,7 +256,7 @@ impl RawConTree {
         validate(solver.config(), &dataset).map_err(search_err)?;
 
         let view = DataView::root(&dataset, params.sort_by_heuristic);
-        let mut best = usize::MAX;
+        let mut best = f64::INFINITY;
         loop {
             let done = py.detach(|| solver.partial_fit(&view));
             let statistics = *solver.statistics();
@@ -355,7 +356,7 @@ impl RawConTree {
     }
 
     #[getter]
-    fn error(&self) -> PyResult<usize> {
+    fn error(&self) -> PyResult<f64> {
         Ok(self.fitted()?.statistics.error)
     }
 }

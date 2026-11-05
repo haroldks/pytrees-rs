@@ -1,3 +1,4 @@
+use crate::common::Cost;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -47,7 +48,7 @@ pub struct NodeInfos {
     /// The feature tested by an internal node; `None` for a leaf.
     pub feature: Option<usize>,
     /// Misclassifications of the subtree rooted here.
-    pub error: usize,
+    pub error: Cost,
     /// The threshold of an internal node: instances with
     /// `x[feature] <= split` go left.
     pub split: Option<f64>,
@@ -65,7 +66,7 @@ impl NodeInfos {
     pub fn new() -> NodeInfos {
         NodeInfos {
             feature: None,
-            error: usize::MAX,
+            error: Cost::INFINITY,
             split: None,
             label: None,
         }
@@ -242,16 +243,16 @@ impl Tree {
             .unwrap_or_default()
     }
 
-    pub fn root_error(&self) -> usize {
+    pub fn root_error(&self) -> Cost {
         self.get_node(self.get_root_index())
             .map(|node| node.value.error)
-            .unwrap_or(usize::MAX)
+            .unwrap_or(Cost::INFINITY)
     }
 
-    pub fn node_error(&self, index: usize) -> usize {
+    pub fn node_error(&self, index: usize) -> Cost {
         self.get_node(index)
             .map(|node| node.value.error)
-            .unwrap_or(usize::MAX)
+            .unwrap_or(Cost::INFINITY)
     }
 
     pub fn node_split(&self, index: usize) -> Option<f64> {
@@ -299,7 +300,7 @@ impl Tree {
     }
 
     /// Sets the `(error, label)` of the node at `index`.
-    pub fn update_leaf_node(&mut self, index: usize, error: (usize, usize)) -> &mut Self {
+    pub fn update_leaf_node(&mut self, index: usize, error: (Cost, usize)) -> &mut Self {
         if let Some(updater) = self.update_node(index) {
             updater.error(error.0).label(error.1);
         }
@@ -652,7 +653,7 @@ impl<'a> NodeUpdater<'a> {
         self
     }
 
-    pub fn error(self, error: usize) -> Self {
+    pub fn error(self, error: Cost) -> Self {
         self.node.value.error = error;
         self
     }

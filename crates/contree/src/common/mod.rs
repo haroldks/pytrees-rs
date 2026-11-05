@@ -1,8 +1,9 @@
 mod budget_schedule;
-
+mod loss;
 mod outcome;
 
 pub use budget_schedule::{Budget, BudgetSchedule, PassReport, ScheduleBounds, ScheduleKind};
+pub use loss::{Leaf, LeafLoss, Loss, LossInput, Skipping};
 pub use outcome::{FitOutcome, SearchError, SearchStatus};
 
 use serde::{Deserialize, Serialize};
@@ -60,6 +61,10 @@ impl FromStr for PointSelector {
     }
 }
 
+/// The cost of a tree: the sum of the costs of its leaves. For the built-in
+/// loss, the number of misclassified instances.
+pub type Cost = f64;
+
 /// Settings of a search, and the per-node state derived from them.
 #[derive(Copy, Clone, Debug)]
 pub struct SearchConfig {
@@ -70,9 +75,16 @@ pub struct SearchConfig {
     /// Time limit in seconds.
     pub max_time: f64,
     /// Error gap tolerated with respect to the optimum; 0 for an exact search.
-    pub max_gap: usize,
+    pub max_gap: Cost,
     /// Initial upper bound on the error.
-    pub max_error: usize,
+    pub max_error: Cost,
+    /// The smallest difference between two different costs: 1 for
+    /// misclassification, whose costs are whole numbers, 0 for a custom loss.
+    /// A search that finds no tree within a bound `ub` then proves the cost
+    /// is at least `ub + cost_step`.
+    pub cost_step: Cost,
+    /// Whether thresholds are skipped; see [`Skipping`].
+    pub skipping: Skipping,
     /// Whether this configuration is the root's.
     pub is_root: bool,
     /// Order features and thresholds by Gini impurity.
@@ -96,8 +108,8 @@ impl SearchConfig {
         min_sup: usize,
         max_depth: usize,
         max_time: f64,
-        max_gap: usize,
-        max_error: usize,
+        max_gap: Cost,
+        max_error: Cost,
         use_heuristic: bool,
         fast_d2: bool,
         split_strategy: PointSelector,
@@ -108,6 +120,8 @@ impl SearchConfig {
             max_time,
             max_gap,
             max_error,
+            cost_step: 1.0,
+            skipping: Skipping::Auto,
             is_root: true,
             use_heuristic,
             fast_d2,
@@ -118,23 +132,34 @@ impl SearchConfig {
         }
     }
 
+    /// The cost step for a loss: misclassification costs are counts of
+    /// instances, so whole numbers. A custom loss's costs may be any number,
+    /// so there is no smallest difference between two of them.
+    pub fn cost_step_for(loss: &Loss) -> Cost {
+        if loss.is_misclassification() {
+            1.0
+        } else {
+            0.0
+        }
+    }
+
     /// The configuration of the first child searched: one level shallower,
     /// with part of the gap.
     pub fn derive_left(&self) -> Self {
         let mut left_config = *self;
         left_config.max_depth -= 1;
         left_config.is_root = false;
-        left_config.max_gap = (self.max_gap - self.max_gap.div_ceil(2)) / 2;
+        left_config.max_gap = ((self.max_gap - (self.max_gap / 2.0).ceil()) / 2.0).floor();
         left_config
     }
 
     /// The configuration of the second child searched, given the gap already
     /// handed to the first.
-    pub fn derive_right(&self, left_gap: usize) -> Self {
+    pub fn derive_right(&self, left_gap: Cost) -> Self {
         let mut right_config = *self;
         right_config.max_depth -= 1;
         right_config.is_root = false;
-        right_config.max_gap = (self.max_gap - self.max_gap.div_ceil(2)).saturating_sub(left_gap);
+        right_config.max_gap = (self.max_gap - (self.max_gap / 2.0).ceil() - left_gap).max(0.0);
         right_config
     }
 }
@@ -154,25 +179,28 @@ pub struct Statistics {
     pub num_samples: usize,
     /// Number of features.
     pub num_features: usize,
-    /// Training misclassifications of the best tree.
-    pub error: usize,
+    /// Training cost of the best tree.
+    pub error: Cost,
+    /// Moves of instances in the depth-2 scan that broke the assumption
+    /// threshold skipping makes about the loss. Only counted when skipping
+    /// is forced on for a custom loss; see [`Skipping`].
+    pub skipping_violations: usize,
     /// Search time in seconds.
     pub duration: f64,
 }
 
 /// `(misclassifications, majority class)` of a leaf with the given class
 /// counts. Ties go to the highest class index.
-pub fn classification_error(classes_support: &[usize]) -> (usize, usize) {
+pub fn classification_error(classes_support: &[usize]) -> (Cost, usize) {
     let mut max_idx = 0;
     let mut max_value = 0;
     let mut total = 0;
-    for (idx, value) in classes_support.iter().enumerate() {
+    for (idx, &value) in classes_support.iter().enumerate() {
         total += value;
-        if *value >= max_value {
-            max_value = *value;
+        if value >= max_value {
+            max_value = value;
             max_idx = idx;
         }
     }
-    let error = total - max_value;
-    (error, max_idx)
+    ((total - max_value) as Cost, max_idx)
 }

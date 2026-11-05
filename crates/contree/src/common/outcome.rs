@@ -3,12 +3,12 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-use crate::common::Statistics;
+use crate::common::{Cost, Statistics};
 use crate::data::DatasetError;
 use crate::tree::{Tree, TreeError};
 
-/// A fit that could not start.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// A fit that could not start, or whose loss failed.
+#[derive(Clone, Debug, PartialEq)]
 pub enum SearchError {
     /// The dataset has no instances.
     EmptyDataset,
@@ -29,6 +29,8 @@ pub enum SearchError {
     /// The search produced a tree that does not hold the tree invariant. This
     /// is a bug in the crate, not in the caller's input.
     Tree(TreeError),
+    /// A custom loss returned a negative or NaN cost: the first one seen.
+    InvalidLeafCost { cost: Cost },
 }
 
 impl fmt::Display for SearchError {
@@ -46,6 +48,10 @@ impl fmt::Display for SearchError {
             }
             SearchError::Data(err) => write!(f, "{err}"),
             SearchError::Tree(err) => write!(f, "the search produced an invalid tree: {err}"),
+            SearchError::InvalidLeafCost { cost } => write!(
+                f,
+                "the loss returned the leaf cost {cost}; costs must be non-negative numbers"
+            ),
         }
     }
 }
@@ -80,6 +86,9 @@ pub enum SearchStatus {
     /// A tree within `max_gap` of the caller's error bound was found, and the
     /// search stopped there rather than proving optimality.
     ErrorBoundReached,
+    /// The search finished, but with threshold skipping forced on for a loss
+    /// that broke its assumption, so the tree may not be optimal.
+    NotProven,
 }
 
 impl SearchStatus {
@@ -96,6 +105,7 @@ impl fmt::Display for SearchStatus {
             SearchStatus::TimeLimit => "time limit",
             SearchStatus::BudgetExhausted => "budget exhausted",
             SearchStatus::ErrorBoundReached => "error bound reached",
+            SearchStatus::NotProven => "not proven",
         })
     }
 }
@@ -113,7 +123,7 @@ pub struct FitOutcome {
 
 impl FitOutcome {
     /// Training-set misclassifications of the returned tree.
-    pub fn error(&self) -> usize {
+    pub fn error(&self) -> Cost {
         self.statistics.error
     }
 }

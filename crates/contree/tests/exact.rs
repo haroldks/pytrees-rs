@@ -6,82 +6,78 @@
 //! enumerates every tree of the given depth on small random instances, with
 //! no pruning and no cache, and compares it with every search configuration.
 
+mod common;
+
 use std::path::PathBuf;
 
 use contree::algorithms::{ConTree, ConTreeLds};
-use contree::common::{PointSelector, ScheduleKind};
+use contree::common::{
+    Cost, FitOutcome, Leaf, LeafLoss, Loss, LossInput, PointSelector, ScheduleKind, SearchError,
+    SearchStatus, Skipping,
+};
 use contree::data::Dataset;
 use contree::reader::data_reader::DataReader;
 
-/// A small deterministic generator. Seeded explicitly so a failure is
-/// reproducible from the reported case number alone.
-struct Lcg(u64);
+use common::{deep_check, instance_from, misclassified, Instance, Lcg, Node};
 
-impl Lcg {
-    fn next_u64(&mut self) -> u64 {
-        self.0 = self
-            .0
-            .wrapping_mul(6364136223846793005)
-            .wrapping_add(1442695040888963407);
-        self.0 >> 11
-    }
-
-    fn below(&mut self, n: usize) -> usize {
-        (self.next_u64() % n as u64) as usize
-    }
-}
-
-struct Instance {
-    /// Row-major values.
-    values: Vec<f64>,
-    labels: Vec<usize>,
-    n_rows: usize,
-    n_features: usize,
-    n_labels: usize,
-}
-
-impl Instance {
-    fn random(rng: &mut Lcg, n_rows: usize, n_features: usize, n_labels: usize) -> Self {
-        // Few distinct values per column on purpose: ties are where a split
-        // enumeration and a search are most likely to disagree.
-        let values = (0..n_rows * n_features)
-            .map(|_| rng.below(6) as f64)
-            .collect();
-        let labels = (0..n_rows).map(|_| rng.below(n_labels)).collect();
-        Self {
-            values,
-            labels,
-            n_rows,
-            n_features,
-            n_labels,
-        }
-    }
-
-    fn dataset(&self) -> Dataset {
-        Dataset::from_rows(&self.values, &self.labels, self.n_features).expect("valid instance")
-    }
-
-    fn value(&self, row: usize, feature: usize) -> f64 {
-        self.values[row * self.n_features + feature]
-    }
-}
-
-/// Misclassifications of the best single leaf over `rows`.
-fn leaf_error(instance: &Instance, rows: &[usize]) -> usize {
-    let mut counts = vec![0usize; instance.n_labels];
+/// The class counts of `rows`.
+fn class_counts(instance: &Instance, rows: &[usize]) -> Vec<usize> {
+    let mut counts = vec![0; instance.n_labels];
     for &row in rows {
         counts[instance.labels[row]] += 1;
     }
-    rows.len() - counts.iter().copied().max().unwrap_or(0)
+    counts
+}
+
+/// Instances misclassified by the best single leaf over `rows`.
+fn leaf_error(instance: &Instance, rows: &[usize]) -> f64 {
+    misclassification(&class_counts(instance, rows)).0
+}
+
+/// Instances of the minority classes, and the majority class (ties to the
+/// highest index, like the built-in loss).
+fn misclassification(counts: &[usize]) -> (f64, usize) {
+    let mut label = 0;
+    for (index, &count) in counts.iter().enumerate() {
+        if count >= counts[label] {
+            label = index;
+        }
+    }
+    let error: usize = (0..counts.len())
+        .filter(|&l| l != label)
+        .map(|l| counts[l])
+        .sum();
+    (error as f64, label)
+}
+
+/// A loss that breaks the skipping assumption: moving an instance into a
+/// leaf can raise its cost by more than 1.
+fn squared_misclassification(counts: &[usize]) -> (f64, usize) {
+    let (error, label) = misclassification(counts);
+    (error * error, label)
 }
 
 /// The optimum over every tree of at most `depth` levels, by enumeration.
 ///
 /// Candidate thresholds are the midpoints between consecutive distinct values
 /// of a column, which is the same candidate set the search uses.
-fn brute_force(instance: &Instance, rows: &[usize], depth: usize, min_sup: usize) -> usize {
-    let best_leaf = leaf_error(instance, rows);
-    if depth == 0 || best_leaf == 0 || rows.len() < 2 * min_sup {
+fn brute_force(instance: &Instance, rows: &[usize], depth: usize, min_sup: usize) -> f64 {
+    brute_force_with(instance, rows, depth, min_sup, &|rows| {
+        leaf_error(instance, rows)
+    })
+}
+
+/// `brute_force` for any leaf cost. Stopping at a zero cost holds for any
+/// non-negative cost.
+fn brute_force_with(
+    instance: &Instance,
+    rows: &[usize],
+    depth: usize,
+    min_sup: usize,
+    leaf: &dyn Fn(&[usize]) -> f64,
+) -> f64 {
+    let best_leaf = leaf(rows);
+    if depth == 0 || best_leaf == 0.0 || rows.len() < 2 * min_sup {
         return best_leaf;
     }
 
@@ -100,29 +96,34 @@ fn brute_force(instance: &Instance, rows: &[usize], depth: usize, min_sup: usize
             if left.len() < min_sup || right.len() < min_sup {
                 continue;
             }
-            let error = brute_force(instance, &left, depth - 1, min_sup)
-                + brute_force(instance, &right, depth - 1, min_sup);
+            let error = brute_force_with(instance, &left, depth - 1, min_sup, leaf)
+                + brute_force_with(instance, &right, depth - 1, min_sup, leaf);
             best = best.min(error);
-            if best == 0 {
-                return 0;
+            if best == 0.0 {
+                return 0.0;
             }
         }
     }
     best
 }
 
-fn search(dataset: &Dataset, depth: usize, min_sup: usize, fast_d2: bool) -> usize {
+fn search(dataset: &Dataset, depth: usize, min_sup: usize, fast_d2: bool) -> f64 {
+    fit_mid(dataset, depth, min_sup, fast_d2).error()
+}
+
+/// The plain search: `mid` selector, no Gini ordering.
+fn fit_mid(dataset: &Dataset, depth: usize, min_sup: usize, fast_d2: bool) -> FitOutcome {
     let mut solver = ConTree::new(
         min_sup,
         depth,
         60.0,
-        usize::MAX,
+        f64::INFINITY,
         PointSelector::Mid,
-        0,
+        0.0,
         false,
         fast_d2,
     );
-    solver.fit(dataset).expect("fit").error()
+    solver.fit(dataset).expect("fit")
 }
 
 /// Every other configuration that has to reach the same optimum: the
@@ -134,32 +135,72 @@ fn other_searches(
     depth: usize,
     min_sup: usize,
     fast_d2: bool,
-) -> Vec<(String, usize)> {
+) -> Vec<(String, FitOutcome)> {
     let mut out = Vec::new();
     let mut first = ConTree::new(
         min_sup,
         depth,
         60.0,
-        usize::MAX,
+        f64::INFINITY,
         PointSelector::First,
-        0,
+        0.0,
         true,
         fast_d2,
     );
     out.push((
         "ConTree first".to_string(),
-        first.fit(dataset).expect("fit").error(),
+        first.fit(dataset).expect("fit"),
     ));
     for schedule in ScheduleKind::ALL {
         for selector in [PointSelector::Mid, PointSelector::First] {
-            let mut lds =
-                ConTreeLds::new(min_sup, depth, 60.0, usize::MAX, selector, 0, true, fast_d2)
-                    .with_schedule(schedule);
+            let mut lds = ConTreeLds::new(
+                min_sup,
+                depth,
+                60.0,
+                f64::INFINITY,
+                selector,
+                0.0,
+                true,
+                fast_d2,
+            )
+            .with_schedule(schedule);
             let label = format!("LDS {selector} {schedule}");
-            out.push((label, lds.fit(dataset).expect("fit").error()));
+            out.push((label, lds.fit(dataset).expect("fit")));
         }
     }
     out
+}
+
+/// Why `outcome` is not the optimum `expected`, if it is not. Its tree is
+/// checked too (see `deep_check`): its cost, recomputed from the rows, must
+/// also be the optimum. `cost(rows, label)` is the cost of a leaf.
+fn not_optimal(
+    instance: &Instance,
+    depth: usize,
+    min_sup: usize,
+    outcome: &FitOutcome,
+    expected: f64,
+    cost: &dyn Fn(&[usize], usize) -> f64,
+) -> Option<String> {
+    // The search and the enumeration add the same leaf costs in different
+    // orders, so they agree up to rounding.
+    let tolerance = 1e-9 * (1.0 + expected.abs());
+    if (outcome.error() - expected).abs() > tolerance {
+        return Some(format!(
+            "says {}, the optimum is {expected}",
+            outcome.error()
+        ));
+    }
+    let Some(tree) = Node::from_tree(&outcome.tree) else {
+        return Some("returned no tree".to_string());
+    };
+    match deep_check(&tree, instance, depth, min_sup, cost) {
+        Err(why) => Some(format!("its tree: {why}")),
+        Ok(rescored) if (rescored - expected).abs() > tolerance => Some(format!(
+            "its tree costs {rescored} on the rows, the optimum is {expected}"
+        )),
+        Ok(_) => None,
+    }
 }
 
 #[test]
@@ -181,23 +222,22 @@ fn the_search_finds_the_optimum() {
                     continue;
                 }
                 let expected = brute_force(&instance, &rows, depth, min_sup);
+                let cost = |rows: &[usize], label| misclassified(&instance, rows, label);
                 for fast_d2 in [false, true] {
-                    let got = search(&dataset, depth, min_sup, fast_d2);
-                    for (label, other) in other_searches(&dataset, depth, min_sup, fast_d2) {
-                        if other != expected {
+                    let mut results = other_searches(&dataset, depth, min_sup, fast_d2);
+                    results.push((
+                        "ConTree mid".to_string(),
+                        fit_mid(&dataset, depth, min_sup, fast_d2),
+                    ));
+                    for (label, outcome) in results {
+                        if let Some(why) =
+                            not_optimal(&instance, depth, min_sup, &outcome, expected, &cost)
+                        {
                             wrong.push(format!(
                                 "case {case}: n={n_rows} d={n_features} k={n_labels} depth={depth} \
-                                 min_sup={min_sup} fast_d2={fast_d2} {label}: says {other}, the \
-                                 optimum is {expected}"
+                                 min_sup={min_sup} fast_d2={fast_d2} {label}: {why}"
                             ));
                         }
-                    }
-                    if got != expected {
-                        wrong.push(format!(
-                            "case {case}: n={n_rows} d={n_features} k={n_labels} depth={depth} \
-                             min_sup={min_sup} fast_d2={fast_d2}: search says {got}, the optimum \
-                             is {expected}"
-                        ));
                     }
                 }
             }
@@ -232,7 +272,7 @@ fn a_pure_side_below_the_minimum_support_does_not_stop_the_scan() {
     };
     let rows: Vec<usize> = (0..instance.n_rows).collect();
     let expected = brute_force(&instance, &rows, 2, 3);
-    assert_eq!(expected, 4);
+    assert_eq!(expected, 4.0);
     for fast_d2 in [false, true] {
         assert_eq!(
             search(&instance.dataset(), 2, 3, fast_d2),
@@ -242,80 +282,293 @@ fn a_pure_side_below_the_minimum_support_does_not_stop_the_scan() {
     }
 }
 
-/// The returned tree misclassifies exactly the error the search reports.
-///
-/// A subproblem whose cached cost is 0 used to be marked a leaf when the
-/// search reached it again, even when that 0 came from a split; the solution
-/// tree then lost the split and did worse than reported.
-#[test]
-fn the_returned_tree_makes_the_reported_error() {
-    let mut rng = Lcg(0x5eed);
+/// A loss written by a caller, as a closure.
+struct FnLoss<F>(F);
+
+impl<F: Fn(Leaf<'_>) -> (Cost, usize) + Send + Sync> LeafLoss for FnLoss<F> {
+    fn cost(&self, leaf: Leaf<'_>) -> (Cost, usize) {
+        (self.0)(leaf)
+    }
+}
+
+/// A loss on class counts.
+fn counts_loss(function: fn(&[usize]) -> (f64, usize)) -> Loss {
+    Loss::custom(
+        Box::new(FnLoss(move |leaf: Leaf<'_>| match leaf {
+            Leaf::ClassCounts(counts) => function(counts),
+            Leaf::Indices(_) => unreachable!("asked for class counts"),
+        })),
+        LossInput::ClassCounts,
+    )
+}
+
+/// The same loss on instance ids, recomputing the class counts itself.
+fn indices_loss(instance: &Instance, function: fn(&[usize]) -> (f64, usize)) -> Loss {
+    let labels = instance.labels.clone();
+    let n_labels = instance.n_labels;
+    Loss::custom(
+        Box::new(FnLoss(move |leaf: Leaf<'_>| match leaf {
+            Leaf::Indices(rows) => {
+                let mut counts = vec![0; n_labels];
+                for &row in rows {
+                    counts[labels[row]] += 1;
+                }
+                function(&counts)
+            }
+            Leaf::ClassCounts(_) => unreachable!("asked for indices"),
+        })),
+        LossInput::Indices,
+    )
+}
+
+/// Every search configuration, each with a fresh loss and the given
+/// skipping setting.
+fn all_searches(
+    dataset: &Dataset,
+    depth: usize,
+    min_sup: usize,
+    fast_d2: bool,
+    loss: &dyn Fn() -> Loss,
+    skipping: Skipping,
+) -> Vec<(String, Result<FitOutcome, SearchError>)> {
+    let mut out = Vec::new();
+    for selector in [PointSelector::Mid, PointSelector::First] {
+        let mut solver = ConTree::new(
+            min_sup,
+            depth,
+            60.0,
+            f64::INFINITY,
+            selector,
+            0.0,
+            true,
+            fast_d2,
+        )
+        .with_loss(loss())
+        .with_skipping(skipping);
+        out.push((format!("ConTree {selector}"), solver.fit(dataset)));
+    }
+    for schedule in ScheduleKind::ALL {
+        for selector in [PointSelector::Mid, PointSelector::First] {
+            let mut lds = ConTreeLds::new(
+                min_sup,
+                depth,
+                60.0,
+                f64::INFINITY,
+                selector,
+                0.0,
+                true,
+                fast_d2,
+            )
+            .with_schedule(schedule)
+            .with_loss(loss())
+            .with_skipping(skipping);
+            out.push((format!("LDS {selector} {schedule}"), lds.fit(dataset)));
+        }
+    }
+    out
+}
+
+/// Checks one search result: `(instance, depth, min_sup, outcome)`, and why
+/// it is wrong, if it is.
+type Check<'a> =
+    dyn Fn(&Instance, usize, usize, &Result<FitOutcome, SearchError>) -> Option<String> + 'a;
+
+/// Runs every search configuration on random instances, checks each result
+/// with `check`, and returns the failures.
+fn on_random_instances(
+    seed: u64,
+    cases: usize,
+    loss: &dyn Fn(&Instance) -> Box<dyn Fn() -> Loss>,
+    skipping: Skipping,
+    check: &Check<'_>,
+) -> Vec<String> {
+    let mut rng = Lcg(seed);
     let mut wrong = Vec::new();
-    for case in 0..60 {
-        let n_rows = 12 + rng.below(13);
-        let n_features = 2 + rng.below(3);
+    for case in 0..cases {
+        let n_rows = 12 + rng.below(9);
+        let n_features = 2 + rng.below(2);
         let n_labels = 2 + rng.below(2);
         let instance = Instance::random(&mut rng, n_rows, n_features, n_labels);
         let dataset = instance.dataset();
+        let make_loss = loss(&instance);
         for depth in 1..=3 {
             for min_sup in [1, 2] {
                 for fast_d2 in [false, true] {
-                    for selector in [PointSelector::Mid, PointSelector::First] {
-                        let fits = [
-                            ConTree::new(
-                                min_sup,
-                                depth,
-                                60.0,
-                                usize::MAX,
-                                selector,
-                                0,
-                                true,
-                                fast_d2,
-                            )
-                            .fit(&dataset),
-                            ConTreeLds::new(
-                                min_sup,
-                                depth,
-                                60.0,
-                                usize::MAX,
-                                selector,
-                                0,
-                                true,
-                                fast_d2,
-                            )
-                            .fit(&dataset),
-                        ];
-                        for (solver, fit) in ["ConTree", "LDS"].iter().zip(fits) {
-                            let outcome = fit.expect("fit");
-                            let predicted = outcome
-                                .tree
-                                .predict(&instance.values, n_features)
-                                .expect("predict");
-                            let misclassified = predicted
-                                .iter()
-                                .zip(&instance.labels)
-                                .filter(|(p, l)| p != l)
-                                .count();
-                            if misclassified != outcome.error() {
-                                wrong.push(format!(
-                                    "case {case}: depth={depth} min_sup={min_sup} \
-                                     fast_d2={fast_d2} {solver} {selector}: reports {}, its \
-                                     tree misclassifies {misclassified}",
-                                    outcome.error()
-                                ));
-                            }
+                    for (label, outcome) in
+                        all_searches(&dataset, depth, min_sup, fast_d2, &*make_loss, skipping)
+                    {
+                        if let Some(why) = check(&instance, depth, min_sup, &outcome) {
+                            wrong.push(format!(
+                                "case {case}: depth={depth} min_sup={min_sup} fast_d2={fast_d2} \
+                                 {label}: {why}"
+                            ));
                         }
                     }
                 }
             }
         }
     }
+    wrong
+}
+
+/// Agreement with the brute force for the leaf cost `cost(rows, label)`,
+/// checked on the tree as well (see `not_optimal`).
+fn matches_optimum(
+    instance: &Instance,
+    depth: usize,
+    min_sup: usize,
+    outcome: &Result<FitOutcome, SearchError>,
+    cost: &dyn Fn(&[usize], usize) -> f64,
+) -> Option<String> {
+    let rows: Vec<usize> = (0..instance.n_rows).collect();
+    let leaf = |rows: &[usize]| {
+        (0..instance.n_labels)
+            .map(|label| cost(rows, label))
+            .fold(f64::INFINITY, f64::min)
+    };
+    let expected = brute_force_with(instance, &rows, depth, min_sup, &leaf);
+    match outcome {
+        Ok(outcome) => not_optimal(instance, depth, min_sup, outcome, expected, cost),
+        Err(err) => Some(format!("failed: {err}")),
+    }
+}
+
+/// Misclassification written as a custom loss, on class counts or on
+/// instance ids, reaches the built-in optimum, with skipping off (the
+/// default for a custom loss) and forced on. Forced on, it never breaks the
+/// assumption skipping makes.
+#[test]
+fn misclassification_as_a_custom_loss_finds_the_optimum() {
+    for input in [LossInput::ClassCounts, LossInput::Indices] {
+        for skipping in [Skipping::Auto, Skipping::On] {
+            let loss = |instance: &Instance| -> Box<dyn Fn() -> Loss> {
+                match input {
+                    LossInput::ClassCounts => Box::new(|| counts_loss(misclassification)),
+                    LossInput::Indices => {
+                        let instance = Instance {
+                            values: instance.values.clone(),
+                            labels: instance.labels.clone(),
+                            ..*instance
+                        };
+                        Box::new(move || indices_loss(&instance, misclassification))
+                    }
+                }
+            };
+            let check = |instance: &Instance,
+                         depth: usize,
+                         min_sup: usize,
+                         outcome: &Result<FitOutcome, SearchError>| {
+                if let Ok(outcome) = outcome {
+                    if outcome.statistics.skipping_violations > 0 {
+                        return Some(format!(
+                            "{} skipping violations for misclassification",
+                            outcome.statistics.skipping_violations
+                        ));
+                    }
+                    if outcome.status != SearchStatus::Optimal {
+                        return Some(format!("status {}", outcome.status));
+                    }
+                }
+                matches_optimum(instance, depth, min_sup, outcome, &|rows, label| {
+                    misclassified(instance, rows, label)
+                })
+            };
+            let wrong = on_random_instances(0x1055, 8, &loss, skipping, &check);
+            assert!(
+                wrong.is_empty(),
+                "{input:?} {skipping:?}: {} case(s):\n{}",
+                wrong.len(),
+                wrong.join("\n")
+            );
+        }
+    }
+}
+
+/// With skipping off, any non-negative loss reaches its optimum: here one
+/// that breaks the skipping assumption.
+#[test]
+fn a_custom_loss_finds_its_optimum_without_skipping() {
+    let loss = |_: &Instance| -> Box<dyn Fn() -> Loss> {
+        Box::new(|| counts_loss(squared_misclassification))
+    };
+    let wrong = on_random_instances(0x5a1e, 8, &loss, Skipping::Auto, &|instance, d, m, o| {
+        matches_optimum(instance, d, m, o, &|rows, label| {
+            misclassified(instance, rows, label).powi(2)
+        })
+    });
     assert!(
         wrong.is_empty(),
         "{} case(s):\n{}",
         wrong.len(),
         wrong.join("\n")
     );
+}
+
+/// Skipping on and off reach the same optimum with the built-in loss.
+#[test]
+fn skipping_on_and_off_agree() {
+    for skipping in [Skipping::Auto, Skipping::Off] {
+        let loss = |_: &Instance| -> Box<dyn Fn() -> Loss> { Box::new(Loss::default) };
+        let wrong = on_random_instances(0x0ff, 8, &loss, skipping, &|instance, d, m, o| {
+            matches_optimum(instance, d, m, o, &|rows, label| {
+                misclassified(instance, rows, label)
+            })
+        });
+        assert!(
+            wrong.is_empty(),
+            "{skipping:?}: {} case(s):\n{}",
+            wrong.len(),
+            wrong.join("\n")
+        );
+    }
+}
+
+/// Forcing skipping for a loss that breaks its assumption is caught by the
+/// depth-2 solver: the moves are counted and the tree is not called optimal.
+#[test]
+fn forcing_skipping_on_a_loss_that_breaks_it_is_reported() {
+    let dataset = DataReader::default()
+        .read_file(&fixture("iris.txt"))
+        .expect("readable");
+    let mut solver = ConTree::new(
+        1,
+        2,
+        60.0,
+        f64::INFINITY,
+        PointSelector::Mid,
+        0.0,
+        true,
+        true,
+    )
+    .with_loss(counts_loss(squared_misclassification))
+    .with_skipping(Skipping::On);
+    let outcome = solver.fit(&dataset).expect("fit");
+    assert!(outcome.statistics.skipping_violations > 0);
+    assert_eq!(outcome.status, SearchStatus::NotProven);
+}
+
+#[test]
+fn a_negative_cost_is_an_error() {
+    let dataset = DataReader::default()
+        .read_file(&fixture("small.txt"))
+        .expect("readable");
+    for fast_d2 in [false, true] {
+        let mut solver = ConTree::new(
+            1,
+            2,
+            60.0,
+            f64::INFINITY,
+            PointSelector::Mid,
+            0.0,
+            true,
+            fast_d2,
+        )
+        .with_loss(counts_loss(|counts| (-1.0, counts.len() - 1)));
+        assert_eq!(
+            solver.fit(&dataset).map(|o| o.error()),
+            Err(SearchError::InvalidLeafCost { cost: -1.0 })
+        );
+    }
 }
 
 #[test]
@@ -343,25 +596,4 @@ fn fixture(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures")
         .join(name)
-}
-
-fn instance_from(dataset: &Dataset) -> Instance {
-    let n_rows = dataset.count();
-    let n_features = dataset.num_features();
-    let mut values = vec![0.0; n_rows * n_features];
-    let mut labels = vec![0usize; n_rows];
-    for feature in 0..n_features {
-        for i in 0..n_rows {
-            let point = &dataset[feature][i];
-            values[point.tid() * n_features + feature] = point.value();
-            labels[point.tid()] = point.label() as usize;
-        }
-    }
-    Instance {
-        values,
-        labels,
-        n_rows,
-        n_features,
-        n_labels: dataset.num_labels(),
-    }
 }

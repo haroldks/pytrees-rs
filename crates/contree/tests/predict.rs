@@ -69,9 +69,9 @@ fn the_exhaustive_search_tree_reproduces_its_reported_error() {
                         1,
                         depth,
                         60.0,
-                        usize::MAX,
+                        f64::INFINITY,
                         PointSelector::Mid,
-                        0,
+                        0.0,
                         heuristic,
                         fast_d2,
                     );
@@ -84,7 +84,7 @@ fn the_exhaustive_search_tree_reproduces_its_reported_error() {
                         .validate()
                         .unwrap_or_else(|err| panic!("{label}: {err}"));
                     assert_eq!(
-                        misclassified(&solver.tree, &dataset),
+                        misclassified(&solver.tree, &dataset) as f64,
                         solver.statistics().error,
                         "{label}: the tree does not classify the training set the way the \
                          search says it does"
@@ -98,11 +98,23 @@ fn the_exhaustive_search_tree_reproduces_its_reported_error() {
 #[test]
 fn a_larger_instance_reproduces_its_reported_error() {
     let dataset = load("avila_1k.txt");
-    let mut solver = ConTree::new(1, 2, 60.0, usize::MAX, PointSelector::Mid, 0, false, true);
+    let mut solver = ConTree::new(
+        1,
+        2,
+        60.0,
+        f64::INFINITY,
+        PointSelector::Mid,
+        0.0,
+        false,
+        true,
+    );
     let outcome = solver.fit(&dataset).expect("fit");
 
     outcome.tree.validate().expect("valid tree");
-    assert_eq!(misclassified(&outcome.tree, &dataset), outcome.error());
+    assert_eq!(
+        misclassified(&outcome.tree, &dataset) as f64,
+        outcome.error()
+    );
 }
 
 #[test]
@@ -122,9 +134,9 @@ fn the_lds_tree_reproduces_its_reported_error() {
                 1,
                 2,
                 60.0,
-                usize::MAX,
+                f64::INFINITY,
                 PointSelector::Mid,
-                0,
+                0.0,
                 false,
                 fast_d2,
             );
@@ -135,7 +147,7 @@ fn the_lds_tree_reproduces_its_reported_error() {
             tree.validate()
                 .unwrap_or_else(|err| panic!("{label}: {err}"));
             assert_eq!(
-                misclassified(&tree, &dataset),
+                misclassified(&tree, &dataset) as f64,
                 solver.statistics().error,
                 "{label}: the LDS tree does not classify the training set the way the search \
                  says it does"
@@ -157,9 +169,9 @@ fn minimum_support_is_respected_by_every_leaf() {
                 min_sup,
                 2,
                 60.0,
-                usize::MAX,
+                f64::INFINITY,
                 PointSelector::Mid,
-                0,
+                0.0,
                 false,
                 fast_d2,
             );
@@ -194,9 +206,27 @@ fn a_dataset_built_from_memory_matches_one_read_from_a_file() {
     assert_eq!(from_memory.num_features(), from_file.num_features());
     assert_eq!(from_memory.num_labels(), from_file.num_labels());
 
-    let mut a: ConTree = ConTree::new(1, 2, 60.0, usize::MAX, PointSelector::Mid, 0, false, true);
+    let mut a: ConTree = ConTree::new(
+        1,
+        2,
+        60.0,
+        f64::INFINITY,
+        PointSelector::Mid,
+        0.0,
+        false,
+        true,
+    );
     a.fit(&from_file).expect("fit");
-    let mut b: ConTree = ConTree::new(1, 2, 60.0, usize::MAX, PointSelector::Mid, 0, false, true);
+    let mut b: ConTree = ConTree::new(
+        1,
+        2,
+        60.0,
+        f64::INFINITY,
+        PointSelector::Mid,
+        0.0,
+        false,
+        true,
+    );
     b.fit(&from_memory).expect("fit");
 
     assert_eq!(a.statistics().error, b.statistics().error);
@@ -240,9 +270,9 @@ fn fit_rejects_what_it_used_to_assert_about_in_debug_only() {
             min_sup,
             2,
             max_time,
-            usize::MAX,
+            f64::INFINITY,
             PointSelector::Mid,
-            0,
+            0.0,
             false,
             false,
         );
@@ -254,9 +284,9 @@ fn fit_rejects_what_it_used_to_assert_about_in_debug_only() {
         n_rows,
         2,
         60.0,
-        usize::MAX,
+        f64::INFINITY,
         PointSelector::Mid,
-        0,
+        0.0,
         false,
         false,
     );
@@ -279,7 +309,16 @@ fn fit_rejects_what_it_used_to_assert_about_in_debug_only() {
         }
     }
     unprepared.set_num_label(2);
-    let mut solver = ConTree::new(1, 2, 60.0, usize::MAX, PointSelector::Mid, 0, false, false);
+    let mut solver = ConTree::new(
+        1,
+        2,
+        60.0,
+        f64::INFINITY,
+        PointSelector::Mid,
+        0.0,
+        false,
+        false,
+    );
     assert_eq!(
         solver.fit(&unprepared).unwrap_err(),
         SearchError::UnpreparedDataset
@@ -292,12 +331,30 @@ fn a_fit_reports_why_it_stopped() {
 
     let dataset = load("iris.txt");
 
-    let mut solver = ConTree::new(1, 2, 60.0, usize::MAX, PointSelector::Mid, 0, false, true);
+    let mut solver = ConTree::new(
+        1,
+        2,
+        60.0,
+        f64::INFINITY,
+        PointSelector::Mid,
+        0.0,
+        false,
+        true,
+    );
     assert_eq!(solver.fit(&dataset).unwrap().status, SearchStatus::Optimal);
 
     // A time limit small enough that the search cannot finish must not be
     // reported as an optimum.
-    let mut solver = ConTree::new(1, 4, 1e-9, usize::MAX, PointSelector::Mid, 0, false, false);
+    let mut solver = ConTree::new(
+        1,
+        4,
+        1e-9,
+        f64::INFINITY,
+        PointSelector::Mid,
+        0.0,
+        false,
+        false,
+    );
     assert_eq!(
         solver.fit(&dataset).unwrap().status,
         SearchStatus::TimeLimit

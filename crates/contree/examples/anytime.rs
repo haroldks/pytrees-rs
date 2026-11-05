@@ -38,9 +38,9 @@ fn main() {
                 1,
                 depth,
                 limit,
-                usize::MAX,
+                f64::INFINITY,
                 PointSelector::Mid,
-                0,
+                0.0,
                 gini,
                 true,
             );
@@ -53,7 +53,7 @@ fn main() {
             } else {
                 PointSelector::Mid
             };
-            let mut s = ConTreeLds::new(1, depth, limit, usize::MAX, selector, 0, true, true)
+            let mut s = ConTreeLds::new(1, depth, limit, f64::INFINITY, selector, 0.0, true, true)
                 .with_schedule(schedule);
             let out = s.fit(&dataset).expect("fit");
             (s.trajectory().to_vec(), out.error(), out.status)

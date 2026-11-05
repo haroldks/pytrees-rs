@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use crate::common::Cost;
+
 /// An interval of candidate thresholds still to be searched, as indices into
 /// the list of possible splits.
 #[derive(Debug, Clone, Copy)]
@@ -50,15 +52,20 @@ impl Bound {
 /// threshold. From the errors of the thresholds already evaluated, the pruner
 /// derives which neighbouring thresholds cannot beat the incumbent, following
 /// the ConTree algorithm (Brită et al., AAAI 2025).
+///
+/// Moving a threshold past `n` instances changes the optimum of either side
+/// by at most `n`. A threshold is therefore pruned when no more instances
+/// than the score difference lie between it and an evaluated one.
 pub struct IntervalsPruner<'a> {
+    /// Sorted positions of the candidate thresholds.
     possible_split_indexes: &'a [usize],
     /// Whether the pruning rules apply. See [`IntervalsPruner::is_sound`].
     sound: bool,
     pub rightmost_zero_index: Option<usize>,
     pub leftmost_zero_index: Option<usize>,
-    max_gap: usize,
+    max_gap: Cost,
     /// Maps an evaluated split index to its `(left_score, right_score)`.
-    evaluated_indices_record: HashMap<usize, (usize, usize)>,
+    evaluated_indices_record: HashMap<usize, (Cost, Cost)>,
 }
 
 impl<'a> IntervalsPruner<'a> {
@@ -68,14 +75,21 @@ impl<'a> IntervalsPruner<'a> {
     /// * `possible_split_indexes` - Sorted positions of the candidate thresholds.
     /// * `max_gap` - Error gap tolerated with respect to the optimum.
     /// * `min_sup` - Minimum number of instances per leaf.
-    pub fn new(possible_split_indexes: &'a [usize], max_gap: usize, min_sup: usize) -> Self {
+    /// * `skipping` - Whether the loss allows threshold skipping; see
+    ///   [`Skipping`](crate::common::Skipping).
+    pub fn new(
+        possible_split_indexes: &'a [usize],
+        max_gap: Cost,
+        min_sup: usize,
+        skipping: bool,
+    ) -> Self {
         let possible_split_size = possible_split_indexes.len();
         let mut evaluated_indices_record = HashMap::new();
         evaluated_indices_record.reserve(possible_split_size / 8);
 
         Self {
             possible_split_indexes,
-            sound: Self::is_sound(min_sup),
+            sound: skipping && Self::is_sound(min_sup),
             rightmost_zero_index: None,
             leftmost_zero_index: None,
             max_gap,
@@ -112,7 +126,7 @@ impl<'a> IntervalsPruner<'a> {
     ///
     /// # Returns
     /// `true` if the subinterval can be pruned, `false` otherwise
-    pub fn subinterval_pruning(&self, current_bounds: &Bound, current_best_score: usize) -> bool {
+    pub fn subinterval_pruning(&self, current_bounds: &Bound, current_best_score: Cost) -> bool {
         if !self.sound {
             return false;
         }
@@ -120,18 +134,15 @@ impl<'a> IntervalsPruner<'a> {
             .last_split_left_index
             .and_then(|idx| self.evaluated_indices_record.get(&idx))
             .map(|&(left_score, _)| left_score)
-            .unwrap_or(0);
+            .unwrap_or(0.0);
 
         let right_bound_score_right = current_bounds
             .last_split_right_index
             .and_then(|idx| self.evaluated_indices_record.get(&idx))
             .map(|&(_, right_score)| right_score)
-            .unwrap_or(0);
+            .unwrap_or(0.0);
 
-        left_bound_score_left
-            .saturating_add(right_bound_score_right)
-            .saturating_add(self.max_gap)
-            >= current_best_score
+        left_bound_score_left + right_bound_score_right + self.max_gap >= current_best_score
     }
 
     /// Narrows the interval to the thresholds that may still beat
@@ -140,7 +151,7 @@ impl<'a> IntervalsPruner<'a> {
     /// # Arguments
     /// * `current_bounds` - The current bounds to be updated by shrinking
     /// * `current_best_score` - The best score to compare against
-    pub fn interval_shrinking(&self, current_bounds: &mut Bound, current_best_score: usize) {
+    pub fn interval_shrinking(&self, current_bounds: &mut Bound, current_best_score: Cost) {
         if !self.sound {
             return;
         }
@@ -172,21 +183,18 @@ impl<'a> IntervalsPruner<'a> {
             if let Some(&(left_score, right_score)) =
                 self.evaluated_indices_record.get(&last_left_idx)
             {
-                let sum = left_score
-                    .saturating_add(right_score)
-                    .saturating_add(self.max_gap);
+                let sum = left_score + right_score + self.max_gap;
                 if sum >= current_best_score {
+                    // Viable thresholds lie more than the difference in
+                    // instances to the right of the evaluated one.
                     let updated_score_difference = sum - current_best_score;
-                    let extended_left_bound =
-                        self.possible_split_indexes[last_left_idx] + updated_score_difference + 1;
+                    let limit = self.position(last_left_idx) + updated_score_difference;
 
-                    if extended_left_bound
-                        <= self.possible_split_indexes[current_bounds.right_bound]
-                    {
-                        let new_left_bound = self.lower_bound(
+                    if self.position(current_bounds.right_bound) > limit {
+                        let new_left_bound = self.first_above(
                             current_bounds.left_bound,
                             current_bounds.right_bound,
-                            extended_left_bound,
+                            limit,
                         );
                         current_bounds.left_bound = current_bounds.left_bound.max(new_left_bound);
                     } else {
@@ -201,21 +209,18 @@ impl<'a> IntervalsPruner<'a> {
             if let Some(&(left_score, right_score)) =
                 self.evaluated_indices_record.get(&last_right_idx)
             {
-                let sum = left_score
-                    .saturating_add(right_score)
-                    .saturating_add(self.max_gap);
+                let sum = left_score + right_score + self.max_gap;
                 if sum >= current_best_score {
+                    // Mirror image: viable thresholds lie more than the
+                    // difference in instances to the left.
                     let updated_score_difference = sum - current_best_score;
-                    let extended_right_bound = self.possible_split_indexes[last_right_idx]
-                        .saturating_sub(updated_score_difference + 1);
+                    let limit = self.position(last_right_idx) - updated_score_difference;
 
-                    if extended_right_bound
-                        >= self.possible_split_indexes[current_bounds.left_bound]
-                    {
-                        let new_right_bound = self.upper_bound(
+                    if self.position(current_bounds.left_bound) < limit {
+                        let new_right_bound = self.first_at_least(
                             current_bounds.left_bound,
                             current_bounds.right_bound,
-                            extended_right_bound,
+                            limit,
                         );
                         current_bounds.right_bound =
                             current_bounds.right_bound.min(new_right_bound);
@@ -241,7 +246,7 @@ impl<'a> IntervalsPruner<'a> {
     /// `[new_left_bound, right]` and `[left, new_right_bound]`.
     pub fn neighbourhood_pruning(
         &self,
-        score_difference: usize,
+        score_difference: Cost,
         left: usize,
         right: usize,
         split_index: usize,
@@ -250,9 +255,9 @@ impl<'a> IntervalsPruner<'a> {
             // Prune only the point just evaluated.
             return (split_index + 1, split_index.saturating_sub(1));
         }
-        let score_difference = score_difference.saturating_add(self.max_gap);
+        let score_difference = score_difference + self.max_gap;
 
-        if score_difference == 0 {
+        if score_difference == 0.0 {
             return (split_index + 1, split_index);
         }
 
@@ -261,16 +266,13 @@ impl<'a> IntervalsPruner<'a> {
             new_bound_left = new_bound_left.max(leftmost + 1);
         }
 
-        let minimum_right_value =
-            self.possible_split_indexes[split_index].saturating_add(score_difference) + 1;
-
-        // The candidate at `right` is still viable when its position is at
-        // least `minimum_right_value`; the equal case narrows the interval
-        // rather than dropping it.
-        if minimum_right_value > self.possible_split_indexes[right] {
+        // A threshold to the right is viable when more than the difference
+        // in instances lies between it and the evaluated one.
+        let right_limit = self.position(split_index) + score_difference;
+        if self.position(right) <= right_limit {
             new_bound_left = right + 1;
         } else {
-            new_bound_left = self.lower_bound(new_bound_left, right, minimum_right_value);
+            new_bound_left = self.first_above(new_bound_left, right, right_limit);
         }
 
         let mut new_bound_right = split_index.saturating_sub(1);
@@ -278,14 +280,12 @@ impl<'a> IntervalsPruner<'a> {
             new_bound_right = new_bound_right.min(rightmost.saturating_sub(1));
         }
 
-        let minimum_left_value =
-            self.possible_split_indexes[split_index].saturating_sub(score_difference + 1);
-
         // Mirror image of the test above.
-        if minimum_left_value < self.possible_split_indexes[left] {
+        let left_limit = self.position(split_index) - score_difference;
+        if self.position(left) >= left_limit {
             new_bound_right = left.saturating_sub(1);
         } else {
-            new_bound_right = self.upper_bound(left, new_bound_right, minimum_left_value);
+            new_bound_right = self.first_at_least(left, new_bound_right, left_limit);
         }
 
         (new_bound_left, new_bound_right)
@@ -300,10 +300,10 @@ impl<'a> IntervalsPruner<'a> {
     pub fn add_result(
         &mut self,
         index: usize,
-        left_score: Option<usize>,
-        right_score: Option<usize>,
+        left_score: Option<Cost>,
+        right_score: Option<Cost>,
     ) {
-        if left_score == Some(0) {
+        if left_score == Some(0.0) {
             self.leftmost_zero_index = Some(
                 self.leftmost_zero_index
                     .map(|v| v.max(index))
@@ -311,7 +311,7 @@ impl<'a> IntervalsPruner<'a> {
             );
         }
 
-        if right_score == Some(0) {
+        if right_score == Some(0.0) {
             self.rightmost_zero_index = Some(
                 self.rightmost_zero_index
                     .map(|v| v.min(index))
@@ -319,32 +319,36 @@ impl<'a> IntervalsPruner<'a> {
             );
         }
 
-        self.evaluated_indices_record
-            .insert(index, (left_score.unwrap_or(0), right_score.unwrap_or(0)));
+        self.evaluated_indices_record.insert(
+            index,
+            (left_score.unwrap_or(0.0), right_score.unwrap_or(0.0)),
+        );
     }
 
-    /// Index of the first candidate in `left..=right` whose position is
-    /// `>= value`.
-    fn lower_bound(&self, left: usize, mut right: usize, value: usize) -> usize {
-        if left >= right {
-            right = self.possible_split_indexes.len() - 1
-        }
-        let slice = &self.possible_split_indexes[left..=right];
-        match slice.binary_search(&value) {
-            Ok(pos) => left + pos,
-            Err(pos) => left + pos,
-        }
+    /// The position of candidate `index`, as a cost: moving the threshold
+    /// past one instance changes a cost by at most 1.
+    fn position(&self, index: usize) -> Cost {
+        self.possible_split_indexes[index] as Cost
     }
 
     /// Index of the first candidate in `left..=right` whose position is
     /// `> value`.
-    fn upper_bound(&self, left: usize, mut right: usize, value: usize) -> usize {
+    fn first_above(&self, left: usize, mut right: usize, value: Cost) -> usize {
         if left >= right {
             right = self.possible_split_indexes.len() - 1
         }
         let slice = &self.possible_split_indexes[left..=right];
-        let pos = slice.partition_point(|&x| x <= value);
-        left + pos
+        left + slice.partition_point(|&p| p as Cost <= value)
+    }
+
+    /// Index of the first candidate in `left..=right` whose position is
+    /// `>= value`.
+    fn first_at_least(&self, left: usize, mut right: usize, value: Cost) -> usize {
+        if left >= right {
+            right = self.possible_split_indexes.len() - 1
+        }
+        let slice = &self.possible_split_indexes[left..=right];
+        left + slice.partition_point(|&p| (p as Cost) < value)
     }
 }
 
@@ -355,10 +359,10 @@ mod tests {
     #[test]
     fn test_pruner_creation() {
         let splits = vec![10, 20, 30, 40, 50];
-        let pruner = IntervalsPruner::new(&splits, 2, 1);
+        let pruner = IntervalsPruner::new(&splits, 2.0, 1, true);
 
         assert_eq!(pruner.possible_split_indexes.len(), 5);
-        assert_eq!(pruner.max_gap, 2);
+        assert_eq!(pruner.max_gap, 2.0);
         assert_eq!(pruner.leftmost_zero_index, None);
         assert_eq!(pruner.rightmost_zero_index, None);
     }

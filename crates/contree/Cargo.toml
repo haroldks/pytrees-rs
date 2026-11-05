@@ -25,5 +25,10 @@ serde.workspace = true
 serde_json.workspace = true
 coz = { workspace = true, optional = true }
 
+[dev-dependencies]
+# Reads the floats of the frozen baseline back exactly; without it a parsed
+# threshold can be one unit in the last place off.
+serde_json = { workspace = true, features = ["float_roundtrip"] }
+
 [lints]
 workspace = true

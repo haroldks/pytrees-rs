@@ -7,7 +7,7 @@ use rand::Rng;
 
 use crate::algorithms::interval_pruner::Bound;
 use crate::caching::{Cache, Entry};
-use crate::common::PointSelector;
+use crate::common::{Cost, Loss, PointSelector};
 use crate::tree::{NodeInfos, Tree, TreeNode};
 
 /// The threshold between two consecutive distinct values, `lower < upper`.
@@ -23,6 +23,23 @@ pub(crate) fn threshold_between(lower: f64, upper: f64) -> f64 {
     } else {
         lower
     }
+}
+
+/// The `(cost, label)` of a leaf under `loss`. A negative or NaN cost is kept
+/// in `invalid`, the first one only, for the fit to report, and replaced by
+/// an infinite cost so that the search never picks such a leaf.
+pub(crate) fn checked_leaf(
+    loss: &Loss,
+    class_counts: &[usize],
+    indices: impl FnOnce() -> Vec<usize>,
+    invalid: &mut Option<Cost>,
+) -> (Cost, usize) {
+    let (cost, label) = loss.leaf(class_counts, indices);
+    if cost.is_nan() || cost < 0.0 {
+        invalid.get_or_insert(cost);
+        return (Cost::INFINITY, label);
+    }
+    (cost, label)
 }
 
 /// Picks the candidate to evaluate inside an interval.

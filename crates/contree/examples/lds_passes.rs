@@ -31,11 +31,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|x| x.parse())
         .transpose()?
         .unwrap_or(usize::MAX);
-    let mut s =
-        ConTreeLds::new(1, depth, limit, usize::MAX, sel, 0, true, true).with_schedule(schedule);
+    let mut s = ConTreeLds::new(1, depth, limit, f64::INFINITY, sel, 0.0, true, true)
+        .with_schedule(schedule);
     let view = DataView::root(&ds, true);
     let t0 = Instant::now();
-    let (mut last_err, mut passes, mut last_print) = (usize::MAX, 0usize, 0.0f64);
+    let (mut last_err, mut passes, mut last_print) = (f64::INFINITY, 0usize, 0.0f64);
     loop {
         let done = s.partial_fit(&view);
         passes += 1;

@@ -10,6 +10,7 @@
 //! lets the solution tree be rebuilt afterwards by walking from the root.
 
 use crate::bitsets::Bitset;
+use crate::common::Cost;
 use crate::tree::Tree;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
@@ -23,7 +24,7 @@ pub struct Entry {
     pub split: f64,
     /// Misclassifications of the best subtree found so far. This is an upper
     /// bound on the subproblem's optimum, equal to it when `is_optimal`.
-    pub error: usize,
+    pub error: Cost,
     /// The majority class, used when this entry is a leaf.
     pub label: usize,
 
@@ -32,7 +33,7 @@ pub struct Entry {
     /// Equal to `error` when the search exhausted the space, and to the upper
     /// bound it was cut off at otherwise. Reasoning about what a subtree
     /// cannot achieve must use this field, not `error`.
-    pub lower_bound: usize,
+    pub lower_bound: Cost,
     /// Whether `error` describes a tree that was actually found, rather than a
     /// subproblem the bound cut short before one was.
     pub is_valid: bool,
@@ -65,7 +66,7 @@ pub struct Entry {
 /// budget could find, so a revisit under a budget and bound no larger than
 /// these can reuse it. A search the budget did not cut short proved its lower
 /// bound, which settles any later revisit whose bound is no higher.
-#[derive(Copy, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct SearchedUnder {
     /// Discrepancy still available below this node.
     pub discrepancy: usize,
@@ -73,7 +74,7 @@ pub struct SearchedUnder {
     /// budget did not apply.
     pub split_budget: usize,
     /// The upper bound given by the parent: no tree at or above it was useful.
-    pub upper_bound: usize,
+    pub upper_bound: Cost,
     /// The discrepancy or split budget cut the search short.
     pub truncated: bool,
 }
@@ -100,7 +101,7 @@ impl Entry {
     /// under, the search only established that the bound cannot be met here:
     /// the bound becomes the lower bound, and the entry no longer counts as a
     /// usable solution.
-    pub fn finalize_lower_bound(&mut self, upper_bound: usize) {
+    pub fn finalize_lower_bound(&mut self, upper_bound: Cost) {
         if self.error > upper_bound {
             self.lower_bound = upper_bound;
             self.is_valid = false;
@@ -123,9 +124,9 @@ impl Default for Entry {
         Self {
             feature: usize::MAX,
             split: f64::INFINITY,
-            error: usize::MAX,
+            error: Cost::INFINITY,
             label: usize::MAX,
-            lower_bound: 0,
+            lower_bound: 0.0,
             is_valid: false,
             is_leaf: false,
             is_optimal: false,

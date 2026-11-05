@@ -100,8 +100,8 @@ struct Tally {
 }
 
 impl Tally {
-    fn record(&mut self, got: usize, optimum: usize, depth: usize, what: &str) {
-        match got.cmp(&optimum) {
+    fn record(&mut self, got: f64, optimum: usize, depth: usize, what: &str) {
+        match got.total_cmp(&(optimum as f64)) {
             std::cmp::Ordering::Greater => {
                 self.worse += 1;
                 self.by_depth[depth] += 1;
@@ -192,9 +192,9 @@ fn main() -> std::io::Result<()> {
                         min_sup,
                         depth,
                         60.0,
-                        usize::MAX,
+                        f64::INFINITY,
                         PointSelector::Mid,
-                        0,
+                        0.0,
                         false,
                         fast_d2,
                     );
@@ -214,9 +214,9 @@ fn main() -> std::io::Result<()> {
                         min_sup,
                         depth,
                         60.0,
-                        usize::MAX,
+                        f64::INFINITY,
                         PointSelector::First,
-                        0,
+                        0.0,
                         true,
                         fast_d2,
                     );
@@ -230,9 +230,9 @@ fn main() -> std::io::Result<()> {
                         min_sup,
                         depth,
                         60.0,
-                        usize::MAX,
+                        f64::INFINITY,
                         PointSelector::Mid,
-                        0,
+                        0.0,
                         false,
                         fast_d2,
                     );
@@ -251,9 +251,9 @@ fn main() -> std::io::Result<()> {
                                 min_sup,
                                 depth,
                                 60.0,
-                                usize::MAX,
+                                f64::INFINITY,
                                 selector,
-                                0,
+                                0.0,
                                 true,
                                 fast_d2,
                             )

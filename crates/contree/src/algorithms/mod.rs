@@ -5,7 +5,8 @@ mod interval_pruner;
 mod shared;
 
 use crate::common::{
-    FitOutcome, PointSelector, ScheduleKind, SearchConfig, SearchError, SearchStatus, Statistics,
+    Cost, FitOutcome, PointSelector, ScheduleKind, SearchConfig, SearchError, SearchStatus,
+    Statistics,
 };
 use crate::data::view::DataView;
 use crate::data::Dataset;
@@ -87,9 +88,9 @@ impl GenericConTree {
         min_sup: usize,
         max_depth: usize,
         max_time: f64,
-        max_error: usize,
+        max_error: Cost,
         split_selection_strategy: PointSelector,
-        max_gap: usize,
+        max_gap: Cost,
         use_heuristic: bool,
         fast_d2: bool,
         use_lds: bool,

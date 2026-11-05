@@ -25,9 +25,9 @@
 //! let labels = [0, 0, 1, 1];
 //! let dataset = Dataset::from_rows(&values, &labels, 1).unwrap();
 //!
-//! let config = SearchConfig::new(1, 2, 60.0, 0, usize::MAX, false, true, PointSelector::Mid);
+//! let config = SearchConfig::new(1, 2, 60.0, 0.0, f64::INFINITY, false, true, PointSelector::Mid);
 //! let outcome = ConTree::with_config(config).fit(&dataset).unwrap();
-//! assert_eq!(outcome.error(), 0);
+//! assert_eq!(outcome.error(), 0.0);
 //! assert_eq!(outcome.tree.predict_one(&[0.7]), Ok(1));
 //! ```
 

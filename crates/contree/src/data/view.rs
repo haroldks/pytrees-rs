@@ -134,6 +134,15 @@ impl<'a> DataView<'a> {
         self.feature_columns[0].len()
     }
 
+    /// The ids of the instances in the view.
+    pub fn instance_ids(&self) -> Vec<usize> {
+        let column = &self.dataset[0];
+        self.feature_columns[0]
+            .iter()
+            .map(|&pos| column[pos].tid)
+            .collect()
+    }
+
     /// Number of features.
     pub fn get_feature_number(&self) -> usize {
         self.dataset.num_features()
