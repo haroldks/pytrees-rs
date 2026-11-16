@@ -2,6 +2,10 @@
 //! counters of every pass, and each improving tree, as JSON in
 //! `<result-dir>/<dataset>/<depth>.json`. Takes the same arguments as
 //! `con-tree`.
+//!
+//! With `--lookahead` (SPLIT) the file is `<depth>-split<lookahead>.json`,
+//! followed by `-anytime`, `-lds`, `-sync` and `-noprune` for the options
+//! given, and every pass also records its lookahead.
 
 use clap::Parser;
 use contree::algorithms::GenericConTree;
@@ -34,6 +38,9 @@ pub struct Res {
     pub general_solver_calls: Vec<usize>,
     pub specialized_solver_call: Vec<usize>,
     pub trees: Vec<Tree>,
+    /// The lookahead of each pass; empty without SPLIT.
+    #[serde(default)]
+    pub lookaheads: Vec<usize>,
 }
 
 pub fn save_results(result: &Res, result_path: &PathBuf) -> std::io::Result<()> {
@@ -78,6 +85,9 @@ pub fn push_from_stats(result: &mut Res, stats: &Statistics) {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = GeneralParser::parse();
+    if let Some(warning) = app.schedule_warning() {
+        eprintln!("warning: {warning}");
+    }
     let file = Path::new(&app.input);
     let file_name = file.file_stem().expect("Invalid file name");
     let mut result_file = app
@@ -94,7 +104,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let depth = app.depth;
-    let result_path = result_file.join(format!("{depth}.json"));
+    let mut name = depth.to_string();
+    if let Some(lookahead) = app.lookahead {
+        name += &format!("-split{lookahead}");
+        for (given, suffix) in [
+            (app.anytime, "-anytime"),
+            (app.use_lds, "-lds"),
+            (app.sync, "-sync"),
+            (app.no_lookahead_pruning, "-noprune"),
+        ] {
+            if given {
+                name += suffix;
+            }
+        }
+    }
+    let result_path = result_file.join(format!("{name}.json"));
 
     let mut result = match load_results(&result_path) {
         Some(res) if res.completed => {
@@ -117,6 +141,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 fast_d2: true,
                 specialized_solver_call: vec![],
                 trees: vec![],
+                lookaheads: vec![],
             }
         }
 
@@ -136,6 +161,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             general_solver_calls: vec![],
             specialized_solver_call: vec![],
             trees: vec![],
+            lookaheads: vec![],
         },
     };
 
@@ -150,6 +176,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let checkpoint_interval = 10;
     let mut last = f64::INFINITY;
     while !is_done {
+        if let Some(lookahead) = solver.current_lookahead() {
+            result.lookaheads.push(lookahead);
+        }
         is_done = solver.partial_fit(&view).expect("partial fit");
         let stat = solver.stats();
         if stat.error < last {

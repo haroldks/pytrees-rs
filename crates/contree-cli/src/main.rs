@@ -17,6 +17,9 @@ use crate::parsers::GeneralParser;
 
 fn main() -> ExitCode {
     let app = GeneralParser::parse();
+    if let Some(warning) = app.schedule_warning() {
+        eprintln!("con-tree: warning: {warning}");
+    }
 
     let reader = DataReader::default();
     let dataset = match reader.read_file(&app.input) {
