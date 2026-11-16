@@ -12,7 +12,7 @@ from sklearn.utils.validation import validate_data
 from pytrees._native.contree import RawConTree
 
 from ..base import TreeClassifier
-from ..exceptions import ThresholdSkippingWarning
+from ..exceptions import BudgetScheduleWarning, ThresholdSkippingWarning
 from ..tree import LEAF, Tree
 
 __all__ = ["ConTreeClassifier"]
@@ -60,9 +60,15 @@ class ConTreeClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
     random_state : int or None, default=None
         Seed for ``split_selection="random"``; the other settings are
         deterministic.
-    budget_schedule : {"diagonal", "square"}, default="diagonal"
+    budget_schedule : {"diagonal", "square"} or None, default=None
         How the anytime search (``use_lds=True`` or ``fit_anytime``) widens
-        its budget from one pass to the next.
+        its budget from one pass to the next. ``"diagonal"`` widens the
+        feature discrepancy and the number of thresholds tried per feature
+        together, and suits ``split_selection="first"``, the only selection
+        that uses the threshold budget after the first pass. ``"square"``
+        widens only the discrepancy for the others. ``None`` picks the one
+        that suits ``split_selection``; ``"diagonal"`` with ``"mid"`` or
+        ``"random"`` raises a ``BudgetScheduleWarning``.
     error_function : callable, optional
         ``error_function(data) -> (error, prediction)``, called for each leaf
         the search considers, with what ``error_function_input`` selects, as a
@@ -89,6 +95,27 @@ class ConTreeClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
         forces only the depth-2 solver's skipping. ``False`` turns skipping
         off, which is slower but never changes the result for the built-in
         error.
+    lookahead : int or None, default=None
+        SPLIT: search only the top ``lookahead`` levels and complete each
+        node below them with a greedy tree (lowest Gini first). Runs the
+        anytime search, with its LDS budgets only if ``use_lds=True``. The
+        depth-2 solver still solves any node with two levels left, so with
+        ``fast_d2`` a lookahead of ``max_depth - 2`` or more is the exact
+        search. A pass that completes nodes greedily never proves
+        optimality: plain SPLIT ends with ``status_ == "budget_exhausted"``.
+    anytime_lookahead : bool, default=False
+        With ``lookahead``: go one level deeper between passes until the
+        whole depth is searched, which ends on the optimal tree.
+    lookahead_sync : bool, default=False
+        With ``anytime_lookahead`` and ``use_lds``: spread the deepenings over
+        the budget schedule so that the lookahead covers the depth when the
+        schedule reaches its last budget. ``False`` deepens after every pass,
+        which did as well or better in our benchmarks.
+    lookahead_pruning : bool, default=True
+        With ``lookahead``: run the interval pruner in passes that complete
+        nodes greedily too. Its rules assume optimal subtrees, so there it may
+        skip a threshold whose greedy completion is better; ``False`` is
+        slower and gives the exact SPLIT tree.
 
     Attributes
     ----------
@@ -142,10 +169,14 @@ class ConTreeClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
         fast_d2=True,
         use_lds=False,
         random_state=None,
-        budget_schedule="diagonal",
+        budget_schedule=None,
         error_function=None,
         error_function_input="class_counts",
         threshold_skipping="auto",
+        lookahead=None,
+        anytime_lookahead=False,
+        lookahead_sync=False,
+        lookahead_pruning=True,
     ):
         # As scikit-learn requires, parameters are stored as given and only
         # validated in fit.
@@ -163,17 +194,24 @@ class ConTreeClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
         self.error_function = error_function
         self.error_function_input = error_function_input
         self.threshold_skipping = threshold_skipping
+        self.lookahead = lookahead
+        self.anytime_lookahead = anytime_lookahead
+        self.lookahead_sync = lookahead_sync
+        self.lookahead_pruning = lookahead_pruning
 
     def fit(self, X, y):
         """Fit the tree and return ``self``."""
         X, encoded = self._validate(X, y)
-        native = self._native_search(use_lds=self.use_lds)
+        native = self._native_search(anytime=False)
         native.fit(X, encoded)
         self._store(native)
         return self
 
     def fit_anytime(self, X, y, callback=None):
         """Fit with the anytime search, reporting improvements as they happen.
+
+        The search is LDS, or SPLIT when ``lookahead`` is given (with the LDS
+        budgets too if ``use_lds=True``).
 
         ``callback(error, seconds, status)`` is invoked each time a pass finds
         a better tree, so a caller can follow a long search or plot how the
@@ -182,7 +220,7 @@ class ConTreeClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
         Returns ``self``.
         """
         X, encoded = self._validate(X, y)
-        native = self._native_search(use_lds=True)
+        native = self._native_search(anytime=True)
         native.fit_anytime(X, encoded, callback)
         self._store(native)
         return self
@@ -222,13 +260,13 @@ class ConTreeClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
             f"threshold_skipping must be 'auto', True or False, not {self.threshold_skipping!r}"
         )
 
-    def _native_search(self, use_lds):
+    def _native_search(self, anytime):
         if self.error_function_input == "indices" and self.error_function is None:
             raise ValueError(
                 'error_function_input="indices" needs an error_function: the '
                 "built-in error only understands class counts"
             )
-        return RawConTree(
+        native = RawConTree(
             min_sup=self.min_sup,
             max_depth=self.max_depth,
             max_time=self.max_time,
@@ -237,13 +275,21 @@ class ConTreeClassifier(ClassifierMixin, TreeClassifier, BaseEstimator):
             split_selection=self.split_selection,
             sort_by_heuristic=self.sort_by_heuristic,
             fast_d2=self.fast_d2,
-            use_lds=use_lds,
+            use_lds=self.use_lds,
             random_state=self.random_state,
             budget_schedule=self.budget_schedule,
             error_function=self.error_function,
             error_function_input=self.error_function_input,
             threshold_skipping=self._skipping(),
+            lookahead=self.lookahead,
+            anytime_lookahead=self.anytime_lookahead,
+            lookahead_sync=self.lookahead_sync,
+            lookahead_pruning=self.lookahead_pruning,
         )
+        warning = native.schedule_warning(anytime)
+        if warning is not None:
+            warnings.warn(warning, BudgetScheduleWarning, stacklevel=3)
+        return native
 
     def _store(self, native):
         # Keep only plain data, so the fitted estimator can be pickled.

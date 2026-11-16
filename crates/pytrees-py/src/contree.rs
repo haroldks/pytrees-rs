@@ -11,8 +11,8 @@ use pyo3::types::PyDict;
 
 use contree::algorithms::{validate, ConTree, ConTreeLds};
 use contree::common::{
-    Cost, Leaf, LeafLoss, Loss, LossInput, PointSelector, ScheduleKind, SearchError, SearchStatus,
-    Skipping, Statistics,
+    Cost, Deepening, Leaf, LeafLoss, Loss, LossInput, PointSelector, ScheduleKind, SearchError,
+    SearchStatus, Skipping, Statistics,
 };
 use contree::data::view::DataView;
 use contree::data::{Dataset, DatasetError};
@@ -138,9 +138,64 @@ struct Params {
     /// reproducible. `None` draws from the OS.
     random_state: Option<u64>,
     /// The anytime search's budget schedule; ignored unless `use_lds`.
-    budget_schedule: ScheduleKind,
+    /// `None` uses the one suited to the split selector.
+    budget_schedule: Option<ScheduleKind>,
     error_function_input: LossInput,
     threshold_skipping: Skipping,
+    /// SPLIT: levels searched before the greedy completion; `None` without.
+    lookahead: Option<usize>,
+    /// The lookahead goes one level deeper between passes.
+    anytime_lookahead: bool,
+    /// With the LDS budgets, the deepening is spread over the schedule.
+    lookahead_sync: bool,
+    /// The interval pruner runs in passes that complete nodes greedily.
+    lookahead_pruning: bool,
+}
+
+impl Params {
+    /// Whether the anytime search applies its LDS budgets. `anytime` is set
+    /// by `fit_anytime`, which is LDS unless a lookahead is given.
+    fn lds(&self, anytime: bool) -> bool {
+        self.use_lds || (anytime && self.lookahead.is_none())
+    }
+
+    /// How the lookahead deepens, as `con-tree` maps its flags.
+    fn deepening(&self, lds: bool) -> Deepening {
+        match (self.anytime_lookahead, lds && self.lookahead_sync) {
+            (false, _) => Deepening::Fixed,
+            (true, true) => Deepening::Synced,
+            (true, false) => Deepening::EveryPass,
+        }
+    }
+
+    /// The anytime solver for these settings.
+    fn anytime_solver(&self, loss: Loss, lds: bool) -> ConTreeLds {
+        let mut solver = ConTreeLds::new(
+            self.min_sup,
+            self.max_depth,
+            self.max_time,
+            self.max_error,
+            self.point_selector,
+            self.max_gap,
+            self.sort_by_heuristic,
+            self.fast_d2,
+        )
+        .with_loss(loss)
+        .with_skipping(self.threshold_skipping)
+        .with_lds(lds);
+        if let Some(schedule) = self.budget_schedule {
+            solver = solver.with_schedule(schedule);
+        }
+        if let Some(lookahead) = self.lookahead {
+            solver = solver
+                .with_lookahead(lookahead, self.deepening(lds))
+                .with_lookahead_pruning(self.lookahead_pruning);
+        }
+        if let Some(seed) = self.random_state {
+            solver = solver.with_random_state(seed);
+        }
+        solver
+    }
 }
 
 struct Fitted {
@@ -226,10 +281,14 @@ impl RawConTree {
         fast_d2 = true,
         use_lds = false,
         random_state = None,
-        budget_schedule = "diagonal",
+        budget_schedule = None,
         error_function = None,
         error_function_input = "class_counts",
         threshold_skipping = "auto",
+        lookahead = None,
+        anytime_lookahead = false,
+        lookahead_sync = false,
+        lookahead_pruning = true,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -243,11 +302,20 @@ impl RawConTree {
         fast_d2: bool,
         use_lds: bool,
         random_state: Option<u64>,
-        budget_schedule: &str,
+        budget_schedule: Option<&str>,
         error_function: Option<Py<PyAny>>,
         error_function_input: &str,
         threshold_skipping: &str,
+        lookahead: Option<usize>,
+        anytime_lookahead: bool,
+        lookahead_sync: bool,
+        lookahead_pruning: bool,
     ) -> PyResult<Self> {
+        if anytime_lookahead && lookahead.is_none() {
+            return Err(PyValueError::new_err(
+                "anytime_lookahead=True needs a lookahead: it deepens the lookahead between passes",
+            ));
+        }
         Ok(Self {
             params: Params {
                 min_sup,
@@ -260,14 +328,34 @@ impl RawConTree {
                 fast_d2,
                 use_lds,
                 random_state,
-                budget_schedule: budget_schedule.parse().map_err(PyValueError::new_err)?,
+                budget_schedule: budget_schedule
+                    .map(str::parse)
+                    .transpose()
+                    .map_err(PyValueError::new_err)?,
                 error_function_input: loss_input(error_function_input)?,
                 threshold_skipping: skipping(threshold_skipping)?,
+                lookahead,
+                anytime_lookahead,
+                lookahead_sync,
+                lookahead_pruning,
             },
             error_function,
             failure: ErrorSlot::default(),
             fitted: None,
         })
+    }
+
+    /// Why the chosen budget schedule does not suit the split selection, if
+    /// it does not, when the LDS budgets apply; see `ScheduleKind::mismatch`.
+    /// `anytime` as in `fit_anytime`.
+    #[pyo3(signature = (anytime = false))]
+    fn schedule_warning(&self, anytime: bool) -> Option<String> {
+        if !self.params.lds(anytime) {
+            return None;
+        }
+        self.params
+            .budget_schedule?
+            .mismatch(self.params.point_selector)
     }
 
     /// Fits the tree. `y` must already be encoded as `0..n_classes`.
@@ -283,24 +371,8 @@ impl RawConTree {
 
         // Release the GIL: the search can run for minutes.
         let outcome = py.detach(|| {
-            if params.use_lds {
-                let mut solver = ConTreeLds::new(
-                    params.min_sup,
-                    params.max_depth,
-                    params.max_time,
-                    params.max_error,
-                    params.point_selector,
-                    params.max_gap,
-                    params.sort_by_heuristic,
-                    params.fast_d2,
-                )
-                .with_loss(loss)
-                .with_skipping(params.threshold_skipping);
-                solver = solver.with_schedule(params.budget_schedule);
-                if let Some(seed) = params.random_state {
-                    solver = solver.with_random_state(seed);
-                }
-                solver.fit(&dataset)
+            if params.use_lds || params.lookahead.is_some() {
+                params.anytime_solver(loss, params.lds(false)).fit(&dataset)
             } else {
                 let mut solver = ConTree::new(
                     params.min_sup,
@@ -347,22 +419,7 @@ impl RawConTree {
         let params = self.params;
         let loss = self.loss(py, dataset.num_labels());
 
-        let mut solver = ConTreeLds::new(
-            params.min_sup,
-            params.max_depth,
-            params.max_time,
-            params.max_error,
-            params.point_selector,
-            params.max_gap,
-            params.sort_by_heuristic,
-            params.fast_d2,
-        )
-        .with_loss(loss)
-        .with_skipping(params.threshold_skipping);
-        solver = solver.with_schedule(params.budget_schedule);
-        if let Some(seed) = params.random_state {
-            solver = solver.with_random_state(seed);
-        }
+        let mut solver = params.anytime_solver(loss, params.lds(true));
         validate(solver.config(), &dataset).map_err(search_err)?;
 
         let view = DataView::root(&dataset, params.sort_by_heuristic);
