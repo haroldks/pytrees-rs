@@ -137,8 +137,12 @@ if outcome.status == SearchStatus::Optimal {
 `SearchConfig::new` takes, in order: minimum support, maximum depth, time
 limit, tolerated gap, initial error bound, Gini ordering, depth-2 solver and
 point selector. Costs are `f64`. `ConTreeLds` is built the same way;
-`with_schedule` chooses its budget schedule and `trajectory()` returns every
-improvement as `(seconds, error)`.
+`with_schedule` chooses its budget schedule (by default `Diagonal` with the
+`First` selector and `Square` with the others, see `ScheduleKind::mismatch`)
+and `trajectory()` returns every improvement as `(seconds, error)`.
+`with_lookahead(ℓ, deepening)` turns it into SPLIT, `with_lds(false)` drops
+the budgets, and `with_lookahead_pruning(false)` keeps the interval pruner out
+of passes that complete nodes greedily.
 
 A custom leaf cost implements `LeafLoss`, which gets a leaf's class counts or
 row ids, and is passed with `with_loss`;

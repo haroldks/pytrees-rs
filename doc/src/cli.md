@@ -79,5 +79,31 @@ con-tree --input data.txt --depth 5 --use-lds --sort-by-heuristic --time-limit 6
 | `--split-selection-strategy` | `mid` | `mid`, `first` or `random`; see [ConTreeClassifier](estimators/contree.md). |
 | `--no-fast-d2` | | Disable the depth-2 solver. |
 | `--use-lds` | | Use the anytime search. |
-| `--budget-schedule` | `diagonal` | `diagonal` or `square`. |
+| `--budget-schedule` | `diagonal` with `first`, `square` otherwise | `diagonal` widens the feature discrepancy and the number of thresholds tried together; `square` widens only the discrepancy when the selector is `mid` or `random`, which use no threshold budget after the first pass. `con-tree` warns about `diagonal` with those selectors: most of its passes would repeat an earlier one. |
+| `--lookahead` | none | SPLIT: search only the top levels and complete each node below them with a greedy tree (lowest Gini first). Runs the anytime search, with its budgets only if `--use-lds` is given. The depth-2 solver still solves any node with two levels left, so a lookahead of depth − 2 or more is the exact search. |
+| `--anytime` | | With `--lookahead`: one level deeper between passes, until the whole depth is searched and the tree is optimal. |
+| `--sync` | | With `--anytime --use-lds`: spread the deepenings over the budget schedule, instead of deepening after every pass. |
+| `--no-lookahead-pruning` | | With `--lookahead`: run the interval pruner only in passes that search the whole depth. Its rules assume optimal subtrees, so in other passes it may skip a threshold whose greedy completion is better. |
 | `--print-tree`, `--print-stats` | | Print the tree, and the statistics with the reason the search stopped. |
+
+The four anytime modes:
+
+```bash
+con-tree --input data.txt --depth 5 --use-lds                              # LDS
+con-tree --input data.txt --depth 5 --lookahead 1                          # SPLIT, one pass
+con-tree --input data.txt --depth 5 --lookahead 0 --anytime                # anytime SPLIT
+con-tree --input data.txt --depth 5 --lookahead 0 --anytime --use-lds      # both
+```
+
+Which one to use: on 16 datasets with continuous features, at depths 4 and
+5 with a 60 s limit, the anytime SPLIT modes had the best trees early on: the
+average primal gap at 5 s was 22–30 % for anytime SPLIT, alone or with LDS,
+against 32–41 % for LDS alone (the primal gap of a run at a time is how far
+its best tree's error is from the best error any method reached, as a share
+of the larger of the two, averaged over the time so far). By 60 s all of them
+were within a point at depth 4, and at depth 5 LDS and anytime SPLIT with LDS
+(21.8 %) were ahead of anytime SPLIT alone (23.2 %). All with the `mid`
+selector and Gini ordering.
+
+A pass that completes nodes greedily never proves optimality: plain SPLIT
+ends with status `budget exhausted` unless its tree has no error.

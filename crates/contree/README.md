@@ -54,8 +54,10 @@ ran out of time or budget first.
 
 For the anytime search, build a `ConTreeLds` the same way. Its
 `with_schedule` method chooses how the budget grows between passes
-(`ScheduleKind::Diagonal` or `ScheduleKind::Square`), and `trajectory()`
-returns every improvement of the tree as `(seconds, error)`.
+(`ScheduleKind::Diagonal` or `ScheduleKind::Square`; by default the one that
+suits the point selector), and `trajectory()` returns every improvement of
+the tree as `(seconds, error)`. `with_lookahead` turns it into SPLIT: only the
+top levels are searched, and the nodes below are completed greedily.
 
 A split sends an instance left when `x[feature] <= threshold`, as in
 scikit-learn.
