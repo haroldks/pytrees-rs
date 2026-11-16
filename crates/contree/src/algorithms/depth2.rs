@@ -835,6 +835,7 @@ mod d2_test {
             nb_runs: 0,
             discrepancy: 0,
             budget: 0,
+            lookahead: usize::MAX,
         };
 
         // No upper bound from a parent: this is the root.

@@ -1,12 +1,13 @@
 mod continuous_tree;
 mod contree_lds;
 mod depth2;
+mod greedy;
 mod interval_pruner;
 mod shared;
 
 use crate::common::{
-    Cost, FitOutcome, PointSelector, ScheduleKind, SearchConfig, SearchError, SearchStatus,
-    Statistics,
+    Cost, Deepening, FitOutcome, PointSelector, ScheduleKind, SearchConfig, SearchError,
+    SearchStatus, Statistics,
 };
 use crate::data::view::DataView;
 use crate::data::Dataset;
@@ -125,6 +126,45 @@ impl GenericConTree {
         match self {
             GenericConTree::LDS(solver) => GenericConTree::LDS(solver.with_schedule(schedule)),
             other => other,
+        }
+    }
+
+    /// Makes the anytime search SPLIT; see [`ConTreeLds::with_lookahead`].
+    /// No effect on the exhaustive search.
+    pub fn with_lookahead(self, lookahead: usize, deepening: Deepening) -> Self {
+        match self {
+            GenericConTree::LDS(solver) => {
+                GenericConTree::LDS(solver.with_lookahead(lookahead, deepening))
+            }
+            other => other,
+        }
+    }
+
+    /// Whether the anytime search applies its discrepancy and split budgets;
+    /// see [`ConTreeLds::with_lds`]. No effect on the exhaustive search.
+    pub fn with_lds(self, lds: bool) -> Self {
+        match self {
+            GenericConTree::LDS(solver) => GenericConTree::LDS(solver.with_lds(lds)),
+            other => other,
+        }
+    }
+
+    /// See [`ConTreeLds::with_lookahead_pruning`]. No effect on the
+    /// exhaustive search.
+    pub fn with_lookahead_pruning(self, prune: bool) -> Self {
+        match self {
+            GenericConTree::LDS(solver) => {
+                GenericConTree::LDS(solver.with_lookahead_pruning(prune))
+            }
+            other => other,
+        }
+    }
+
+    /// The lookahead of the anytime search's next pass, `None` without SPLIT.
+    pub fn current_lookahead(&self) -> Option<usize> {
+        match self {
+            GenericConTree::Normal(_) => None,
+            GenericConTree::LDS(solver) => solver.current_lookahead(),
         }
     }
 

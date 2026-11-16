@@ -1,11 +1,13 @@
 use crate::algorithms::depth2::{ConTreeDepth2, Depth2Loss};
+use crate::algorithms::greedy::greedy_tree;
 use crate::algorithms::interval_pruner::{Bound, IntervalsPruner};
 use crate::algorithms::shared;
 use crate::algorithms::support_feasible_splits;
 use crate::caching::{Cache, Entry, SearchedUnder};
 use crate::common::{
-    Budget, BudgetSchedule, Cost, FitOutcome, Loss, PassReport, PointSelector, ScheduleBounds,
-    ScheduleKind, SearchConfig, SearchError, SearchStatus, Skipping, Statistics,
+    Budget, BudgetSchedule, Cost, Deepening, FitOutcome, LookaheadSchedule, Loss, PassReport,
+    PointSelector, ScheduleBounds, ScheduleKind, SearchConfig, SearchError, SearchStatus, Skipping,
+    Statistics,
 };
 use crate::data::view::DataView;
 use crate::data::{Dataset, Feature};
@@ -23,6 +25,15 @@ use std::time::Instant;
 /// feature it may try). A [`BudgetSchedule`] widens both budgets between
 /// passes, so a good tree is available early and the last complete pass
 /// proves optimality.
+///
+/// With [`Self::with_lookahead`] the search is SPLIT: only the top levels
+/// are searched, and each node below them is completed by a greedy tree. The
+/// lookahead can stay fixed or deepen between passes, alone
+/// ([`Self::with_lds`] off) or together with the budgets. A pass whose
+/// lookahead is below the depth never proves optimality, and the interval
+/// pruner's rules assume optimal subtree costs, so in such a pass they may
+/// skip a threshold whose greedy completion would have been better (see
+/// [`Self::with_lookahead_pruning`]).
 pub struct ConTreeLds {
     config: SearchConfig,
     statistics: Statistics,
@@ -32,7 +43,8 @@ pub struct ConTreeLds {
     rng: StdRng,
     max_discrepancy: usize,
     split_budget: usize,
-    schedule_kind: ScheduleKind,
+    /// The schedule chosen with [`Self::with_schedule`], if any.
+    schedule_kind: Option<ScheduleKind>,
     schedule: Option<Box<dyn BudgetSchedule>>,
     /// Which budgets truncated the pass in progress, read by the schedule.
     pass_report: PassReport,
@@ -42,6 +54,15 @@ pub struct ConTreeLds {
     loss: Loss,
     /// The first negative or NaN cost the loss returned during the fit.
     invalid_cost: Option<Cost>,
+    /// Whether the discrepancy and split budgets apply.
+    lds: bool,
+    /// The SPLIT lookahead to start from and how it deepens; `None` without
+    /// SPLIT.
+    lookahead: Option<(usize, Deepening)>,
+    lookahead_schedule: Option<LookaheadSchedule>,
+    /// Whether the interval pruner runs in passes that complete nodes
+    /// greedily.
+    prune_under_lookahead: bool,
 }
 
 impl ConTreeLds {
@@ -96,14 +117,51 @@ impl ConTreeLds {
             rng: StdRng::from_os_rng(),
             max_discrepancy: usize::MAX,
             split_budget: 1,
-            schedule_kind: ScheduleKind::default(),
+            schedule_kind: None,
             schedule: None,
             pass_report: PassReport::default(),
             status: SearchStatus::Optimal,
             trajectory: Vec::new(),
             loss: Loss::default(),
             invalid_cost: None,
+            lds: true,
+            lookahead: None,
+            lookahead_schedule: None,
+            prune_under_lookahead: true,
         }
+    }
+
+    /// Turns the search into SPLIT: the top `lookahead` levels are searched
+    /// and each node below them is completed by a greedy tree. `deepening`
+    /// says how the lookahead grows between passes.
+    pub fn with_lookahead(mut self, lookahead: usize, deepening: Deepening) -> Self {
+        self.lookahead = Some((lookahead, deepening));
+        self
+    }
+
+    /// Whether the discrepancy and split budgets apply (the default). Off,
+    /// every pass tries every feature and every threshold, which only makes
+    /// sense with a lookahead.
+    pub fn with_lds(mut self, lds: bool) -> Self {
+        self.lds = lds;
+        self
+    }
+
+    /// Whether the interval pruner runs in passes whose lookahead is below
+    /// the depth (the default). Its rules assume optimal subtree costs, which
+    /// greedy completions are not, so it may then skip a better threshold.
+    /// Turning it off makes those passes slower and exact SPLIT. Passes with
+    /// the full lookahead always prune.
+    pub fn with_lookahead_pruning(mut self, prune: bool) -> Self {
+        self.prune_under_lookahead = prune;
+        self
+    }
+
+    /// The lookahead of the next pass, `None` without SPLIT.
+    pub fn current_lookahead(&self) -> Option<usize> {
+        self.lookahead_schedule
+            .as_ref()
+            .map(LookaheadSchedule::current)
     }
 
     /// Minimises `loss` instead of misclassification.
@@ -159,15 +217,18 @@ impl ConTreeLds {
         })
     }
 
-    /// Chooses how the budget widens from pass to pass. See [`ScheduleKind`].
+    /// Chooses how the budget widens from pass to pass. See [`ScheduleKind`];
+    /// [`ScheduleKind::mismatch`] tells whether it suits the split selector.
     pub fn with_schedule(mut self, schedule: ScheduleKind) -> Self {
-        self.schedule_kind = schedule;
+        self.schedule_kind = Some(schedule);
         self
     }
 
-    /// The budget schedule this solver uses.
+    /// The budget schedule this solver uses: the one chosen, or else the one
+    /// suited to its split selector ([`ScheduleKind::for_selector`]).
     pub fn schedule(&self) -> ScheduleKind {
         self.schedule_kind
+            .unwrap_or_else(|| ScheduleKind::for_selector(self.config.point_selector))
     }
 
     fn apply(&mut self, budget: Budget) {
@@ -208,14 +269,26 @@ impl ConTreeLds {
                 root_view.get_feature_number(),
                 self.config.max_depth,
             ));
-            let mut schedule = self.schedule_kind.build(ScheduleBounds {
+            let bounds = ScheduleBounds {
                 max_discrepancy: self.max_discrepancy,
                 max_splits: root_view.get_max_splits(),
                 split_applies: self.config.point_selector == PointSelector::First,
+            };
+            if self.lds {
+                let mut schedule = self.schedule().build(bounds);
+                let budget = schedule.first();
+                self.apply(budget);
+                self.schedule = Some(schedule);
+            } else {
+                self.config.budget = usize::MAX;
+                self.split_budget = usize::MAX;
+                self.schedule = None;
+            }
+            let budgets = self.lds.then(|| self.schedule().passes(bounds));
+            self.lookahead_schedule = self.lookahead.map(|(lookahead, deepening)| {
+                LookaheadSchedule::new(lookahead, self.config.max_depth, deepening, budgets)
             });
-            let budget = schedule.first();
-            self.apply(budget);
-            self.schedule = Some(schedule);
+            self.config.lookahead = self.current_lookahead().unwrap_or(usize::MAX);
             root_index = self.cache.init();
 
             self.statistics.num_features = root_view.get_feature_number();
@@ -255,13 +328,17 @@ impl ConTreeLds {
         let stopped = self.expand_node_with_view(root_view, &config, &mut entry, 0, true, error);
         self.pass_report.improved = entry.error < error;
 
-        // Once the schedule has no larger budget, another pass would repeat
-        // the same truncated search, so the search stops here.
+        // Once neither the budgets nor the lookahead can grow, another pass
+        // would repeat the same truncated search, so the search stops here.
         let next_budget = self
             .schedule
             .as_mut()
             .and_then(|schedule| schedule.next(&self.pass_report));
-        let search_exhausted = next_budget.is_none();
+        let deepened = self
+            .lookahead_schedule
+            .as_mut()
+            .is_some_and(|lookahead| lookahead.advance(next_budget.is_some()));
+        let search_exhausted = next_budget.is_none() && !deepened;
 
         if !stopped || !self.time_remains() || search_exhausted {
             entry.is_optimal = true;
@@ -279,6 +356,9 @@ impl ConTreeLds {
 
         if let Some(budget) = next_budget {
             self.apply(budget);
+        }
+        if deepened {
+            self.config.lookahead = self.current_lookahead().unwrap_or(usize::MAX);
         }
 
         self.statistics.error = entry.error;
@@ -347,14 +427,14 @@ impl ConTreeLds {
         // the `first` selector and to the first pass of every selector.
         let under = SearchedUnder {
             discrepancy: config.budget.saturating_sub(config.discrepancy),
-            split_budget: if config.point_selector == PointSelector::First
-                || self.config.nb_runs <= 1
+            split_budget: if config.point_selector == PointSelector::First || self.first_lds_pass()
             {
                 self.split_budget
             } else {
                 usize::MAX
             },
             upper_bound,
+            lookahead: config.lookahead.min(config.max_depth),
             truncated: false,
         };
 
@@ -399,8 +479,24 @@ impl ConTreeLds {
         }
 
         // Only at depth exactly 2: `ConTreeDepth2` always builds two levels of
-        // tests, which would exceed a depth-1 request.
+        // tests, which would exceed a depth-1 request. It is exact and fast,
+        // so it runs whatever the lookahead, below it too.
         if config.fast_d2 && config.max_depth == 2 {
+            // The solver starts from the incumbent's root and only replaces
+            // it with a strictly better tree. Under a lookahead, an earlier
+            // pass may have left a split here (searched, or a greedy tree),
+            // which would come back as a root without children if nothing
+            // beats it. Start from the leaf instead.
+            if current_best.tree_idx.is_some() || current_best.feature != usize::MAX {
+                let (error, label) = self.leaf(view);
+                current_best.error = error;
+                current_best.label = label;
+                current_best.feature = usize::MAX;
+                current_best.split = f64::INFINITY;
+                current_best.left = 0;
+                current_best.right = 0;
+                current_best.tree_idx = None;
+            }
             // Every pass revisits the same depth-2 subproblems, so each one is
             // solved exactly once, without the parent's upper bound, and then
             // reused. The parent still compares the result to its own bound.
@@ -422,6 +518,10 @@ impl ConTreeLds {
             self.statistics.specialized_solver_call += 1;
 
             return false;
+        }
+
+        if config.lookahead == 0 {
+            return self.complete_greedily(view, config, current_best, parent_index, is_new, under);
         }
 
         let num_features = view.get_feature_number();
@@ -497,7 +597,7 @@ impl ConTreeLds {
         let feature_column = view.get_sorted_feature(feature_index);
         let feature_column_ids = view.get_feature_indices(feature_index);
 
-        if config.point_selector == PointSelector::First || self.config.nb_runs <= 1 {
+        if config.point_selector == PointSelector::First || self.first_lds_pass() {
             let stopped = self.expand_on_feature_gini_priority(
                 view,
                 feature_index,
@@ -527,7 +627,7 @@ impl ConTreeLds {
             possible_index_split,
             config.max_gap,
             config.min_sup,
-            config.skipping.applies(&self.loss),
+            self.prunes(config),
         );
         let mut queue = VecDeque::new();
         let init_bound = Bound::new(feasible.start, feasible.end - 1, None, None);
@@ -635,7 +735,7 @@ impl ConTreeLds {
             // interval pruner gains from it, so without threshold skipping the
             // bound is not widened.
             let budget = current_best.error.min(upper_bound + config.cost_step) - larger_error;
-            let widening = if config.skipping.applies(&self.loss) {
+            let widening = if self.prunes(config) {
                 int_half_distance
             } else {
                 0.0
@@ -696,6 +796,7 @@ impl ConTreeLds {
                     current_best.split = threshold_value;
                     current_best.left = left_index;
                     current_best.right = right_index;
+                    current_best.tree_idx = None;
 
                     if let Some(entry) = self.cache.get_mut(cache_index) {
                         *entry = *current_best;
@@ -773,7 +874,7 @@ impl ConTreeLds {
             possible_splits,
             config.max_gap,
             config.min_sup,
-            config.skipping.applies(&self.loss),
+            self.prunes(config),
         );
 
         // Thresholds already evaluated or ruled out by the pruner.
@@ -785,7 +886,7 @@ impl ConTreeLds {
         if config.use_heuristic {
             let sorted_indices = view.ordered_possible_splits(feature_index);
             for (idx, &split_idx) in sorted_indices.iter().enumerate() {
-                if self.config.nb_runs <= 1 && idx > 0 {
+                if self.first_lds_pass() && idx > 0 {
                     self.pass_report.cut_by_split = true;
                     return true;
                 }
@@ -824,7 +925,7 @@ impl ConTreeLds {
             }
         } else {
             for split_idx in 0..possible_splits.len() {
-                if self.config.nb_runs <= 1 && split_idx > 0 {
+                if self.first_lds_pass() && split_idx > 0 {
                     self.pass_report.cut_by_split = true;
                     return true;
                 }
@@ -989,7 +1090,7 @@ impl ConTreeLds {
         // pruner gains from it, so without threshold skipping the bound is
         // not widened.
         let budget = current_best.error.min(upper_bound + config.cost_step) - larger_error;
-        let widening = if config.skipping.applies(&self.loss) {
+        let widening = if self.prunes(config) {
             int_half_distance
         } else {
             0.0
@@ -1046,6 +1147,7 @@ impl ConTreeLds {
                 current_best.split = threshold_value;
                 current_best.left = left_index;
                 current_best.right = right_index;
+                current_best.tree_idx = None;
 
                 if let Some(entry) = self.cache.get_mut(cache_index) {
                     *entry = *current_best;
@@ -1082,6 +1184,83 @@ impl ConTreeLds {
             pruned[split_idx + 1..skip_to].fill(true);
         }
         stopped
+    }
+
+    /// Whether this is the first pass of the budgeted search, which tries
+    /// only the best threshold of each feature.
+    fn first_lds_pass(&self) -> bool {
+        self.lds && self.config.nb_runs <= 1
+    }
+
+    /// Whether the interval pruner and the bound widening that serves it run
+    /// at a node with this configuration.
+    fn prunes(&self, config: &SearchConfig) -> bool {
+        config.skipping.applies(&self.loss)
+            && (self.prune_under_lookahead || !Self::greedy_below(config))
+    }
+
+    /// Whether some node below one with this configuration is completed
+    /// greedily. The lookahead runs out `max_depth - lookahead` levels above
+    /// the leaves; there, and at any node above, the depth-2 solver takes
+    /// over a remaining depth of 2, so only a lookahead running out 3 or more
+    /// levels above the leaves (any level, without the solver) leaves a
+    /// greedy tree.
+    fn greedy_below(config: &SearchConfig) -> bool {
+        let unsearched = config.max_depth.saturating_sub(config.lookahead);
+        match config.fast_d2 {
+            true => unsearched >= 3,
+            false => unsearched >= 1,
+        }
+    }
+
+    /// Completes a node below the lookahead with a greedy tree, kept when it
+    /// beats the incumbent. The greedy tree of a node does not change between
+    /// passes, so it is grown once. Returns whether the node was truncated,
+    /// which it is unless its cost is 0.
+    fn complete_greedily(
+        &mut self,
+        view: &DataView<'_>,
+        config: &SearchConfig,
+        current_best: &mut Entry,
+        parent_index: usize,
+        is_new: bool,
+        under: SearchedUnder,
+    ) -> bool {
+        self.pass_report.cut_by_lookahead = true;
+        let grown_before = !is_new
+            && current_best
+                .searched_under
+                .is_some_and(|previous| previous.lookahead == 0);
+        if grown_before {
+            self.statistics.cache_hits += 1;
+        } else {
+            let (tree, cost) = greedy_tree(
+                view,
+                config.max_depth,
+                self.config.min_sup,
+                &self.loss,
+                &mut self.invalid_cost,
+            );
+            if cost < current_best.error && tree.root_details().feature.is_some() {
+                current_best.error = cost;
+                current_best.tree_idx = Some(self.cache.insert_tree(tree));
+                if config.is_root {
+                    self.trajectory.push((self.elapsed_time(), cost));
+                }
+            }
+        }
+
+        current_best.finalize_lower_bound(under.upper_bound);
+        let exact = current_best.error == 0.0;
+        current_best.is_optimal = exact && current_best.is_valid;
+        current_best.searched_under = Some(SearchedUnder {
+            truncated: !exact,
+            ..under
+        });
+        if let Some(entry) = self.cache.get_mut(parent_index) {
+            *entry = *current_best;
+        }
+        !exact
     }
 
     fn discrepancy_limit(nb_candidates: usize, remaining_depth: usize) -> usize {

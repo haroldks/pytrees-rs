@@ -308,7 +308,7 @@ impl<'a> DataView<'a> {
     /// Weighted Gini impurity of a split, from the class histograms of its
     /// two sides.
     #[inline]
-    fn compute_gini_from_frequencies(
+    pub(crate) fn compute_gini_from_frequencies(
         left_freq: &[usize],
         right_freq: &[usize],
         left_count: usize,

@@ -6,8 +6,10 @@
 #   run.sh upstream <out-dir> <label> <ConTree-binary> <dataset.txt> <depth> <method>
 #
 # ours:     <anytime-binary> is target/release/examples/anytime (or a copy built
-#           at another commit). Methods: contree, contree-gini, lds-first-gini,
-#           lds-mid-gini. Schedules: diagonal (default), square.
+#           at another commit). Methods: contree, contree-gini,
+#           lds-<sel>-gini, split-<sel>-gini, splitlds-<sel>-gini-<sync|nosync>
+#           with <sel> first, mid or random (see examples/anytime.rs).
+#           Schedules: diagonal or square; by default the one suited to <sel>.
 # upstream: ConTree from https://github.com/ConSol-Lab/contree built with
 #           PRINT_INTERMEDIARY_TIME_SOLUTIONS 1 (see README.md). Methods:
 #           contree, contree-gini.

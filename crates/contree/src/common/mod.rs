@@ -2,7 +2,9 @@ mod budget_schedule;
 mod loss;
 mod outcome;
 
-pub use budget_schedule::{Budget, BudgetSchedule, PassReport, ScheduleBounds, ScheduleKind};
+pub use budget_schedule::{
+    Budget, BudgetSchedule, Deepening, LookaheadSchedule, PassReport, ScheduleBounds, ScheduleKind,
+};
 pub use loss::{Leaf, LeafLoss, Loss, LossInput, Skipping};
 pub use outcome::{FitOutcome, SearchError, SearchStatus};
 
@@ -99,6 +101,10 @@ pub struct SearchConfig {
     pub discrepancy: usize,
     /// Discrepancy budget of the current pass (anytime search).
     pub budget: usize,
+    /// Levels below this node still searched exactly (SPLIT, anytime
+    /// search). At 0 the node is completed greedily; `usize::MAX` means no
+    /// lookahead.
+    pub lookahead: usize,
 }
 
 impl SearchConfig {
@@ -129,6 +135,7 @@ impl SearchConfig {
             nb_runs: 0,
             discrepancy: 0,
             budget: 0,
+            lookahead: usize::MAX,
         }
     }
 
@@ -148,6 +155,7 @@ impl SearchConfig {
     pub fn derive_left(&self) -> Self {
         let mut left_config = *self;
         left_config.max_depth -= 1;
+        left_config.lookahead = self.lookahead.saturating_sub(1);
         left_config.is_root = false;
         left_config.max_gap = ((self.max_gap - (self.max_gap / 2.0).ceil()) / 2.0).floor();
         left_config
@@ -158,6 +166,7 @@ impl SearchConfig {
     pub fn derive_right(&self, left_gap: Cost) -> Self {
         let mut right_config = *self;
         right_config.max_depth -= 1;
+        right_config.lookahead = self.lookahead.saturating_sub(1);
         right_config.is_root = false;
         right_config.max_gap = (self.max_gap - (self.max_gap / 2.0).ceil() - left_gap).max(0.0);
         right_config

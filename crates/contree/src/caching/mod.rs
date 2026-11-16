@@ -75,21 +75,26 @@ pub struct SearchedUnder {
     pub split_budget: usize,
     /// The upper bound given by the parent: no tree at or above it was useful.
     pub upper_bound: Cost,
-    /// The discrepancy or split budget cut the search short.
+    /// Levels below this node searched exactly before the greedy completion
+    /// took over (SPLIT); at least the remaining depth when there was none.
+    pub lookahead: usize,
+    /// The discrepancy or split budget, or the lookahead, cut the search
+    /// short.
     pub truncated: bool,
 }
 
 impl SearchedUnder {
     /// Whether this search's result stands in for a search under `other`.
     ///
-    /// It must have had at least `other`'s discrepancy and split budget. The
-    /// bound matters only when this search came back empty-handed
-    /// (`found_a_tree` false): pruning against a bound discards only what
-    /// could not beat it, so a tree found under one bound is the best the
-    /// budget allows under any looser bound too.
+    /// It must have had at least `other`'s discrepancy, split budget and
+    /// lookahead. The bound matters only when this search came back
+    /// empty-handed (`found_a_tree` false): pruning against a bound discards
+    /// only what could not beat it, so a tree found under one bound is the
+    /// best the budget allows under any looser bound too.
     pub fn covers(&self, other: &SearchedUnder, found_a_tree: bool) -> bool {
         other.discrepancy <= self.discrepancy
             && other.split_budget <= self.split_budget
+            && other.lookahead <= self.lookahead
             && (found_a_tree || other.upper_bound <= self.upper_bound)
     }
 }
