@@ -230,6 +230,7 @@ impl Cache {
 
     /// Stores a subtree built by the depth-2 solver and returns its index.
     pub fn insert_tree(&mut self, tree: Tree) -> usize {
+        debug_assert!(tree.validate().is_ok(), "a malformed subtree: {tree:?}");
         let len = self.trees.len();
         self.trees.push(tree);
         len
