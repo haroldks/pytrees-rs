@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["EXACT"],"enum":["Index"],"struct":["CacheEntry","CacheKey","CoverMap","SearchPath","Trie"],"trait":["Caching"]};

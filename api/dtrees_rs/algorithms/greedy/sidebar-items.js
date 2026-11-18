@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["factories"],"struct":["LGDT","LGDTBuilder"]};

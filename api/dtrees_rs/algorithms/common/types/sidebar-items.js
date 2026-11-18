@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["BranchingPolicy","FitError","LowerBoundPolicy","NodeDataType","OptimalDepth2Policy","RuleType","SearchHeuristic","SearchStepStrategy"],"struct":["SearchResult","SearchStatistics"],"type":["BranchingChoice"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Leaf","Loss","LossInput","PointSelector","ScheduleKind","SearchError","SearchStatus","Skipping"],"fn":["classification_error"],"struct":["Budget","FitOutcome","PassReport","ScheduleBounds","SearchConfig","Statistics"],"trait":["BudgetSchedule","LeafLoss"],"type":["Cost"]};

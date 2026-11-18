@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["entropy","gini_index","information_gain","weighted_entropy"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["algorithms","bitsets","caching","cover","globals","parsers","reader","tree"]};
