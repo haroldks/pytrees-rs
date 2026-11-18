@@ -294,6 +294,7 @@ impl ConTree {
         // tests, which would exceed a depth-1 request.
         if config.fast_d2 && config.max_depth == 2 {
             let skipping = config.skipping.applies(&self.loss);
+            let previous = (current_best.error, current_best.tree_idx);
             let tree = self.specialized.fit(
                 view,
                 config,
@@ -304,7 +305,14 @@ impl ConTree {
             );
             current_best.finalize_lower_bound(upper_bound);
             current_best.is_optimal = current_best.is_valid;
-            let tree_index = self.cache.insert_tree(tree);
+            // The solver replaces the root only with a strictly better tree.
+            // When an earlier search of this entry stored one and nothing beat
+            // it, the new tree is that root without its split or children, so
+            // the stored tree is kept.
+            let tree_index = match previous {
+                (error, Some(index)) if current_best.error == error => index,
+                _ => self.cache.insert_tree(tree),
+            };
             if let Some(entry) = self.cache.get_mut(parent_index) {
                 *entry = *current_best;
                 entry.tree_idx = Some(tree_index);
@@ -899,10 +907,62 @@ impl ConTree {
 #[cfg(test)]
 mod contree_test {
     use crate::algorithms::continuous_tree::ConTree;
-    use crate::common::{Cost, PointSelector};
+    use crate::caching::{Cache, Entry};
+    use crate::common::{Cost, PointSelector, SearchConfig};
+    use crate::data::view::DataView;
     use crate::reader::data_reader::DataReader;
     use crate::reader::DataReaderError;
     use crate::tests::fixture;
+
+    /// An entry the depth-2 solver already solved, then searched again
+    /// under a bound its tree does not meet, as happens when a bound cut the
+    /// first search short. Nothing beats the stored tree, so it must stay.
+    #[test]
+    fn a_depth_two_rerun_that_finds_nothing_better_keeps_the_stored_tree(
+    ) -> Result<(), DataReaderError> {
+        let reader = DataReader::default();
+        let mut dataset = reader.read_file(&fixture("hepatitis.txt"))?;
+        dataset.sort_features();
+
+        let mut solver = ConTree::new(
+            1,
+            2,
+            100.0,
+            Cost::INFINITY,
+            PointSelector::Mid,
+            0.0,
+            false,
+            true,
+        );
+        solver.config.cost_step = SearchConfig::cost_step_for(&solver.loss);
+        let view = DataView::root(&dataset, false);
+        solver.cache = Cache::new(2, view.total_instances);
+        let root = solver.cache.init();
+        let (error, label) = solver.leaf(&view);
+        let mut entry = Entry {
+            error,
+            label,
+            ..Entry::default()
+        };
+        let config = solver.config;
+        solver.expand_node_with_view(&view, &config, &mut entry, root, true, Cost::INFINITY);
+        let mut entry = *solver.cache.get(root).expect("root");
+        let stored = entry.tree_idx.expect("the solver stores its tree");
+        let best = entry.error;
+        assert!(best > 0.0, "the test needs a tree that makes errors");
+
+        entry.is_optimal = false;
+        entry.is_valid = false;
+        *solver.cache.get_mut(root).expect("root") = entry;
+        solver.expand_node_with_view(&view, &config, &mut entry, root, false, best - 1.0);
+
+        let root_entry = solver.cache.get(root).expect("root");
+        assert_eq!(root_entry.error, best);
+        assert_eq!(root_entry.tree_idx, Some(stored));
+        let tree = solver.cache.get_tree(stored).expect("stored tree");
+        assert!(tree.validate().is_ok(), "{tree:?}");
+        Ok(())
+    }
 
     #[test]
     fn deeper_search_never_scores_worse() -> Result<(), DataReaderError> {
